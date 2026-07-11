@@ -1,0 +1,122 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // ─── Helper Functions ──────────────────────────────────────────────────
+    function isLoggedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return request.auth.uid == uid;
+    }
+
+    function isGuru() {
+      return firestore.exists(/databases/(default)/documents/users/$(request.auth.uid))
+        && firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'guru';
+    }
+
+    function isAdmin() {
+      return isLoggedIn() && 
+        (
+          (firestore.exists(/databases/(default)/documents/users/$(request.auth.uid)) && 
+           firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin') ||
+          (firestore.exists(/databases/(default)/documents/admins/$(request.auth.uid)) && 
+           firestore.get(/databases/(default)/documents/admins/$(request.auth.uid)).data.role == 'admin')
+        );
+    }
+
+    // Cek ukuran file maksimal (dalam bytes)
+    function isValidSize(maxMB) {
+      return request.resource.size <= maxMB * 1024 * 1024;
+    }
+
+    // Cek apakah file adalah gambar
+    function isImage() {
+      return request.resource.contentType.matches('image/.*');
+    }
+
+    // ─── Karya Seni (Artworks) ────────────────────────────────────────────
+    // Path: /artworks/{uid}/{filename}
+    match /artworks/{uid}/{filename} {
+      // Semua user login bisa lihat karya (galeri publik)
+      allow read: if isLoggedIn();
+
+      // Hanya pemilik yang bisa upload karya miliknya
+      // Maksimal 10 MB per file, harus berupa gambar
+      allow create: if isLoggedIn()
+                    && isOwner(uid)
+                    && isImage()
+                    && isValidSize(10);
+
+      // Hanya pemilik atau guru yang bisa hapus karya
+      allow delete: if isLoggedIn() && (isOwner(uid) || isGuru());
+
+      // Karya tidak bisa diubah setelah diupload
+      allow update: if false;
+    }
+
+    // ─── Avatar Profil ────────────────────────────────────────────────────
+    // Path: /avatars/{uid}/{filename}
+    match /avatars/{uid}/{filename} {
+      // Semua user login bisa lihat avatar
+      allow read: if isLoggedIn();
+
+      // Hanya pemilik yang bisa upload/ganti avatarnya
+      // Maksimal 5 MB, harus berupa gambar
+      allow create, update: if isLoggedIn()
+                             && isOwner(uid)
+                             && isImage()
+                             && isValidSize(5);
+
+      // Hanya pemilik yang bisa hapus avatarnya
+      allow delete: if isLoggedIn() && isOwner(uid);
+    }
+
+    // ─── Bukti Mengajar Guru ──────────────────────────────────────────────
+    // Path: /guru_bukti/{uid}/{filename}
+    match /guru_bukti/{uid}/{filename} {
+      // Pemilik atau Admin bisa membaca bukti mengajar
+      allow read: if isLoggedIn() && (isOwner(uid) || isAdmin());
+
+      // Pemilik bisa upload bukti (Maks 5 MB, Image)
+      allow create, update: if isLoggedIn()
+                             && isOwner(uid)
+                             && isImage()
+                             && isValidSize(5);
+
+      // Pemilik atau Admin bisa menghapus bukti mengajar
+      allow delete: if isLoggedIn() && (isOwner(uid) || isAdmin());
+    }
+
+    // ─── Template Gambar (Drawing Templates) ──────────────────────────────
+    // Path: /templates/{filename}
+    match /templates/{filename} {
+      // Semua user login bisa membaca template gambar
+      allow read: if isLoggedIn();
+
+      // Hanya admin yang bisa mengunggah dan mengedit template gambar (Maks 5 MB, Image)
+      allow create, update: if isAdmin() && isImage() && isValidSize(5);
+
+      // Hanya admin yang bisa menghapus template gambar
+      allow delete: if isAdmin();
+    }
+
+    // ─── Asset Publik (Game, Karakter, dll) ──────────────────────────────
+    // Path: /public/{filename}
+    // Asset ini diupload manual via Firebase Console oleh admin
+    match /public/{allPaths=**} {
+      // Semua orang (bahkan tanpa login) bisa baca asset publik
+      allow read: if true;
+
+      // Tidak ada yang bisa upload/hapus dari client
+      allow write: if false;
+    }
+
+    // ─── Default: Tolak semua yang tidak diatur ──────────────────────────
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

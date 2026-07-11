@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EPIC - Ecocultural Pattern Innovation Creator</title>
+    <meta name="description" content="EPIC (Ecocultural Pattern Innovation Creator) adalah aplikasi edukasi interaktif dengan AI Gemini untuk belajar menggambar pola budaya Nusantara dan batik.">
+    <meta name="keywords" content="epic app, epic, ecocultural pattern, belajar batik, menggambar pola budaya, aplikasi edukasi budaya, gemini ai education">
+    <meta name="author" content="Tim EPIC">
+    <meta name="robots" content="index, follow">
+    
+    <!-- Open Graph / Facebook / WhatsApp -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="EPIC App - Platform Edukasi Budaya Nusantara">
+    <meta property="og:description" content="Aplikasi interaktif dengan AI untuk melestarikan dan mempelajari cara menggambar pola budaya Nusantara.">
+    <meta property="og:image" content="/logo.png">
+    
+    <!-- Favicon -->
+    <link rel="icon" href="/logo.png" type="image/png">
+    <link rel="apple-touch-icon" href="/logo.png">
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        :root {
+            /* Warna Utama */
+            --primary: #FF7500;
+            --primary-glow: rgba(255, 117, 0, 0.35);
+            --secondary: #8B5CF6;
+            
+            /* Latar Belakang "Balanced" - Charcoal / Soft Dark */
+            --bg-base: #151518;
+            --bg-surface: #1E1E24;
+            
+            /* Efek Kaca (Glassmorphism) */
+            --bg-glass: rgba(30, 30, 36, 0.7);
+            --border-glass: rgba(255, 255, 255, 0.08);
+            
+            /* Teks */
+            --text-main: #F3F4F6;
+            --text-muted: #9CA3AF;
+            
+            /* Font */
+            --font-display: 'Outfit', sans-serif;
+            --font-body: 'Plus Jakarta Sans', sans-serif;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            scroll-behavior: smooth;
+        }
+
+        body {
+            background-color: var(--bg-base);
+            color: var(--text-main);
+            font-family: var(--font-body);
+            line-height: 1.6;
+            overflow-x: hidden;
+            -webkit-font-smoothing: antialiased;
+            
+            /* Ambient Background Mesh Gradient (Elegan) */
+            background-image: 
+                radial-gradient(circle at 10% 20%, rgba(255, 117, 0, 0.06) 0%, transparent 45%),
+                radial-gradient(circle at 90% 40%, rgba(139, 92, 246, 0.06) 0%, transparent 45%),
+                radial-gradient(circle at 50% 100%, rgba(255, 117, 0, 0.04) 0%, transparent 40%);
+            background-attachment: fixed;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: var(--bg-base); }
+        ::-webkit-scrollbar-thumb { background: #374151; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--primary); }
+
+        /* Navbar */
+        nav {
+            position: fixed;
+            top: 0;
+            width: 100%;
+            padding: 15px 8%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 1000;
+            background: var(--bg-glass);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border-bottom: 1px solid var(--border-glass);
+            transition: all 0.4s ease;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            text-decoration: none;
+            color: var(--text-main);
+        }
+
+        .logo img {
+            height: 42px;
+            width: auto;
+            border-radius: 8px;
+        }
+
+        .logo span {
+            font-family: var(--font-display);
+            font-size: 24px;
+            font-weight: 800;
+            letter-spacing: 1.5px;
+            color: var(--text-main);
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 40px;
+            list-style: none;
+            align-items: center;
+        }
+
+        .nav-links a {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 14.5px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            transition: color 0.3s ease;
+        }
+
+        .nav-links a:hover { color: var(--text-main); }
+
+        /* Buttons */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            padding: 15px 32px;
+            border-radius: 100px;
+            font-family: var(--font-body);
+            font-weight: 700;
+            font-size: 15px;
+            text-decoration: none;
+            cursor: pointer;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            border: none;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #FF8928 0%, #FF6000 100%);
+            color: white;
+            box-shadow: 0 10px 25px var(--primary-glow);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-4px) scale(1.02);
+            box-shadow: 0 15px 35px rgba(255, 117, 0, 0.5);
+            color: white;
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-main);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.2);
+            transform: translateY(-4px);
+        }
+
+        /* Hero Section */
+        .hero {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 120px 8% 60px;
+            position: relative;
+            max-width: 1400px;
+            margin: 0 auto;
+            gap: 40px;
+        }
+
+        .hero-content {
+            flex: 1.1;
+            max-width: 650px;
+            z-index: 2;
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 18px;
+            background: rgba(255, 117, 0, 0.1);
+            border: 1px solid rgba(255, 117, 0, 0.2);
+            border-radius: 100px;
+            color: #FF9A40;
+            font-size: 13px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            margin-bottom: 24px;
+        }
+
+        .hero h1 {
+            font-family: var(--font-display);
+            font-size: clamp(40px, 5.5vw, 62px);
+            font-weight: 800;
+            line-height: 1.15;
+            margin-bottom: 24px;
+            letter-spacing: -0.5px;
+            color: #FFFFFF;
+        }
+
+        .hero h1 span {
+            background: linear-gradient(135deg, #FF9A40 0%, #FF6000 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .hero p {
+            font-size: 17.5px;
+            color: var(--text-muted);
+            margin-bottom: 40px;
+            line-height: 1.7;
+            max-width: 540px;
+        }
+
+        .hero-actions {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+
+        .hero-visual {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            z-index: 1;
+            perspective: 1200px; /* Perspective for 3D effect */
+        }
+
+        /* 3D Realistic Phone Mockup */
+        .device-wrapper {
+            position: relative;
+            width: 300px;
+            height: 610px; /* Adjusted to better match typical phone aspect ratio */
+            transform-style: preserve-3d;
+            transform: perspective(1200px) rotateY(-10deg) rotateX(5deg) rotateZ(-2deg);
+            animation: float-3d 6s ease-in-out infinite;
+        }
+
+        /* The physical body/edge of the phone */
+        .device-frame {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border-radius: 44px;
+            background: #111;
+            /* Create the 3D edge using layered box-shadows (Reduced for natural angle) */
+            box-shadow: 
+                inset 0 0 2px 2px rgba(255,255,255,0.05),
+                inset 0 0 0 7px #0a0a0c,
+                -1px 1px 0 1px #333,
+                -2px 2px 0 1px #222,
+                -3px 3px 0 1px #111,
+                -4px 4px 0 1px #0a0a0c,
+                -15px 20px 30px rgba(0,0,0,0.6),
+                -8px 10px 40px rgba(255, 117, 0, 0.1);
+            z-index: 2;
+        }
+
+        /* Screen Container */
+        .device-screen-container {
+            position: absolute;
+            top: 7px;
+            left: 7px;
+            right: 7px;
+            bottom: 7px;
+            background: #000;
+            border-radius: 36px;
+            overflow: hidden;
+            transform: translateZ(1px);
+            z-index: 3;
+        }
+
+        /* Camera Notch */
+        .device-notch {
+            position: absolute;
+            top: 7px;
+            left: 50%;
+            transform: translateX(-50%) translateZ(2px);
+            width: 100px;
+            height: 25px;
+            background: #0a0a0c;
+            border-bottom-left-radius: 16px;
+            border-bottom-right-radius: 16px;
+            z-index: 5;
+            box-shadow: inset 0 -2px 5px rgba(255,255,255,0.05);
+        }
+
+        /* Screen Reflection (Glass Glare) */
+        .device-glare {
+            position: absolute;
+            top: 0;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: linear-gradient(
+                105deg,
+                rgba(255,255,255,0) 30%,
+                rgba(255,255,255,0.08) 50%,
+                rgba(255,255,255,0) 70%
+            );
+            transform: rotate(-25deg) translateZ(3px);
+            pointer-events: none;
+            z-index: 6;
+        }
+
+        .device-screen {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            object-position: top center;
+        }
+
+        .visual-glow {
+            position: absolute;
+            width: 350px;
+            height: 350px;
+            background: radial-gradient(circle, rgba(255, 117, 0, 0.2) 0%, transparent 70%);
+            border-radius: 50%;
+            z-index: 1;
+            transform: translateZ(-100px); /* Push behind the 3D phone */
+        }
+
+        @keyframes float-3d {
+            0%, 100% { transform: perspective(1200px) rotateY(-10deg) rotateX(5deg) rotateZ(-2deg) translateY(0); }
+            50% { transform: perspective(1200px) rotateY(-8deg) rotateX(7deg) rotateZ(-1deg) translateY(-15px); }
+        }
+
+        /* Features Section */
+        .features {
+            padding: 100px 8%;
+            background: var(--bg-base);
+            position: relative;
+        }
+
+        /* Top Border Line */
+        .features::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 10%;
+            right: 10%;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+        }
+
+        .section-header {
+            text-align: center;
+            margin-bottom: 70px;
+        }
+
+        .section-header h2 {
+            font-family: var(--font-display);
+            font-size: 38px;
+            font-weight: 800;
+            margin-bottom: 16px;
+            color: #FFFFFF;
+        }
+
+        .section-header p {
+            color: var(--text-muted);
+            font-size: 17px;
+            max-width: 550px;
+            margin: 0 auto;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .card {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-glass);
+            border-radius: 24px;
+            padding: 40px;
+            transition: all 0.4s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .card:hover {
+            transform: translateY(-8px);
+            border-color: rgba(255, 117, 0, 0.3);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3), 0 0 20px rgba(255, 117, 0, 0.05);
+        }
+
+        .card-icon {
+            width: 64px;
+            height: 64px;
+            background: rgba(255, 117, 0, 0.08);
+            border: 1px solid rgba(255, 117, 0, 0.15);
+            border-radius: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 26px;
+            color: var(--primary);
+            margin-bottom: 24px;
+        }
+
+        .card h3 {
+            font-family: var(--font-display);
+            font-size: 22px;
+            font-weight: 750;
+            margin-bottom: 12px;
+            color: #FFFFFF;
+        }
+
+        .card p {
+            color: var(--text-muted);
+            font-size: 15px;
+            line-height: 1.7;
+        }
+
+        /* Footer */
+        footer {
+            border-top: 1px solid var(--border-glass);
+            padding: 60px 8% 40px;
+            background: #101012;
+            text-align: center;
+        }
+
+        .footer-logo {
+            font-family: var(--font-display);
+            font-size: 26px;
+            font-weight: 800;
+            margin-bottom: 15px;
+            color: #FFFFFF;
+            letter-spacing: 1px;
+        }
+
+        .footer-links {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-bottom: 35px;
+        }
+
+        .footer-links a {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            transition: color 0.3s;
+        }
+
+        .footer-links a:hover { color: var(--primary); }
+
+        .copyright {
+            color: #6B7280;
+            font-size: 14px;
+        }
+
+        /* Modal Popup (Coming Soon) */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .modal-overlay.show {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .modal-box {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-glass);
+            border-radius: 28px;
+            padding: 40px;
+            max-width: 420px;
+            width: 90%;
+            text-align: center;
+            transform: translateY(30px) scale(0.95);
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            box-shadow: 0 30px 60px rgba(0,0,0,0.5), 0 0 40px rgba(255, 117, 0, 0.1);
+        }
+
+        .modal-overlay.show .modal-box {
+            transform: translateY(0) scale(1);
+        }
+
+        .modal-icon {
+            width: 70px;
+            height: 70px;
+            background: rgba(255, 117, 0, 0.1);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--primary);
+            font-size: 32px;
+            margin: 0 auto 20px;
+        }
+
+        .modal-title {
+            font-family: var(--font-display);
+            font-size: 26px;
+            font-weight: 800;
+            color: #FFFFFF;
+            margin-bottom: 12px;
+        }
+
+        .modal-text {
+            color: var(--text-muted);
+            font-size: 15px;
+            line-height: 1.6;
+            margin-bottom: 30px;
+        }
+
+        .modal-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .btn-modal-ok {
+            background: #2A2A35;
+            color: white;
+            padding: 14px;
+            border-radius: 12px;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .btn-modal-ok:hover {
+            background: #3F3F4E;
+        }
+
+        .btn-modal-download {
+            background: linear-gradient(135deg, #FF8928 0%, #FF6000 100%);
+            color: white;
+            padding: 14px;
+            border-radius: 12px;
+            font-weight: 600;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: transform 0.2s, box-shadow 0.2s;
+            box-shadow: 0 8px 20px rgba(255, 117, 0, 0.3);
+        }
+
+        .btn-modal-download:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 25px rgba(255, 117, 0, 0.4);
+        }
+
+        /* Responsive */
+        @media (max-width: 992px) {
+            .hero {
+                flex-direction: column;
+                text-align: center;
+                padding-top: 130px;
+                gap: 70px;
+            }
+            .hero-content {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+            }
+            .hero-actions { justify-content: center; }
+            .nav-links { display: none; }
+            
+            .device-wrapper {
+                /* Reduce 3D rotation on mobile to fit better */
+                transform: perspective(1200px) rotateY(-5deg) rotateX(5deg) rotateZ(0deg);
+                animation: float-3d-mobile 6s ease-in-out infinite;
+            }
+            
+            @keyframes float-3d-mobile {
+                0%, 100% { transform: perspective(1200px) rotateY(-5deg) rotateX(5deg) rotateZ(0deg) translateY(0); }
+                50% { transform: perspective(1200px) rotateY(-3deg) rotateX(7deg) rotateZ(0deg) translateY(-10px); }
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Navbar -->
+    <nav>
+        <a href="/" class="logo">
+            <img src="logo.png" alt="EPIC">
+            <span>EPIC</span>
+        </a>
+        <ul class="nav-links">
+            <li><a href="#features">Fitur</a></li>
+            <li><a href="/privacy.html">Privasi</a></li>
+            <li><a href="/terms.html">Ketentuan</a></li>
+        </ul>
+        <a href="/epic.apk" class="btn btn-primary" style="padding: 10px 24px; font-size: 13.5px;">
+            Unduh APK
+        </a>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="hero-content">
+            <div class="badge">
+                Platform Edukasi Budaya
+            </div>
+            <h1>Mari Lestarikan Budaya Lewat <span>Inovasi Digital</span></h1>
+            <p>
+                EPIC (Ecocultural Pattern Innovation Creator) hadir sebagai sarana edukasi interaktif untuk mempelajari pola ornamen dan seni menganyam khas Nusantara dengan cara yang menyenangkan.
+            </p>
+            <div class="hero-actions">
+                <button onclick="showComingSoon()" class="btn btn-primary">
+                    <i class="fa-solid fa-play"></i> Mainkan di Web
+                </button>
+                <a href="/epic.apk" class="btn btn-secondary">
+                    <i class="fa-brands fa-android"></i> Unduh APK
+                </a>
+            </div>
+        </div>
+        <div class="hero-visual">
+            <div class="visual-glow"></div>
+            <!-- Realistic 3D Device Rendering -->
+            <div class="device-wrapper">
+                <div class="device-frame"></div>
+                <div class="device-notch"></div>
+                <div class="device-screen-container">
+                    <img src="app_home.png" class="device-screen" alt="EPIC Interface">
+                    <div class="device-glare"></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section class="features" id="features">
+        <div class="section-header">
+            <h2>Kreativitas Tanpa Batas</h2>
+            <p>Belajar, bermain, dan tingkatkan pemahaman budaya lokal dengan fitur-fitur menarik.</p>
+        </div>
+        <div class="grid">
+            <div class="card">
+                <div class="card-icon"><i class="fa-solid fa-pen-nib"></i></div>
+                <h3>Kanvas Ornamen</h3>
+                <p>Buat dan warnai pola ornamen daerah secara digital menggunakan alat gambar yang presisi.</p>
+            </div>
+            <div class="card">
+                <div class="card-icon"><i class="fa-solid fa-border-all"></i></div>
+                <h3>Simulasi Menganyam</h3>
+                <p>Pelajari teknik dasar menganyam melalui fitur simulasi interaktif yang mudah dipahami.</p>
+            </div>
+            <div class="card">
+                <div class="card-icon"><i class="fa-solid fa-medal"></i></div>
+                <h3>Misi & Peringkat</h3>
+                <p>Selesaikan berbagai misi edukasi harian dan raih peringkat tertinggi di papan skor antar pengguna.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <div class="footer-logo">EPIC</div>
+        <div class="footer-links">
+            <a href="#features">Fitur</a>
+            <a href="/privacy.html">Kebijakan Privasi</a>
+            <a href="/terms.html">Ketentuan Layanan</a>
+        </div>
+        <div class="copyright">
+            &copy; 2026 EPIC - Ecocultural Pattern Innovation Creator.
+        </div>
+    </footer>
+
+    <!-- Modal Pop-up (Coming Soon) -->
+    <div class="modal-overlay" id="comingSoonModal">
+        <div class="modal-box">
+            <div class="modal-icon">
+                <i class="fa-solid fa-laptop-code"></i>
+            </div>
+            <div class="modal-title">Segera Hadir!</div>
+            <div class="modal-text">
+                EPIC versi Web saat ini sedang dalam tahap pengembangan. Untuk sementara waktu, silakan mainkan versi lengkapnya di perangkat Android Anda.
+            </div>
+            <div class="modal-actions">
+                <button class="btn-modal-ok" onclick="closeComingSoon()">Oke, Mengerti</button>
+                <a href="/epic.apk" class="btn-modal-download">
+                    <i class="fa-brands fa-android"></i> Unduh APK Android
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script>
+        function showComingSoon() {
+            document.getElementById('comingSoonModal').classList.add('show');
+        }
+        
+        function closeComingSoon() {
+            document.getElementById('comingSoonModal').classList.remove('show');
+        }
+        
+        // Close modal when clicking outside the box
+        document.getElementById('comingSoonModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeComingSoon();
+            }
+        });
+    </script>
+</body>
+</html>

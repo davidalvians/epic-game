@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "745796494398",
+    "project_id": "epic-app1",
+    "storage_bucket": "epic-app1.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:745796494398:android:e25798652ff972bf0f5d6f",
+        "android_client_info": {
+          "package_name": "com.epic.epic_app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "745796494398-m3svsvk4onumk8fttpid2ikeacg4164s.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBmhhz1N_bFZFJsKhSgtD1fl1kGecOC7xk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "745796494398-m3svsvk4onumk8fttpid2ikeacg4164s.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

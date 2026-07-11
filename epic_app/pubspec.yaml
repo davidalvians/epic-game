@@ -1,0 +1,95 @@
+name: epic_app
+description: "EPIC - Ecocultural Pattern Innovation Creator. Aplikasi edukasi interaktif bertema budaya Madura untuk anak SD."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.5.0
+  flutter: ">=3.22.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  # State management & routing
+  get: ^4.6.6
+  # Fonts
+  google_fonts: ^6.1.0
+  # Animations
+  lottie: ^3.1.0
+  # Firebase
+  firebase_core: ^3.6.0
+  firebase_auth: ^5.3.1
+  cloud_firestore: ^5.4.4
+  firebase_storage: ^12.3.2
+  firebase_app_check: ^0.3.1+4
+  # Local storage
+  shared_preferences: ^2.2.2
+  # Image caching
+  cached_network_image: ^3.3.1
+  # SVG support
+  flutter_svg: ^2.0.10+1
+  # Connectivity
+  connectivity_plus: ^5.0.2
+  # Package info
+  package_info_plus: ^9.0.1
+  # Splash screen
+  flutter_native_splash: ^2.3.10
+  # App review
+  app_review: ^3.0.0
+  image_picker: ^1.2.2
+  audioplayers: ^6.6.0
+  google_sign_in: ^6.2.1
+  intl: ^0.19.0
+  http: ^1.2.1
+  gal: ^2.3.0
+  permission_handler: ^11.3.1
+  flutter_colorpicker: ^1.1.0
+  path_provider: ^2.1.5
+  confetti: ^0.8.0
+  qr_flutter: ^4.1.0
+  mobile_scanner: ^7.2.0
+  url_launcher: ^6.3.2
+  device_info_plus: ^10.1.2
+  excel: ^4.0.6
+  pdf: ^3.12.0
+  open_file_plus: ^3.4.1+1
+  cloud_functions: ^5.6.2
+  perfect_freehand: ^2.5.2+1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+  flutter_launcher_icons: ^0.14.3
+
+flutter_native_splash:
+  color: "#1C1C2E"
+  image: assets/images/logo/epic_logo_v2.png
+  android: true
+  ios: true
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/images/logo/epic_logo_v2.png"
+  adaptive_icon_background: "#87CEEB"
+  adaptive_icon_foreground: "assets/images/logo/epic_logo_v2.png"
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/
+    - assets/images/character/
+    - assets/images/character/default/
+    - assets/images/character/ipeh/
+    - assets/images/background/
+    - assets/images/icons/
+    - assets/images/logo/
+    - assets/images/onboarding/
+    - assets/animations/
+    - assets/audio/
+
+  # Font lokal dihapus karena file TTF tidak valid (placeholder).
+  # Menggunakan google_fonts package sebagai gantinya.
+  # fonts: []

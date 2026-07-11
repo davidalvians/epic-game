@@ -1,0 +1,285 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ─── Helper Functions ──────────────────────────────────────────────────
+    function isLoggedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return request.auth.uid == uid;
+    }
+
+    function isAdmin() {
+      return isLoggedIn() && 
+        (
+          (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin') ||
+          (exists(/databases/$(database)/documents/admins/$(request.auth.uid)) && 
+           get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role == 'admin')
+        );
+    }
+
+    function isGuru() {
+      return isLoggedIn() && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'guru';
+    }
+
+    function isGuruVerified() {
+      return isGuru() && 
+        (
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.verifikasiStatus == 'approved' ||
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.guruStatus == 'approved'
+        );
+    }
+
+    // Validasi field numerik tidak negatif
+    function isNonNegative(val) {
+      return val is int && val >= 0;
+    }
+
+    // ─── USERS Collection ─────────────────────────────────────────────────
+    match /users/{uid} {
+      // Siapapun yang login bisa baca profil user (untuk ranking, dll)
+      allow read: if isLoggedIn();
+
+      // Hanya pemilik akun yang bisa create & update profilnya sendiri
+      allow create: if isLoggedIn() && isOwner(uid);
+      allow update: if isLoggedIn() && (isOwner(uid) || isAdmin()) &&
+        // Poin tidak boleh berkurang kecuali via server-side
+        (!request.resource.data.keys().hasAll(['poin']) ||
+         isNonNegative(request.resource.data.poin));
+
+      // Tidak ada yang bisa hapus akun dari client (kecuali admin)
+      allow delete: if isAdmin();
+
+      // ─── Sub-collection: artworks ────────────────────────────────────
+      match /artworks/{artworkId} {
+        // Semua user login bisa lihat karya (galeri publik)
+        allow read: if isLoggedIn();
+
+        // Hanya pemilik yang bisa tambah karyanya sendiri
+        allow create: if isLoggedIn() && isOwner(uid);
+
+        // Karya tidak bisa diedit setelah disimpan
+        allow update: if false;
+
+        // Hanya pemilik yang bisa hapus karyanya sendiri
+        allow delete: if isLoggedIn() && isOwner(uid);
+      }
+
+      // ─── Sub-collection: game_progress ───────────────────────────────
+      // /users/{uid}/game_progress/{kategori}
+      match /game_progress/{kategori} {
+        // Hanya pemilik yang bisa baca progressnya sendiri
+        allow read: if isLoggedIn() && isOwner(uid);
+
+        // Hanya pemilik yang bisa tulis progressnya sendiri
+        allow create, update: if isLoggedIn() && isOwner(uid);
+
+        // Progress tidak bisa dihapus dari client
+        allow delete: if false;
+      }
+
+      // ─── Sub-collection: game_history ────────────────────────────────
+      match /game_history/{historyId} {
+        // Hanya pemilik yang bisa baca riwayat gamenya sendiri
+        allow read: if isLoggedIn() && isOwner(uid);
+
+        // Hanya pemilik yang bisa tambah riwayat
+        allow create: if isLoggedIn() && isOwner(uid);
+
+        // Riwayat tidak bisa diedit atau dihapus
+        allow update, delete: if false;
+      }
+
+      // ─── Sub-collection: mission_progress ────────────────────────────
+      // /users/{uid}/mission_progress/{missionId}
+      match /mission_progress/{missionId} {
+        allow read: if isLoggedIn() && isOwner(uid);
+        allow create, update: if isLoggedIn() && isOwner(uid);
+        allow delete: if false;
+      }
+    }
+
+    // ─── USERNAMES Collection (index untuk validasi username unik) ────────
+    // /usernames/{username}
+    match /usernames/{username} {
+      // Semua user login bisa cek ketersediaan username
+      allow read: if isLoggedIn();
+
+      // Hanya bisa dibuat oleh pemilik username (uid harus cocok)
+      allow create: if isLoggedIn() && 
+        request.resource.data.uid == request.auth.uid;
+
+      // Username tidak bisa diubah atau dihapus dari client
+      allow update, delete: if isAdmin();
+    }
+
+
+    // ─── GURU_VERIFIKASI Collection ───────────────────────────────────────
+    // /guru_verifikasi/{requestId}
+    match /guru_verifikasi/{requestId} {
+      // Guru bisa baca permohonan miliknya, admin bisa baca semua
+      allow read: if isLoggedIn() && 
+        (resource.data.uid == request.auth.uid || isAdmin());
+
+      // Guru bisa membuat permohonan verifikasi
+      allow create: if isLoggedIn() && 
+        request.resource.data.uid == request.auth.uid;
+
+      // Hanya admin yang bisa update (approve/reject)
+      allow update: if isAdmin();
+
+      // Tidak bisa dihapus
+      allow delete: if isAdmin();
+    }
+
+    // ─── KELAS Collection ─────────────────────────────────────────────────
+    // /kelas/{kelasId}
+    match /kelas/{kelasId} {
+      // Semua user login bisa baca (untuk join kelas, lihat leaderboard)
+      allow read: if isLoggedIn();
+
+      // HIGH-03 Fix: Hanya guru terverifikasi atau admin yang boleh membuat kelas
+      // (sebelumnya isLoggedIn() — murid bisa membuat kelas sendiri!)
+      allow create: if isGuruVerified() || isAdmin();
+
+      // Update kelas:
+      // - Guru pemilik kelas bisa update semua field milik kelasnya
+      // - Admin bisa update semua kelas
+      // - Murid yang login HANYA boleh update field muridIds (join/leave kelas)
+      allow update: if isLoggedIn() && (
+        resource.data.guruUid == request.auth.uid ||
+        isAdmin() ||
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['muridIds', 'exitedMurids'])
+      );
+
+      // Guru pemilik atau admin yang bisa hapus kelas
+      allow delete: if isLoggedIn() &&
+        (resource.data.guruUid == request.auth.uid || isAdmin());
+    }
+
+    // ─── LEADERBOARD_KELAS Collection ─────────────────────────────────────
+    // /leaderboard_kelas/{kelasId}/members/{userId}
+    match /leaderboard_kelas/{kelasId}/members/{userId} {
+      // Semua user login bisa baca leaderboard kelas
+      allow read: if isLoggedIn();
+
+      // Hanya pemilik data yang bisa create/update poinnya
+      allow create, update: if isLoggedIn() && isOwner(userId);
+
+      // Tidak bisa dihapus dari client
+      allow delete: if isAdmin();
+    }
+
+    // ─── LEADERBOARD_GLOBAL Collection ────────────────────────────────────
+    // /leaderboard_global/{userId}
+    match /leaderboard_global/{userId} {
+      allow read: if isLoggedIn();
+      allow create, update: if isLoggedIn() && isOwner(userId);
+      allow delete: if false;
+    }
+
+    // ─── ARTWORKS Collection (root level) ─────────────────────────────────
+    // /artworks/{artworkId}
+    match /artworks/{artworkId} {
+      // Semua user login bisa lihat karya (galeri publik/portfolio)
+      allow read: if isLoggedIn();
+
+      // Hanya pemilik yang bisa tambah karyanya sendiri
+      allow create: if isLoggedIn() &&
+        request.resource.data.uid == request.auth.uid;
+
+      // Aturan 1: Pemilik karya bisa meng-update karyanya sendiri (misal set deletedByMurid)
+      allow update: if isLoggedIn() && resource.data.uid == request.auth.uid;
+
+      // Aturan 2: Admin bisa meng-update
+      allow update: if isAdmin();
+
+      // Aturan 3: Guru kelas bersangkutan bisa meng-update (misal set kelasId ke null)
+      allow update: if isLoggedIn() && isGuru() && 
+        ('kelasId' in resource.data) && 
+        resource.data.kelasId != null && 
+        resource.data.kelasId != '' && 
+        get(/databases/$(database)/documents/kelas/$(resource.data.kelasId)).data.guruUid == request.auth.uid;
+
+      // Aturan 1: Pemilik karya bisa menghapus karyanya sendiri
+      allow delete: if isLoggedIn() && resource.data.uid == request.auth.uid;
+
+      // Aturan 2: Admin bisa menghapus
+      allow delete: if isAdmin();
+
+      // Aturan 3: Guru kelas bersangkutan bisa menghapus
+      allow delete: if isLoggedIn() && isGuru() && 
+        ('kelasId' in resource.data) && 
+        resource.data.kelasId != null && 
+        resource.data.kelasId != '' && 
+        get(/databases/$(database)/documents/kelas/$(resource.data.kelasId)).data.guruUid == request.auth.uid;
+    }
+
+    // ─── APP_CONFIG Collection ────────────────────────────────────────────
+    // /app_config/{configId} — game_settings, templates, dll
+    match /app_config/{configId} {
+      // Semua user login bisa baca konfigurasi
+      allow read: if isLoggedIn();
+
+      // Hanya admin yang bisa tulis konfigurasi
+      allow write: if isAdmin();
+
+      // Sub-collections di bawah app_config
+      match /{document=**} {
+        allow read: if isLoggedIn();
+        allow write: if isAdmin();
+      }
+    }
+
+    // ─── GAMES Collection ─────────────────────────────────────────────────
+    match /games/{gameId} {
+      allow read: if isLoggedIn();
+      allow write: if isAdmin();
+    }
+
+    // ─── CHARACTERS Collection ────────────────────────────────────────────
+    match /characters/{characterId} {
+      allow read: if isLoggedIn();
+      allow write: if isAdmin();
+    }
+
+    // ─── SCORES Collection ────────────────────────────────────────────────
+    match /scores/{uid} {
+      allow read: if isLoggedIn();
+      allow create, update: if isLoggedIn() && isOwner(uid);
+      allow delete: if false;
+    }
+
+    // ─── DAILY_MISSIONS Collection ────────────────────────────────────────
+    match /daily_missions/{missionId} {
+      allow read: if isLoggedIn();
+      allow write: if isAdmin();
+    }
+
+    // ─── DRAWING_TEMPLATES Collection ─────────────────────────────────────
+    // /drawing_templates/{templateId} — dikelola admin, dibaca mobile app
+    match /drawing_templates/{templateId} {
+      allow read: if isLoggedIn();
+      allow write: if isAdmin();
+    }
+
+    // ─── MISI_TEMPLATES Collection ────────────────────────────────────────
+    // /misi_templates/{templateId} — template misi harian dikonfigurasi admin
+    // Menggantikan data hardcoded di MisiHarianModel.generateDaily()
+    match /misi_templates/{templateId} {
+      allow read: if isLoggedIn();
+      allow write: if isAdmin();
+    }
+
+    // ─── ADMINS Collection ────────────────────────────────────────────────
+    match /admins/{uid} {
+      allow read: if isLoggedIn();
+      allow write: if false; // Hanya diubah via Firebase Console demi keamanan
+    }
+  }
+}

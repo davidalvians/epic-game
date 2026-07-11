@@ -1,0 +1,43 @@
+{
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "storage": {
+    "rules": "storage.rules"
+  },
+  "hosting": {
+    "public": "public",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  },
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "epic-app1",
+          "appId": "1:745796494398:android:e25798652ff972bf0f5d6f",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "epic-app1",
+          "configurations": {
+            "android": "1:745796494398:android:e25798652ff972bf0f5d6f",
+            "web": "1:745796494398:web:5e5eb55bcc5744b70f5d6f"
+          }
+        }
+      }
+    }
+  }
+}

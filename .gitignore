@@ -1,0 +1,12 @@
+# Firebase Environment Files
+functions/.env
+.firebase/
+
+# Node modules
+functions/node_modules/
+
+# OS/IDE files
+.DS_Store
+.idea/
+.vscode/
+*.log
