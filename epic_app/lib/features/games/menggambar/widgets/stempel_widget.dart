@@ -15,21 +15,11 @@ class _StempelWidget extends StatefulWidget {
 }
 
 class _StempelWidgetState extends State<_StempelWidget> {
-  // GlobalKey untuk mengambil posisi global pusat bentuk (dipakai untuk rotasi atan2)
-  final GlobalKey _shapeKey = GlobalKey();
-
-  // State rotasi — disimpan saat pan mulai
-  double _stempelStartRotation = 0.0;
-  double _rotStartAngle = 0.0;
-
-  /// Dapatkan koordinat global pusat bentuk menggunakan RenderBox
-  Offset _getShapeCenterGlobal() {
-    final renderBox =
-        _shapeKey.currentContext?.findRenderObject() as RenderBox?;
-    if (renderBox == null || !renderBox.attached) return Offset.zero;
-    final size = renderBox.size;
-    return renderBox.localToGlobal(Offset(size.width / 2, size.height / 2));
-  }
+  // State interaksi gesture
+  double _lastTouchAngle = 0.0;
+  double _currentRotation = 0.0;
+  Offset _lastDragCanvasPos = Offset.zero;
+  Offset _lastResizeCanvasPos = Offset.zero;
 
   @override
   Widget build(BuildContext context) {
@@ -42,297 +32,382 @@ class _StempelWidgetState extends State<_StempelWidget> {
               ? controller.canvasZoomScale.value
               : 1.0;
 
-      // Ukuran handle — selalu sama di layar terlepas dari zoom
-      final double hr = 14.0 / zoom;
-      final double iconLg = 13.0 / zoom;
-      final double iconSm = 10.0 / zoom;
-
+      // Dimensi bentuk
       final double contentW = 48.0 * stempel.scaleX.value;
       final double contentH = 48.0 * stempel.scaleY.value;
-      // Kotak bentuk termasuk padding sentuh 8px tiap sisi
       final double shapeBoxW = contentW + 16.0;
       final double shapeBoxH = contentH + 16.0;
 
-      // Margin di luar kotak bentuk agar handle berada DALAM SizedBox
-      final double mSide = hr;              // kiri/kanan
-      final double mTop = hr * 2 + 8.0 / zoom; // atas (ruang tombol layer)
-      final double mBot = hr;              // bawah
+      // Ukuran visual handle
+      final double cornerR = 7.0 / zoom; // Lingkaran sudut diameter 14px
+      final double rotR = 13.0 / zoom;   // Tombol rotasi diameter 26px
+      final double iconSm = 12.0 / zoom;
+      final double iconAction = 14.0 / zoom;
 
-      // Total ukuran SizedBox pembungkus
-      final double totalW = shapeBoxW + mSide * 2;
-      final double totalH = shapeBoxH + mTop + mBot;
+      // Area sentuh aman
+      final double touchSize = math.max(28.0 / zoom, 38.0 / zoom);
 
-      // Posisi kotak bentuk di dalam SizedBox
-      final double sx = mSide;
-      final double sy = mTop;
+      // Titik pusat bentuk dalam koordinat kanvas
+      final centerCanvas = Offset(
+        stempel.position.value.dx + shapeBoxW / 2,
+        stempel.position.value.dy + shapeBoxH / 2,
+      );
+
+      // Panjang diagonal maksimum bentuk + padding ekstra untuk toolbar dan tombol rotasi
+      final double diag = math.sqrt(shapeBoxW * shapeBoxW + shapeBoxH * shapeBoxH);
+      final double m = math.max(100.0 / zoom, 100.0);
+      final double boxSize = diag + m * 2;
+
+      // Posisi bentuk dalam ruang lokal boxSize
+      final double shapeLeft = (boxSize - shapeBoxW) / 2;
+      final double shapeTop = (boxSize - shapeBoxH) / 2;
+      final double shapeRight = (boxSize + shapeBoxW) / 2;
+      final double shapeBottom = (boxSize + shapeBoxH) / 2;
+      final double shapeCenterX = boxSize / 2;
+      final double shapeCenterY = boxSize / 2;
 
       return Positioned(
-        // Offset Positioned agar bentuk muncul tepat di stempel.position
-        // Matematika: layar = zoom × (left + sx) = zoom × (pos.dx - mSide + mSide) = zoom × pos.dx ✓
-        left: stempel.position.value.dx - mSide,
-        top: stempel.position.value.dy - mTop,
+        left: centerCanvas.dx - boxSize / 2,
+        top: centerCanvas.dy - boxSize / 2,
+        width: boxSize,
+        height: boxSize,
         child: IgnorePointer(
-          // Abaikan sentuhan ketika tidak dalam mode kursor
-          ignoring: controller.activeTool.value != DrawingTool.cursor &&
-              !isActive,
-          child: SizedBox(
-            width: totalW,
-            height: totalH,
+          ignoring: controller.activeTool.value != DrawingTool.cursor && !isActive,
+          child: Transform.rotate(
+            angle: stempel.rotation.value,
+            alignment: Alignment.center,
             child: Stack(
-              // Semua child berada DALAM bounds SizedBox → hit test benar ✓
               clipBehavior: Clip.none,
               children: [
-                // ── Kotak Bentuk + Gesture Geser ──
-                // ✨ GestureDetector di LUAR Transform.rotate
-                //    → delta selalu dalam koordinat canvas (tidak dirotasi)
-                //    → geser tidak kebalik setelah rotasi ✓
+                // ── 1. Kotak Bentuk & Gesture Geser (Move) ──
                 Positioned(
-                  left: sx,
-                  top: sy,
+                  left: shapeLeft,
+                  top: shapeTop,
                   width: shapeBoxW,
                   height: shapeBoxH,
-                  child: GestureDetector(
-                    key: _shapeKey, // ← GlobalKey untuk kalkulasi rotasi
+                  child: Listener(
                     behavior: isActive
                         ? HitTestBehavior.opaque
                         : HitTestBehavior.deferToChild,
-                    onTapDown: (_) =>
-                        controller.setActiveStempel(stempel.id),
-                    onPanStart: (_) =>
-                        controller.setActiveStempel(stempel.id),
-                    onPanUpdate: (details) {
-                      if (!stempel.isResizing.value) {
-                        // Delta dalam koordinat TIDAK dirotasi → arah geser benar ✓
-                        controller.updateStempelPosition(
-                            stempel.id, details.delta);
-                      }
+                    onPointerDown: (event) {
+                      if (stempel.isResizing.value) return;
+                      controller.isInteractingWithStempel.value = true;
+                      controller.setActiveStempel(stempel.id);
+                      _lastDragCanvasPos =
+                          controller.screenToCanvas(event.position);
+                    },
+                    onPointerMove: (event) {
+                      if (stempel.isResizing.value) return;
+                      if (controller.activeStempelId.value != stempel.id) return;
+                      final currentCanvasPos =
+                          controller.screenToCanvas(event.position);
+                      final deltaCanvas = currentCanvasPos - _lastDragCanvasPos;
+                      _lastDragCanvasPos = currentCanvasPos;
+                      controller.updateStempelPosition(stempel.id, deltaCanvas);
+                    },
+                    onPointerUp: (_) {
+                      controller.isInteractingWithStempel.value = false;
+                      controller.persistState();
+                    },
+                    onPointerCancel: (_) {
+                      controller.isInteractingWithStempel.value = false;
                     },
                     child: Container(
                       decoration: isActive
                           ? BoxDecoration(
                               border: Border.all(
-                                color: Colors.blueAccent,
+                                color: const Color(0xFF8B5CF6),
                                 width: 1.5 / zoom,
                               ),
-                              color: Colors.blueAccent.withValues(alpha: 0.06),
+                              color: const Color(0xFF8B5CF6).withValues(alpha: 0.04),
+                              borderRadius: BorderRadius.circular(4),
                             )
                           : null,
-                      // ✨ Transform.rotate HANYA memutar visual gambar,
-                      //    BUKAN gesture atau handle → geser tidak kebalik ✓
-                      child: Transform.rotate(
-                        angle: stempel.rotation.value,
-                        child: Container(
-                          color: Colors.transparent,
-                          padding: const EdgeInsets.all(8),
-                          child: CustomPaint(
-                            painter: StempelShapePainter(
-                              shape: stempel.shape,
-                              color: stempel.color.value,
-                              strokeWidth: stempel.strokeWidth.value,
-                            ),
-                          ),
+                      padding: const EdgeInsets.all(8),
+                      child: CustomPaint(
+                        painter: StempelShapePainter(
+                          shape: stempel.shape,
+                          color: stempel.color.value,
+                          strokeWidth: stempel.strokeWidth.value,
+                          opacity: stempel.opacity.value,
                         ),
                       ),
                     ),
                   ),
                 ),
 
-                // ── Handles (hanya tampil saat aktif) ──
+                // ── 2. Handle & Toolbar Interaktif (Tampil saat aktif) ──
                 if (isActive) ...[
-
-                  // ─── KIRI ATAS: Duplikat ─────────────────────────────────
+                  // ─── A. FLOATING ACTION BAR (Atas Mengambang) ─────────────
                   Positioned(
-                    left: sx - hr,
-                    top: sy - hr,
-                    width: hr * 2,
-                    height: hr * 2,
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTap: () => controller.duplicateStempel(stempel),
-                      child: _HandleCircle(
-                        radius: hr,
-                        color: Colors.blueAccent,
-                        child: Icon(Icons.copy_rounded,
-                            size: iconLg, color: Colors.white),
+                    key: const ValueKey('stempel_floating_toolbar'),
+                    left: shapeCenterX - (66.0 / zoom),
+                    top: shapeTop - (42.0 / zoom),
+                    child: Container(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 8.0 / zoom,
+                        vertical: 4.0 / zoom,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0F172A),
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.35),
+                            blurRadius: 10,
+                            offset: const Offset(0, 3),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // Duplikat
+                          _buildActionButton(
+                            icon: Icons.copy_rounded,
+                            size: iconAction,
+                            zoom: zoom,
+                            tooltip: 'Duplikat',
+                            onTap: () => controller.duplicateStempel(stempel),
+                          ),
+                          SizedBox(width: 4.0 / zoom),
+                          // Hapus
+                          _buildActionButton(
+                            icon: Icons.delete_outline_rounded,
+                            size: iconAction,
+                            zoom: zoom,
+                            tooltip: 'Hapus',
+                            color: const Color(0xFFF87171),
+                            onTap: () => controller.deleteStempel(stempel.id),
+                          ),
+                          SizedBox(width: 6.0 / zoom),
+                          Container(
+                            width: 1.0,
+                            height: 14.0 / zoom,
+                            color: Colors.white.withValues(alpha: 0.2),
+                          ),
+                          SizedBox(width: 6.0 / zoom),
+                          // Majukan Lapisan
+                          _buildActionButton(
+                            icon: Icons.flip_to_front_rounded,
+                            size: iconAction,
+                            zoom: zoom,
+                            tooltip: 'Bawa ke Depan',
+                            onTap: () => controller.bringStempelForward(stempel.id),
+                            onLongPress: () => controller.bringStempelToFront(stempel.id),
+                          ),
+                          SizedBox(width: 4.0 / zoom),
+                          // Mundurkan Lapisan
+                          _buildActionButton(
+                            icon: Icons.flip_to_back_rounded,
+                            size: iconAction,
+                            zoom: zoom,
+                            tooltip: 'Kirim ke Belakang',
+                            onTap: () => controller.sendStempelBackward(stempel.id),
+                            onLongPress: () => controller.sendStempelToBack(stempel.id),
+                          ),
+                        ],
                       ),
                     ),
                   ),
 
-                  // ─── KANAN ATAS: Hapus ───────────────────────────────────
-                  Positioned(
-                    left: sx + shapeBoxW - hr,
-                    top: sy - hr,
-                    width: hr * 2,
-                    height: hr * 2,
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTap: () => controller.deleteStempel(stempel.id),
-                      child: _HandleCircle(
-                        radius: hr,
-                        color: Colors.redAccent,
-                        child: Icon(Icons.close_rounded,
-                            size: iconLg, color: Colors.white),
-                      ),
-                    ),
+                  // ─── B. CORNER HANDLES (4 Sudut - Lingkaran Putih Border Ungu) ──
+                  // Kiri Atas (TL)
+                  _buildCornerHandle(
+                    key: const ValueKey('stempel_corner_tl'),
+                    left: shapeLeft - cornerR,
+                    top: shapeTop - cornerR,
+                    radius: cornerR,
+                    touchSize: touchSize,
+                    onPointerDown: (event) => _initResize(event),
+                    onPointerMove: (event) => _updateResize(event, controller.resizeCornerTopLeft),
+                    onPointerUp: _finishResize,
+                    onPointerCancel: _finishResize,
                   ),
 
-                  // ─── KIRI BAWAH: Rotasi ─────────────────────────────────
-                  // ✨ Menggunakan atan2 dari pusat bentuk → rotasi akurat & intuitif
+                  // Kanan Atas (TR)
+                  _buildCornerHandle(
+                    key: const ValueKey('stempel_corner_tr'),
+                    left: shapeRight - cornerR,
+                    top: shapeTop - cornerR,
+                    radius: cornerR,
+                    touchSize: touchSize,
+                    onPointerDown: (event) => _initResize(event),
+                    onPointerMove: (event) => _updateResize(event, controller.resizeCornerTopRight),
+                    onPointerUp: _finishResize,
+                    onPointerCancel: _finishResize,
+                  ),
+
+                  // Kiri Bawah (BL)
+                  _buildCornerHandle(
+                    key: const ValueKey('stempel_corner_bl'),
+                    left: shapeLeft - cornerR,
+                    top: shapeBottom - cornerR,
+                    radius: cornerR,
+                    touchSize: touchSize,
+                    onPointerDown: (event) => _initResize(event),
+                    onPointerMove: (event) => _updateResize(event, controller.resizeCornerBottomLeft),
+                    onPointerUp: _finishResize,
+                    onPointerCancel: _finishResize,
+                  ),
+
+                  // Kanan Bawah (BR)
+                  _buildCornerHandle(
+                    key: const ValueKey('stempel_corner_br'),
+                    left: shapeRight - cornerR,
+                    top: shapeBottom - cornerR,
+                    radius: cornerR,
+                    touchSize: touchSize,
+                    onPointerDown: (event) => _initResize(event),
+                    onPointerMove: (event) => _updateResize(event, controller.resizeCornerBottomRight),
+                    onPointerUp: _finishResize,
+                    onPointerCancel: _finishResize,
+                  ),
+
+                  // ─── C. EDGE PILL HANDLES (4 Sisi - Kapsul Pipih) ─────────
+                  // Atas Tengah (Top)
+                  _buildPillHandle(
+                    key: const ValueKey('stempel_pill_top'),
+                    left: shapeCenterX - (8.0 / zoom),
+                    top: shapeTop - (3.5 / zoom),
+                    width: 16.0 / zoom,
+                    height: 7.0 / zoom,
+                    touchSize: touchSize,
+                    onPointerDown: (event) => _initResize(event),
+                    onPointerMove: (event) => _updateResize(event, controller.resizeTop),
+                    onPointerUp: _finishResize,
+                    onPointerCancel: _finishResize,
+                  ),
+
+                  // Bawah Tengah (Bottom)
+                  _buildPillHandle(
+                    key: const ValueKey('stempel_pill_bottom'),
+                    left: shapeCenterX - (8.0 / zoom),
+                    top: shapeBottom - (3.5 / zoom),
+                    width: 16.0 / zoom,
+                    height: 7.0 / zoom,
+                    touchSize: touchSize,
+                    onPointerDown: (event) => _initResize(event),
+                    onPointerMove: (event) => _updateResize(event, controller.resizeBottom),
+                    onPointerUp: _finishResize,
+                    onPointerCancel: _finishResize,
+                  ),
+
+                  // Kiri Tengah (Left)
+                  _buildPillHandle(
+                    key: const ValueKey('stempel_pill_left'),
+                    left: shapeLeft - (3.5 / zoom),
+                    top: shapeCenterY - (8.0 / zoom),
+                    width: 7.0 / zoom,
+                    height: 16.0 / zoom,
+                    touchSize: touchSize,
+                    onPointerDown: (event) => _initResize(event),
+                    onPointerMove: (event) => _updateResize(event, controller.resizeLeft),
+                    onPointerUp: _finishResize,
+                    onPointerCancel: _finishResize,
+                  ),
+
+                  // Kanan Tengah (Right)
+                  _buildPillHandle(
+                    key: const ValueKey('stempel_pill_right'),
+                    left: shapeRight - (3.5 / zoom),
+                    top: shapeCenterY - (8.0 / zoom),
+                    width: 7.0 / zoom,
+                    height: 16.0 / zoom,
+                    touchSize: touchSize,
+                    onPointerDown: (event) => _initResize(event),
+                    onPointerMove: (event) => _updateResize(event, controller.resizeRight),
+                    onPointerUp: _finishResize,
+                    onPointerCancel: _finishResize,
+                  ),
+
+                  // ─── D. FLOATING ROTATION HANDLE (Bawah Mengambang) ───────
                   Positioned(
-                    left: sx - hr,
-                    top: sy + shapeBoxH - hr,
-                    width: hr * 2,
-                    height: hr * 2,
-                    child: GestureDetector(
+                    key: const ValueKey('stempel_handle_rotate'),
+                    left: shapeCenterX - touchSize / 2,
+                    top: shapeBottom + (24.0 / zoom) - (touchSize - rotR * 2) / 2,
+                    width: touchSize,
+                    height: touchSize,
+                    child: Listener(
                       behavior: HitTestBehavior.opaque,
-                      onPanStart: (details) {
+                      onPointerDown: (event) {
+                        controller.isInteractingWithStempel.value = true;
                         stempel.isResizing.value = true;
-                        _stempelStartRotation = stempel.rotation.value;
-                        // Hitung sudut awal dari pusat bentuk ke posisi handle
-                        final center = _getShapeCenterGlobal();
-                        if (center != Offset.zero) {
-                          _rotStartAngle = math.atan2(
-                            details.globalPosition.dy - center.dy,
-                            details.globalPosition.dx - center.dx,
-                          );
-                        }
+                        final shapeW = 48.0 * stempel.scaleX.value + 16.0;
+                        final shapeH = 48.0 * stempel.scaleY.value + 16.0;
+                        final center = Offset(
+                          stempel.position.value.dx + shapeW / 2,
+                          stempel.position.value.dy + shapeH / 2,
+                        );
+                        final canvasPos =
+                            controller.screenToCanvas(event.position);
+                        _lastTouchAngle = math.atan2(
+                          canvasPos.dy - center.dy,
+                          canvasPos.dx - center.dx,
+                        );
+                        _currentRotation = stempel.rotation.value;
                       },
-                      onPanUpdate: (details) {
-                        // Hitung sudut saat ini dari pusat bentuk ke pointer
-                        final center = _getShapeCenterGlobal();
-                        if (center != Offset.zero) {
-                          final currentAngle = math.atan2(
-                            details.globalPosition.dy - center.dy,
-                            details.globalPosition.dx - center.dx,
-                          );
-                          // Delta sudut = sudut sekarang - sudut awal
-                          controller.setStempelRotation(
-                            stempel.id,
-                            _stempelStartRotation +
-                                (currentAngle - _rotStartAngle),
-                          );
+                      onPointerMove: (event) {
+                        final shapeW = 48.0 * stempel.scaleX.value + 16.0;
+                        final shapeH = 48.0 * stempel.scaleY.value + 16.0;
+                        final center = Offset(
+                          stempel.position.value.dx + shapeW / 2,
+                          stempel.position.value.dy + shapeH / 2,
+                        );
+                        final canvasPos =
+                            controller.screenToCanvas(event.position);
+                        final currentAngle = math.atan2(
+                          canvasPos.dy - center.dy,
+                          canvasPos.dx - center.dx,
+                        );
+
+                        double deltaAngle = currentAngle - _lastTouchAngle;
+                        while (deltaAngle > math.pi) {
+                          deltaAngle -= 2 * math.pi;
                         }
+                        while (deltaAngle < -math.pi) {
+                          deltaAngle += 2 * math.pi;
+                        }
+
+                        _currentRotation += deltaAngle;
+                        _lastTouchAngle = currentAngle;
+                        controller.setStempelRotation(stempel.id, _currentRotation);
                       },
-                      onPanEnd: (_) => stempel.isResizing.value = false,
-                      child: _HandleCircle(
-                        radius: hr,
-                        color: const Color(0xFF8B5CF6),
-                        child: Icon(Icons.rotate_right_rounded,
-                            size: iconLg, color: Colors.white),
-                      ),
-                    ),
-                  ),
-
-                  // ─── KANAN TENGAH: Resize Lebar ─────────────────────────
-                  Positioned(
-                    left: sx + shapeBoxW - hr,
-                    top: sy + shapeBoxH / 2 - hr,
-                    width: hr * 2,
-                    height: hr * 2,
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onPanStart: (_) => stempel.isResizing.value = true,
-                      onPanUpdate: (d) =>
-                          controller.resizeStempelX(stempel.id, d.delta.dx),
-                      onPanEnd: (_) => stempel.isResizing.value = false,
-                      child: _HandleCircle(
-                        radius: hr,
-                        color: Colors.orange,
-                        child: Icon(Icons.swap_horiz_rounded,
-                            size: iconSm, color: Colors.white),
-                      ),
-                    ),
-                  ),
-
-                  // ─── BAWAH TENGAH: Resize Tinggi ────────────────────────
-                  Positioned(
-                    left: sx + shapeBoxW / 2 - hr,
-                    top: sy + shapeBoxH - hr,
-                    width: hr * 2,
-                    height: hr * 2,
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onPanStart: (_) => stempel.isResizing.value = true,
-                      onPanUpdate: (d) =>
-                          controller.resizeStempelY(stempel.id, d.delta.dy),
-                      onPanEnd: (_) => stempel.isResizing.value = false,
-                      child: _HandleCircle(
-                        radius: hr,
-                        color: Colors.orange,
-                        child: Icon(Icons.swap_vert_rounded,
-                            size: iconSm, color: Colors.white),
-                      ),
-                    ),
-                  ),
-
-                  // ─── KANAN BAWAH: Resize Seragam ────────────────────────
-                  Positioned(
-                    left: sx + shapeBoxW - hr,
-                    top: sy + shapeBoxH - hr,
-                    width: hr * 2,
-                    height: hr * 2,
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onPanStart: (_) => stempel.isResizing.value = true,
-                      onPanUpdate: (d) =>
-                          controller.resizeStempel(stempel.id, d.delta),
-                      onPanEnd: (_) => stempel.isResizing.value = false,
-                      child: _HandleCircle(
-                        radius: hr,
-                        color: const Color(0xFF10B981),
-                        child: Icon(Icons.open_in_full_rounded,
-                            size: iconSm, color: Colors.white),
-                      ),
-                    ),
-                  ),
-
-                  // ─── ATAS TENGAH: Kontrol Lapisan ────────────────────────
-                  // Tap = geser 1 lapisan | Long press = ke ujung total
-                  // ✨ Menggunakan SizedBox eksplisit agar touch area cukup besar
-                  Positioned(
-                    left: sx + shapeBoxW / 2 - hr * 2 - 3.0 / zoom,
-                    top: 2.0 / zoom,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // Kirim ke belakang
-                        GestureDetector(
-                          behavior: HitTestBehavior.opaque,
-                          onTap: () =>
-                              controller.sendStempelBackward(stempel.id),
-                          onLongPress: () =>
-                              controller.sendStempelToBack(stempel.id),
-                          child: SizedBox(
-                            width: hr * 2,
-                            height: hr * 2,
-                            child: _HandleCircle(
-                              radius: hr,
-                              color: const Color(0xFF475569),
-                              child: Icon(Icons.flip_to_back_rounded,
-                                  size: iconSm, color: Colors.white),
+                      onPointerUp: (_) {
+                        stempel.isResizing.value = false;
+                        controller.isInteractingWithStempel.value = false;
+                        controller.persistState();
+                      },
+                      onPointerCancel: (_) {
+                        stempel.isResizing.value = false;
+                        controller.isInteractingWithStempel.value = false;
+                      },
+                      child: Center(
+                        child: Container(
+                          width: rotR * 2,
+                          height: rotR * 2,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: const Color(0xFF8B5CF6),
+                              width: 1.5 / zoom,
                             ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.2),
+                                blurRadius: 6,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Icon(
+                            Icons.sync_rounded,
+                            size: iconSm,
+                            color: const Color(0xFF8B5CF6),
                           ),
                         ),
-                        SizedBox(width: 4.0 / zoom),
-                        // Bawa ke depan
-                        GestureDetector(
-                          behavior: HitTestBehavior.opaque,
-                          onTap: () =>
-                              controller.bringStempelForward(stempel.id),
-                          onLongPress: () =>
-                              controller.bringStempelToFront(stempel.id),
-                          child: SizedBox(
-                            width: hr * 2,
-                            height: hr * 2,
-                            child: _HandleCircle(
-                              radius: hr,
-                              color: const Color(0xFF475569),
-                              child: Icon(Icons.flip_to_front_rounded,
-                                  size: iconSm, color: Colors.white),
-                            ),
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
                   ),
                 ],
@@ -343,37 +418,147 @@ class _StempelWidgetState extends State<_StempelWidget> {
       );
     });
   }
-}
 
-/// Widget bulat untuk handle dengan bayangan
-class _HandleCircle extends StatelessWidget {
-  final double radius;
-  final Color color;
-  final Widget child;
+  // ── Helper Resize Gestures ────────────────────────────────────────────────
 
-  const _HandleCircle({
-    required this.radius,
-    required this.color,
-    required this.child,
-  });
+  void _initResize(PointerDownEvent event) {
+    widget.controller.isInteractingWithStempel.value = true;
+    widget.stempel.isResizing.value = true;
+    _lastResizeCanvasPos = widget.controller.screenToCanvas(event.position);
+  }
 
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: radius * 2,
-      height: radius * 2,
-      decoration: BoxDecoration(
-        color: color,
-        shape: BoxShape.circle,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.3),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
+  void _updateResize(PointerMoveEvent event, void Function(String, Offset) resizeFunc) {
+    final currentCanvasPos = widget.controller.screenToCanvas(event.position);
+    final deltaCanvas = currentCanvasPos - _lastResizeCanvasPos;
+    _lastResizeCanvasPos = currentCanvasPos;
+    resizeFunc(widget.stempel.id, deltaCanvas);
+  }
+
+  void _finishResize(PointerEvent event) {
+    widget.stempel.isResizing.value = false;
+    widget.controller.isInteractingWithStempel.value = false;
+    widget.controller.persistState();
+  }
+
+  // ── Helper Widgets ────────────────────────────────────────────────────────
+
+  Widget _buildActionButton({
+    required IconData icon,
+    required double size,
+    required double zoom,
+    required String tooltip,
+    Color color = Colors.white,
+    required VoidCallback onTap,
+    VoidCallback? onLongPress,
+  }) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      onLongPress: onLongPress,
+      child: Container(
+        padding: EdgeInsets.all(4.0 / zoom),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Icon(icon, size: size, color: color),
       ),
-      child: Center(child: child),
+    );
+  }
+
+  Widget _buildCornerHandle({
+    Key? key,
+    required double left,
+    required double top,
+    required double radius,
+    required double touchSize,
+    required PointerDownEventListener onPointerDown,
+    required PointerMoveEventListener onPointerMove,
+    required PointerUpEventListener onPointerUp,
+    required PointerCancelEventListener onPointerCancel,
+  }) {
+    return Positioned(
+      key: key,
+      left: left - (touchSize - radius * 2) / 2,
+      top: top - (touchSize - radius * 2) / 2,
+      width: touchSize,
+      height: touchSize,
+      child: Listener(
+        behavior: HitTestBehavior.opaque,
+        onPointerDown: onPointerDown,
+        onPointerMove: onPointerMove,
+        onPointerUp: onPointerUp,
+        onPointerCancel: onPointerCancel,
+        child: Center(
+          child: Container(
+            width: radius * 2,
+            height: radius * 2,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: const Color(0xFF8B5CF6),
+                width: 1.5,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.15),
+                  blurRadius: 4,
+                  offset: const Offset(0, 1),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPillHandle({
+    Key? key,
+    required double left,
+    required double top,
+    required double width,
+    required double height,
+    required double touchSize,
+    required PointerDownEventListener onPointerDown,
+    required PointerMoveEventListener onPointerMove,
+    required PointerUpEventListener onPointerUp,
+    required PointerCancelEventListener onPointerCancel,
+  }) {
+    return Positioned(
+      key: key,
+      left: left - (touchSize - width) / 2,
+      top: top - (touchSize - height) / 2,
+      width: touchSize,
+      height: touchSize,
+      child: Listener(
+        behavior: HitTestBehavior.opaque,
+        onPointerDown: onPointerDown,
+        onPointerMove: onPointerMove,
+        onPointerUp: onPointerUp,
+        onPointerCancel: onPointerCancel,
+        child: Center(
+          child: Container(
+            width: width,
+            height: height,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(
+                color: const Color(0xFF8B5CF6),
+                width: 1.2,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.15),
+                  blurRadius: 3,
+                  offset: const Offset(0, 1),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

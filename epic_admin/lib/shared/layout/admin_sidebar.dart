@@ -1,5 +1,6 @@
 import 'package:epic_admin/core/theme/admin_colors.dart';
 import 'package:epic_admin/core/services/auth_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -27,44 +28,76 @@ class AdminSidebar extends StatelessWidget {
       child: Column(
         children: [
           // 1. Profile Area
-          Container(
-            padding: const EdgeInsets.only(top: 32, bottom: 20),
-            child: Column(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: const Color(0xFF3B82F6).withOpacity(0.6), // Glowing blue ring
-                      width: 2.0,
+          StreamBuilder<User?>(
+            stream: AuthService().userStream,
+            initialData: AuthService().currentUser,
+            builder: (context, snapshot) {
+              final user = snapshot.data ?? AuthService().currentUser;
+              final displayName = (user?.displayName != null && user!.displayName!.trim().isNotEmpty)
+                  ? user.displayName!
+                  : 'ADMIN EPIC';
+              final email = (user?.email != null && user!.email!.trim().isNotEmpty)
+                  ? user.email!
+                  : 'admin@epic.com';
+              final photoUrl = user?.photoURL;
+
+              return Container(
+                padding: const EdgeInsets.only(top: 32, bottom: 20),
+                child: Column(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: const Color(0xFF3B82F6).withOpacity(0.6), // Glowing blue ring
+                          width: 2.0,
+                        ),
+                      ),
+                      child: CircleAvatar(
+                        radius: 36,
+                        backgroundColor: const Color(0xFF222F47),
+                        backgroundImage: (photoUrl != null && photoUrl.isNotEmpty)
+                            ? NetworkImage(photoUrl)
+                            : null,
+                        child: (photoUrl == null || photoUrl.isEmpty)
+                            ? const Icon(Icons.person, color: Colors.white, size: 40)
+                            : null,
+                      ),
                     ),
-                  ),
-                  child: const CircleAvatar(
-                    radius: 36,
-                    backgroundColor: Color(0xFF222F47),
-                    child: Icon(Icons.person, color: Colors.white, size: 40),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'ADMIN EPIC',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 0.5,
+                    const SizedBox(height: 16),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Text(
+                        displayName,
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 0.5,
+                            ),
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'admin@epic.com',
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: const Color(0xFF64748B), // Slate-500
-                        fontWeight: FontWeight.w500,
+                    ),
+                    const SizedBox(height: 4),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Text(
+                        email,
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                              color: const Color(0xFF64748B), // Slate-500
+                              fontWeight: FontWeight.w500,
+                            ),
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              );
+            },
           ),
 
           const Divider(

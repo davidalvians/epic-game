@@ -117,22 +117,51 @@ class _DrawingToolbar extends StatelessWidget {
                 ),
               ),
               
-              // ── Row 1: Ketebalan Selalu Tampil ──
+              // ── Row 1: Ketebalan Garis (Stroke Width) dengan Kontrol Presisi Angka ──
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
                 child: Obx(() {
+                  final thicknessVal = controller.thickness.value;
                   return Row(
                     children: [
                       const Icon(Icons.line_weight_rounded, size: 16, color: Color(0xFF94A3B8)),
                       Expanded(
                         child: Slider(
-                          value: controller.thickness.value,
+                          value: thicknessVal,
                           min: 1,
                           max: 40,
                           divisions: 39,
                           activeColor: const Color(0xFF8B5CF6),
                           inactiveColor: const Color(0xFF334155),
                           onChanged: controller.setThickness,
+                        ),
+                      ),
+                      // Tombol Angka Presisi Ketebalan
+                      GestureDetector(
+                        onTap: () => _showPrecisionThicknessDialog(context),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          margin: const EdgeInsets.only(right: 8),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF1E293B),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: const Color(0xFF475569)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                '${thicknessVal.toStringAsFixed(thicknessVal == thicknessVal.roundToDouble() ? 0 : 1)} px',
+                                style: const TextStyle(
+                                  fontFamily: 'FredokaOne',
+                                  fontSize: 11,
+                                  color: Color(0xFFE2E8F0),
+                                ),
+                              ),
+                              const SizedBox(width: 3),
+                              const Icon(Icons.edit_rounded, size: 10, color: Color(0xFF8B5CF6)),
+                            ],
+                          ),
                         ),
                       ),
                       // Preview Ukuran Bundar Kecil
@@ -145,11 +174,88 @@ class _DrawingToolbar extends StatelessWidget {
                         ),
                         child: Center(
                           child: Container(
-                            width: controller.thickness.value.clamp(2.0, 20.0),
-                            height: controller.thickness.value.clamp(2.0, 20.0),
+                            width: thicknessVal.clamp(2.0, 20.0),
+                            height: thicknessVal.clamp(2.0, 20.0),
                             decoration: BoxDecoration(
-                              color: controller.activeColor.value,
+                              color: controller.activeColor.value.withValues(
+                                alpha: (controller.activeColor.value.a * controller.opacity.value).clamp(0.0, 1.0),
+                              ),
                               shape: BoxShape.circle,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                }),
+              ),
+
+              // ── Row 2: Transparansi (Opacity) dengan Kontrol Presisi Angka ──
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+                child: Obx(() {
+                  final opacityVal = controller.opacity.value;
+                  final opacityPct = (opacityVal * 100).round();
+                  return Row(
+                    children: [
+                      const Icon(Icons.opacity_rounded, size: 16, color: Color(0xFF38BDF8)),
+                      Expanded(
+                        child: Slider(
+                          value: opacityVal,
+                          min: 0.01,
+                          max: 1.0,
+                          divisions: 99,
+                          activeColor: const Color(0xFF38BDF8),
+                          inactiveColor: const Color(0xFF334155),
+                          onChanged: controller.setOpacity,
+                        ),
+                      ),
+                      // Tombol Angka Presisi Transparansi
+                      GestureDetector(
+                        onTap: () => _showPrecisionOpacityDialog(context),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          margin: const EdgeInsets.only(right: 8),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF1E293B),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: const Color(0xFF475569)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                '$opacityPct%',
+                                style: const TextStyle(
+                                  fontFamily: 'FredokaOne',
+                                  fontSize: 11,
+                                  color: Color(0xFFE2E8F0),
+                                ),
+                              ),
+                              const SizedBox(width: 3),
+                              const Icon(Icons.edit_rounded, size: 10, color: Color(0xFF38BDF8)),
+                            ],
+                          ),
+                        ),
+                      ),
+                      // Preview Transparansi
+                      Container(
+                        width: 24,
+                        height: 24,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(color: const Color(0xFF334155)),
+                        ),
+                        child: Center(
+                          child: Container(
+                            width: 14,
+                            height: 14,
+                            decoration: BoxDecoration(
+                              color: controller.activeColor.value.withValues(
+                                alpha: opacityVal.clamp(0.0, 1.0),
+                              ),
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white30, width: 1),
                             ),
                           ),
                         ),
@@ -239,7 +345,7 @@ class _DrawingToolbar extends StatelessWidget {
 
   Widget _buildPopupLayer(String popupName, Widget child) {
     return Positioned(
-      bottom: 120, // Di atas toolbar baru yang lebih tinggi
+      bottom: 165, // Di atas toolbar 2-row baru
       child: Obx(() {
         final isActive = controller.popupMenu.value == popupName;
         return AnimatedScale(
@@ -389,6 +495,7 @@ class _DrawingToolbar extends StatelessWidget {
                         painter: _HorizontalWavyPainter(
                           color: isSelected ? controller.activeColor.value : Colors.white70,
                           thickness: controller.thickness.value,
+                          opacity: controller.opacity.value,
                           pencilType: type,
                         ),
                       ),
@@ -429,6 +536,7 @@ class _DrawingToolbar extends StatelessWidget {
     final isBatik = controller.kategori.toLowerCase() == 'batik';
     final items = isBatik
         ? [
+            _StempelItem('Garis Lurus', StempelShape.garisLurus),
             _StempelItem('Bintang', StempelShape.bintang),
             _StempelItem('Bunga', StempelShape.bunga),
             _StempelItem('Daun', StempelShape.daun),
@@ -443,6 +551,7 @@ class _DrawingToolbar extends StatelessWidget {
             _StempelItem('Panah', StempelShape.panah),
           ]
         : [
+            _StempelItem('Garis Lurus', StempelShape.garisLurus),
             _StempelItem('Segitiga', StempelShape.segitiga),
             _StempelItem('Persegi', StempelShape.persegi),
             _StempelItem('P. Panjang', StempelShape.persegiPanjang),
@@ -610,6 +719,504 @@ class _DrawingToolbar extends StatelessWidget {
 
   // --- Dialogs ---
 
+  void _showPrecisionThicknessDialog(BuildContext context) {
+    controller.popupMenu.value = '';
+    final textController = TextEditingController(
+      text: controller.thickness.value.toStringAsFixed(
+        controller.thickness.value == controller.thickness.value.roundToDouble() ? 0 : 1,
+      ),
+    );
+    final RxDouble tempVal = controller.thickness.value.obs;
+
+    Get.dialog(
+      Dialog(
+        backgroundColor: const Color(0xFF1E293B),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24),
+          side: const BorderSide(color: Color(0xFF334155), width: 1.5),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Header
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF8B5CF6).withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(Icons.line_weight_rounded, color: Color(0xFF8B5CF6), size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Text(
+                      'Ketebalan Garis',
+                      style: TextStyle(
+                        fontFamily: 'FredokaOne',
+                        fontSize: 18,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded, color: Color(0xFF94A3B8), size: 20),
+                    onPressed: () => Get.back(),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+
+              // Stepper & Direct Input
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // Button Minus
+                  _buildStepBtn(
+                    icon: Icons.remove_rounded,
+                    onTap: () {
+                      final next = (tempVal.value - 1.0).clamp(1.0, 40.0);
+                      tempVal.value = next;
+                      textController.text = next.toStringAsFixed(next == next.roundToDouble() ? 0 : 1);
+                    },
+                  ),
+                  const SizedBox(width: 12),
+                  // Text Input
+                  Container(
+                    width: 120,
+                    height: 44,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0F172A),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: const Color(0xFF8B5CF6), width: 1.5),
+                    ),
+                    child: TextField(
+                      controller: textController,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      textAlign: TextAlign.center,
+                      cursorColor: const Color(0xFF8B5CF6),
+                      style: const TextStyle(
+                        fontFamily: 'FredokaOne',
+                        fontSize: 18,
+                        color: Colors.white,
+                      ),
+                      decoration: const InputDecoration(
+                        isDense: true,
+                        filled: true,
+                        fillColor: Colors.transparent,
+                        contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                        border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                        errorBorder: InputBorder.none,
+                        disabledBorder: InputBorder.none,
+                        suffixText: 'px',
+                        suffixStyle: TextStyle(
+                          fontFamily: 'Nunito',
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF94A3B8),
+                        ),
+                      ),
+                      onChanged: (val) {
+                        final parsed = double.tryParse(val);
+                        if (parsed != null) {
+                          tempVal.value = parsed.clamp(1.0, 40.0);
+                        }
+                      },
+                      onSubmitted: (val) {
+                        final parsed = double.tryParse(val);
+                        if (parsed != null) {
+                          tempVal.value = parsed.clamp(1.0, 40.0);
+                          textController.text = tempVal.value.toStringAsFixed(
+                            tempVal.value == tempVal.value.roundToDouble() ? 0 : 1,
+                          );
+                        }
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  // Button Plus
+                  _buildStepBtn(
+                    icon: Icons.add_rounded,
+                    onTap: () {
+                      final next = (tempVal.value + 1.0).clamp(1.0, 40.0);
+                      tempVal.value = next;
+                      textController.text = next.toStringAsFixed(next == next.roundToDouble() ? 0 : 1);
+                    },
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+
+              // Slider
+              Obx(() => Slider(
+                value: tempVal.value.clamp(1.0, 40.0),
+                min: 1.0,
+                max: 40.0,
+                divisions: 39,
+                activeColor: const Color(0xFF8B5CF6),
+                inactiveColor: const Color(0xFF334155),
+                onChanged: (v) {
+                  tempVal.value = v;
+                  textController.text = v.toStringAsFixed(v == v.roundToDouble() ? 0 : 1);
+                },
+              )),
+
+              // Preset Quick Chips
+              const Text(
+                'Pilihan Cepat:',
+                style: TextStyle(
+                  fontFamily: 'Nunito',
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF94A3B8),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [2.0, 4.0, 8.0, 12.0, 16.0, 24.0, 32.0, 40.0].map((size) {
+                  return Obx(() {
+                    final isSelected = (tempVal.value - size).abs() < 0.1;
+                    return InkWell(
+                      onTap: () {
+                        tempVal.value = size;
+                        textController.text = size.toStringAsFixed(0);
+                      },
+                      borderRadius: BorderRadius.circular(10),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: isSelected ? const Color(0xFF8B5CF6) : const Color(0xFF0F172A),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: isSelected ? const Color(0xFF8B5CF6) : const Color(0xFF334155),
+                          ),
+                        ),
+                        child: Text(
+                          '${size.round()} px',
+                          style: TextStyle(
+                            fontFamily: 'Nunito',
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: isSelected ? Colors.white : const Color(0xFF94A3B8),
+                          ),
+                        ),
+                      ),
+                    );
+                  });
+                }).toList(),
+              ),
+              const SizedBox(height: 20),
+
+              // Action Buttons
+              Row(
+                children: [
+                  Expanded(
+                    child: TextButton(
+                      onPressed: () => Get.back(),
+                      style: TextButton.styleFrom(
+                        foregroundColor: const Color(0xFF94A3B8),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      child: const Text('Batal', style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        final parsed = double.tryParse(textController.text);
+                        if (parsed != null) {
+                          tempVal.value = parsed.clamp(1.0, 40.0);
+                        }
+                        controller.setThickness(tempVal.value);
+                        Get.back();
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF8B5CF6),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      child: const Text('Terapkan', style: TextStyle(fontFamily: 'FredokaOne')),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showPrecisionOpacityDialog(BuildContext context) {
+    controller.popupMenu.value = '';
+    final textController = TextEditingController(
+      text: (controller.opacity.value * 100).round().toString(),
+    );
+    final RxDouble tempVal = controller.opacity.value.obs;
+
+    Get.dialog(
+      Dialog(
+        backgroundColor: const Color(0xFF1E293B),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24),
+          side: const BorderSide(color: Color(0xFF334155), width: 1.5),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Header
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF38BDF8).withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(Icons.opacity_rounded, color: Color(0xFF38BDF8), size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Text(
+                      'Tingkat Transparansi',
+                      style: TextStyle(
+                        fontFamily: 'FredokaOne',
+                        fontSize: 18,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded, color: Color(0xFF94A3B8), size: 20),
+                    onPressed: () => Get.back(),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+
+              // Stepper & Direct Input
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // Button Minus
+                  _buildStepBtn(
+                    icon: Icons.remove_rounded,
+                    onTap: () {
+                      final currentPct = (tempVal.value * 100).round();
+                      final nextPct = (currentPct - 5).clamp(1, 100);
+                      tempVal.value = nextPct / 100.0;
+                      textController.text = nextPct.toString();
+                    },
+                  ),
+                  const SizedBox(width: 12),
+                  // Text Input
+                  Container(
+                    width: 120,
+                    height: 44,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0F172A),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: const Color(0xFF38BDF8), width: 1.5),
+                    ),
+                    child: TextField(
+                      controller: textController,
+                      keyboardType: TextInputType.number,
+                      textAlign: TextAlign.center,
+                      cursorColor: const Color(0xFF38BDF8),
+                      style: const TextStyle(
+                        fontFamily: 'FredokaOne',
+                        fontSize: 18,
+                        color: Colors.white,
+                      ),
+                      decoration: const InputDecoration(
+                        isDense: true,
+                        filled: true,
+                        fillColor: Colors.transparent,
+                        contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                        border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                        errorBorder: InputBorder.none,
+                        disabledBorder: InputBorder.none,
+                        suffixText: '%',
+                        suffixStyle: TextStyle(
+                          fontFamily: 'Nunito',
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF94A3B8),
+                        ),
+                      ),
+                      onChanged: (val) {
+                        final parsed = int.tryParse(val);
+                        if (parsed != null) {
+                          tempVal.value = parsed.clamp(1, 100) / 100.0;
+                        }
+                      },
+                      onSubmitted: (val) {
+                        final parsed = int.tryParse(val);
+                        if (parsed != null) {
+                          tempVal.value = parsed.clamp(1, 100) / 100.0;
+                          textController.text = (tempVal.value * 100).round().toString();
+                        }
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  // Button Plus
+                  _buildStepBtn(
+                    icon: Icons.add_rounded,
+                    onTap: () {
+                      final currentPct = (tempVal.value * 100).round();
+                      final nextPct = (currentPct + 5).clamp(1, 100);
+                      tempVal.value = nextPct / 100.0;
+                      textController.text = nextPct.toString();
+                    },
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+
+              // Slider
+              Obx(() => Slider(
+                value: tempVal.value.clamp(0.01, 1.0),
+                min: 0.01,
+                max: 1.0,
+                divisions: 99,
+                activeColor: const Color(0xFF38BDF8),
+                inactiveColor: const Color(0xFF334155),
+                onChanged: (v) {
+                  tempVal.value = v;
+                  textController.text = (v * 100).round().toString();
+                },
+              )),
+
+              // Preset Quick Chips
+              const Text(
+                'Pilihan Cepat:',
+                style: TextStyle(
+                  fontFamily: 'Nunito',
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF94A3B8),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [10, 25, 50, 75, 90, 100].map((pct) {
+                  return Obx(() {
+                    final isSelected = ((tempVal.value * 100).round() - pct).abs() <= 2;
+                    return InkWell(
+                      onTap: () {
+                        tempVal.value = pct / 100.0;
+                        textController.text = pct.toString();
+                      },
+                      borderRadius: BorderRadius.circular(10),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: isSelected ? const Color(0xFF38BDF8) : const Color(0xFF0F172A),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: isSelected ? const Color(0xFF38BDF8) : const Color(0xFF334155),
+                          ),
+                        ),
+                        child: Text(
+                          '$pct%',
+                          style: TextStyle(
+                            fontFamily: 'Nunito',
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: isSelected ? Colors.black : const Color(0xFF94A3B8),
+                          ),
+                        ),
+                      ),
+                    );
+                  });
+                }).toList(),
+              ),
+              const SizedBox(height: 20),
+
+              // Action Buttons
+              Row(
+                children: [
+                  Expanded(
+                    child: TextButton(
+                      onPressed: () => Get.back(),
+                      style: TextButton.styleFrom(
+                        foregroundColor: const Color(0xFF94A3B8),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      child: const Text('Batal', style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        final parsed = int.tryParse(textController.text);
+                        if (parsed != null) {
+                          tempVal.value = parsed.clamp(1, 100) / 100.0;
+                        }
+                        controller.setOpacity(tempVal.value);
+                        Get.back();
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF38BDF8),
+                        foregroundColor: const Color(0xFF0F172A),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      child: const Text('Terapkan', style: TextStyle(fontFamily: 'FredokaOne')),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStepBtn({required IconData icon, required VoidCallback onTap}) {
+    return Material(
+      color: const Color(0xFF0F172A),
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFF334155)),
+          ),
+          child: Center(
+            child: Icon(icon, color: Colors.white, size: 20),
+          ),
+        ),
+      ),
+    );
+  }
+
   void _showColorPicker(BuildContext context) {
     Color pickerColor = controller.activeColor.value;
     Get.dialog(
@@ -716,18 +1323,21 @@ class _StempelItem {
 class _HorizontalWavyPainter extends CustomPainter {
   final Color color;
   final double thickness;
+  final double opacity;
   final PencilType pencilType;
 
   _HorizontalWavyPainter({
     required this.color,
     required this.thickness,
+    this.opacity = 1.0,
     required this.pencilType,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
+    final double strokeAlpha = (color.a * opacity * pencilType.opacityFactor).clamp(0.0, 1.0);
     final Paint paint = Paint()
-      ..color = color.withValues(alpha: pencilType.opacityFactor)
+      ..color = color.withValues(alpha: strokeAlpha)
       ..style = PaintingStyle.fill;
 
     final double w = size.width;
@@ -735,7 +1345,7 @@ class _HorizontalWavyPainter extends CustomPainter {
     
     // Generate mathematical sine wave points
     final List<pf.PointVector> points = [];
-    final int steps = 40; // Number of points in the preview
+    const int steps = 40; // Number of points in the preview
     for (int i = 0; i <= steps; i++) {
       final t = i / steps; // 0.0 to 1.0
       final x = 10 + (w - 20) * t;
@@ -780,6 +1390,7 @@ class _HorizontalWavyPainter extends CustomPainter {
   bool shouldRepaint(covariant _HorizontalWavyPainter oldDelegate) {
     return oldDelegate.color != color ||
            oldDelegate.thickness != thickness ||
+           oldDelegate.opacity != opacity ||
            oldDelegate.pencilType != pencilType;
   }
 }

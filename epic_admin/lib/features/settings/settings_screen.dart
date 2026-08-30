@@ -89,8 +89,8 @@ class _SettingsScreenState extends State<SettingsScreen> with SingleTickerProvid
 
       if (doc.exists && doc.data() != null) {
         final data = doc.data()!;
-        final maxNyawa = data['maxNyawa'] ?? 5;
-        final timerDurationSec = data['timerDurationSec'] ?? 60;
+        final maxNyawa = data['maxNyawa'] ?? 3;
+        final timerDurationSec = data['timerDurationSec'] ?? 900;
         final recoveryTimeMin = data['recoveryTimeMin'] ?? 15;
 
         // Load level configs if they exist in firestore
@@ -196,9 +196,9 @@ class _SettingsScreenState extends State<SettingsScreen> with SingleTickerProvid
     });
 
     try {
-      final maxNyawa = int.tryParse(_heartsCtrl.text) ?? 5;
+      final maxNyawa = int.tryParse(_heartsCtrl.text) ?? 3;
       final recoveryTimeMin = int.tryParse(_recoveryCtrl.text) ?? 15;
-      final timerDurationSec = (int.tryParse(_durationCtrl.text) ?? 1) * 60;
+      final timerDurationSec = (int.tryParse(_durationCtrl.text) ?? 15) * 60;
 
       // Update _gameConfigs from controller values
       _gameConfigs.forEach((game, levels) {
@@ -271,7 +271,8 @@ class _SettingsScreenState extends State<SettingsScreen> with SingleTickerProvid
 
   @override
   Widget build(BuildContext context) {
-    final isDesktop = MediaQuery.of(context).size.width > 1000;
+    final isDesktop = MediaQuery.of(context).size.width >= 1024;
+    final isMobile = MediaQuery.of(context).size.width < 768;
 
     return Scaffold(
       backgroundColor: AdminColors.background,
@@ -292,7 +293,7 @@ class _SettingsScreenState extends State<SettingsScreen> with SingleTickerProvid
               )
             : SingleChildScrollView(
           physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+          padding: EdgeInsets.symmetric(horizontal: isMobile ? 14 : 32, vertical: isMobile ? 16 : 24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -302,20 +303,23 @@ class _SettingsScreenState extends State<SettingsScreen> with SingleTickerProvid
                 children: [
                   Text(
                     'Konfigurasi Sistem',
-                    style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                          fontWeight: FontWeight.w800,
-                          color: const Color(0xFF0F172A),
-                          letterSpacing: -0.5,
-                        ),
+                    style: (isMobile
+                            ? Theme.of(context).textTheme.headlineMedium
+                            : Theme.of(context).textTheme.headlineLarge)
+                        ?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: const Color(0xFF0F172A),
+                      letterSpacing: -0.5,
+                    ),
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 4),
                   const Text(
                     'Kelola nilai batasan global pengguna dan parameter penilaian level game digital murid.',
                     style: TextStyle(fontSize: 13, color: Color(0xFF64748B), fontWeight: FontWeight.normal),
                   ),
                 ],
               ).animate().fadeIn(duration: 350.ms),
-              const SizedBox(height: 28),
+              SizedBox(height: isMobile ? 16 : 28),
 
               // Responsive Layout Grid
               isDesktop
@@ -327,9 +331,9 @@ class _SettingsScreenState extends State<SettingsScreen> with SingleTickerProvid
                           width: 340,
                           child: Column(
                             children: [
-                              _buildGlobalSettingsCard(),
+                              _buildGlobalSettingsCard(isMobile),
                               const SizedBox(height: 24),
-                              _buildStatusCard(),
+                              _buildStatusCard(isMobile),
                             ],
                           ),
                         ),
@@ -339,7 +343,7 @@ class _SettingsScreenState extends State<SettingsScreen> with SingleTickerProvid
                         Expanded(
                           child: Column(
                             children: [
-                              _buildGameConfigurationsCard(),
+                              _buildGameConfigurationsCard(isMobile),
                               const SizedBox(height: 28),
                               _buildSaveButton(),
                             ],
@@ -349,12 +353,12 @@ class _SettingsScreenState extends State<SettingsScreen> with SingleTickerProvid
                     )
                   : Column(
                       children: [
-                        _buildGlobalSettingsCard(),
+                        _buildGlobalSettingsCard(isMobile),
+                        const SizedBox(height: 20),
+                        _buildGameConfigurationsCard(isMobile),
+                        const SizedBox(height: 20),
+                        _buildStatusCard(isMobile),
                         const SizedBox(height: 24),
-                        _buildGameConfigurationsCard(),
-                        const SizedBox(height: 24),
-                        _buildStatusCard(),
-                        const SizedBox(height: 28),
                         _buildSaveButton(),
                       ],
                     ),
@@ -365,12 +369,12 @@ class _SettingsScreenState extends State<SettingsScreen> with SingleTickerProvid
     );
   }
 
-  Widget _buildGlobalSettingsCard() {
+  Widget _buildGlobalSettingsCard(bool isMobile) {
     return Container(
-      padding: const EdgeInsets.all(28),
+      padding: EdgeInsets.all(isMobile ? 16 : 28),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(isMobile ? 18 : 24),
         border: Border.all(color: const Color(0xFFE2E8F0), width: 1.2),
         boxShadow: [
           BoxShadow(
@@ -393,7 +397,7 @@ class _SettingsScreenState extends State<SettingsScreen> with SingleTickerProvid
               ),
             ],
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
 
           // Nyawa Maksimal
           _buildSettingInput(
@@ -402,7 +406,7 @@ class _SettingsScreenState extends State<SettingsScreen> with SingleTickerProvid
             iconColor: const Color(0xFFEF4444),
             controller: _heartsCtrl,
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
 
           // Waktu Pemulihan Nyawa
           _buildSettingInput(
@@ -411,7 +415,7 @@ class _SettingsScreenState extends State<SettingsScreen> with SingleTickerProvid
             iconColor: const Color(0xFFF59E0B),
             controller: _recoveryCtrl,
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
 
           // Durasi Maksimal Pengerjaan
           _buildSettingInput(
@@ -425,12 +429,12 @@ class _SettingsScreenState extends State<SettingsScreen> with SingleTickerProvid
     ).animate().fadeIn(duration: 350.ms);
   }
 
-  Widget _buildStatusCard() {
+  Widget _buildStatusCard(bool isMobile) {
     return Container(
-      padding: const EdgeInsets.all(28),
+      padding: EdgeInsets.all(isMobile ? 16 : 28),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(isMobile ? 18 : 24),
         border: Border.all(color: const Color(0xFFE2E8F0), width: 1.2),
         boxShadow: [
           BoxShadow(
@@ -453,14 +457,14 @@ class _SettingsScreenState extends State<SettingsScreen> with SingleTickerProvid
               ),
             ],
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
 
           _buildStatusRow('Versi App', 'v1.0.0-admin', Colors.blue),
-          const Divider(height: 24, color: Color(0xFFF1F5F9)),
+          const Divider(height: 20, color: Color(0xFFF1F5F9)),
           _buildStatusRow('Database Latency', _latencyStr, _isFirebaseConnected ? Colors.green : Colors.grey),
-          const Divider(height: 24, color: Color(0xFFF1F5F9)),
+          const Divider(height: 20, color: Color(0xFFF1F5F9)),
           _buildStatusRow('Wilayah Server', 'Asia-Southeast', Colors.purple),
-          const Divider(height: 24, color: Color(0xFFF1F5F9)),
+          const Divider(height: 20, color: Color(0xFFF1F5F9)),
           _buildStatusRow(
             'Koneksi Firebase',
             _isFirebaseConnected ? 'Terkoneksi' : 'Belum Terkoneksi',
@@ -491,12 +495,12 @@ class _SettingsScreenState extends State<SettingsScreen> with SingleTickerProvid
     );
   }
 
-  Widget _buildGameConfigurationsCard() {
+  Widget _buildGameConfigurationsCard(bool isMobile) {
     return Container(
-      padding: const EdgeInsets.all(28),
+      padding: EdgeInsets.all(isMobile ? 16 : 28),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(isMobile ? 18 : 24),
         border: Border.all(color: const Color(0xFFE2E8F0), width: 1.2),
         boxShadow: [
           BoxShadow(
@@ -509,58 +513,107 @@ class _SettingsScreenState extends State<SettingsScreen> with SingleTickerProvid
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: const [
-                  Icon(Icons.gamepad_rounded, color: Color(0xFF2563EB), size: 18),
-                  SizedBox(width: 8),
-                  Text(
-                    'KONFIGURASI GAME & LEVEL',
-                    style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: Color(0xFF0F172A), letterSpacing: 0.5),
-                  ),
-                ],
-              ),
-              // Compact Pill Tab Bar Selector
-              Container(
-                height: 38,
-                width: 270, // Specify width to prevent layout crash from infinite constraints inside Row
-                padding: const EdgeInsets.all(2),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE2E8F0),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: TabBar(
-                  controller: _gameTabController,
-                  isScrollable: false,
-                  dividerColor: Colors.transparent,
-                  indicatorSize: TabBarIndicatorSize.tab,
-                  labelColor: Colors.white,
-                  unselectedLabelColor: const Color(0xFF64748B),
-                  labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5),
-                  unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 11.5),
-                  overlayColor: WidgetStateProperty.all(Colors.transparent),
-                  splashFactory: NoSplash.splashFactory,
-                  indicatorPadding: EdgeInsets.zero,
-                  indicator: BoxDecoration(
-                    color: const Color(0xFF2563EB),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  tabs: const [
-                    Tab(text: 'BATIK'),
-                    Tab(text: 'KERIS'),
-                    Tab(text: 'ANYAMAN'),
+          if (isMobile)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: const [
+                    Icon(Icons.gamepad_rounded, color: Color(0xFF2563EB), size: 18),
+                    SizedBox(width: 8),
+                    Text(
+                      'KONFIGURASI GAME & LEVEL',
+                      style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: Color(0xFF0F172A), letterSpacing: 0.5),
+                    ),
                   ],
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 28),
+                const SizedBox(height: 12),
+                Container(
+                  height: 38,
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(2),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE2E8F0),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: TabBar(
+                    controller: _gameTabController,
+                    isScrollable: false,
+                    dividerColor: Colors.transparent,
+                    indicatorSize: TabBarIndicatorSize.tab,
+                    labelColor: Colors.white,
+                    unselectedLabelColor: const Color(0xFF64748B),
+                    labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5),
+                    unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 11.5),
+                    overlayColor: WidgetStateProperty.all(Colors.transparent),
+                    splashFactory: NoSplash.splashFactory,
+                    indicatorPadding: EdgeInsets.zero,
+                    indicator: BoxDecoration(
+                      color: const Color(0xFF2563EB),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    tabs: const [
+                      Tab(text: 'BATIK'),
+                      Tab(text: 'KERIS'),
+                      Tab(text: 'ANYAMAN'),
+                    ],
+                  ),
+                ),
+              ],
+            )
+          else
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: const [
+                    Icon(Icons.gamepad_rounded, color: Color(0xFF2563EB), size: 18),
+                    SizedBox(width: 8),
+                    Text(
+                      'KONFIGURASI GAME & LEVEL',
+                      style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: Color(0xFF0F172A), letterSpacing: 0.5),
+                    ),
+                  ],
+                ),
+                // Compact Pill Tab Bar Selector
+                Container(
+                  height: 38,
+                  width: 270,
+                  padding: const EdgeInsets.all(2),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE2E8F0),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: TabBar(
+                    controller: _gameTabController,
+                    isScrollable: false,
+                    dividerColor: Colors.transparent,
+                    indicatorSize: TabBarIndicatorSize.tab,
+                    labelColor: Colors.white,
+                    unselectedLabelColor: const Color(0xFF64748B),
+                    labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5),
+                    unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 11.5),
+                    overlayColor: WidgetStateProperty.all(Colors.transparent),
+                    splashFactory: NoSplash.splashFactory,
+                    indicatorPadding: EdgeInsets.zero,
+                    indicator: BoxDecoration(
+                      color: const Color(0xFF2563EB),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    tabs: const [
+                      Tab(text: 'BATIK'),
+                      Tab(text: 'KERIS'),
+                      Tab(text: 'ANYAMAN'),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          SizedBox(height: isMobile ? 18 : 28),
 
           // Tab views wrapping level forms
           SizedBox(
-            height: 380,
+            height: isMobile ? 480 : 380,
             child: _gameConfigs.isEmpty
                 ? const Center(
                     child: Column(
@@ -578,9 +631,9 @@ class _SettingsScreenState extends State<SettingsScreen> with SingleTickerProvid
                 : TabBarView(
                     controller: _gameTabController,
                     children: [
-                      _buildLevelsTabContent('Batik', const Color(0xFFF97316)),
-                      _buildLevelsTabContent('Keris', const Color(0xFF8B5CF6)),
-                      _buildLevelsTabContent('Anyaman', const Color(0xFF10B981)),
+                      _buildLevelsTabContent('Batik', const Color(0xFFF97316), isMobile),
+                      _buildLevelsTabContent('Keris', const Color(0xFF8B5CF6), isMobile),
+                      _buildLevelsTabContent('Anyaman', const Color(0xFF10B981), isMobile),
                     ],
                   ),
           ),
@@ -589,7 +642,7 @@ class _SettingsScreenState extends State<SettingsScreen> with SingleTickerProvid
     ).animate().fadeIn(duration: 350.ms);
   }
 
-  Widget _buildLevelsTabContent(String gameName, Color dotColor) {
+  Widget _buildLevelsTabContent(String gameName, Color dotColor, bool isMobile) {
     return ListView(
       physics: const NeverScrollableScrollPhysics(),
       children: List.generate(4, (index) {
@@ -597,17 +650,66 @@ class _SettingsScreenState extends State<SettingsScreen> with SingleTickerProvid
         final isLast = level == 4;
         return Column(
           children: [
-            _buildLevelConfigRow(gameName, level, dotColor),
-            if (!isLast) const Divider(height: 32, color: Color(0xFFF1F5F9)),
+            _buildLevelConfigRow(gameName, level, dotColor, isMobile),
+            if (!isLast) Divider(height: isMobile ? 20 : 32, color: const Color(0xFFF1F5F9)),
           ],
         );
       }),
     );
   }
 
-  Widget _buildLevelConfigRow(String game, int level, Color dotColor) {
+  Widget _buildLevelConfigRow(String game, int level, Color dotColor, bool isMobile) {
     final config = _gameConfigs[game]![level]!;
     final multiplierCtrl = _multiplierControllers[game]![level]!;
+
+    if (isMobile) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(shape: BoxShape.circle, color: dotColor),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Level $level',
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5, color: Color(0xFF0F172A)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                flex: 4,
+                child: _buildInlineInput(
+                  label: 'Multiplier',
+                  controller: multiplierCtrl,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                flex: 5,
+                child: _buildInlineDropdown(
+                  label: 'Min Grade',
+                  currentValue: config['minGrade'],
+                  onChanged: (val) {
+                    if (val != null) {
+                      setState(() {
+                        config['minGrade'] = val;
+                      });
+                    }
+                  },
+                ),
+              ),
+            ],
+          ),
+        ],
+      );
+    }
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,

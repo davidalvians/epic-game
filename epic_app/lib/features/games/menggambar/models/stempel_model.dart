@@ -10,6 +10,7 @@ class StempelModel {
   final RxDouble scaleY;
   final Rx<Color> color;
   final RxDouble strokeWidth;
+  final RxDouble opacity;
   final RxBool isResizing = false.obs;
 
   /// Rotasi dalam radian (0 = tidak diputar)
@@ -24,6 +25,7 @@ class StempelModel {
     required Offset initialPosition,
     required Color initialColor,
     required double initialStrokeWidth,
+    double initialOpacity = 1.0,
     double initialScaleX = 1.0,
     double initialScaleY = 1.0,
     double initialRotation = 0.0,
@@ -32,6 +34,7 @@ class StempelModel {
         scaleX = initialScaleX.obs,
         scaleY = initialScaleY.obs,
         strokeWidth = initialStrokeWidth.obs,
+        opacity = initialOpacity.obs,
         color = initialColor.obs,
         rotation = initialRotation.obs,
         zIndex = initialZIndex.obs;
@@ -43,6 +46,7 @@ class StempelModel {
         'scaleX': scaleX.value,
         'scaleY': scaleY.value,
         'strokeWidth': strokeWidth.value,
+        'opacity': opacity.value,
         'color': color.value.toARGB32(),
         'rotation': rotation.value,
         'zIndex': zIndex.value,
@@ -62,6 +66,7 @@ class StempelModel {
       initialScaleX: (json['scaleX'] as num?)?.toDouble() ?? (json['scale'] as num?)?.toDouble() ?? 1.0,
       initialScaleY: (json['scaleY'] as num?)?.toDouble() ?? (json['scale'] as num?)?.toDouble() ?? 1.0,
       initialStrokeWidth: (json['strokeWidth'] as num?)?.toDouble() ?? 4.0,
+      initialOpacity: (json['opacity'] as num?)?.toDouble() ?? 1.0,
       initialColor: Color(json['color']),
       initialRotation: (json['rotation'] as num?)?.toDouble() ?? 0.0,
       initialZIndex: (json['zIndex'] as num?)?.toInt() ?? 0,

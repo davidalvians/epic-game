@@ -46,7 +46,6 @@ class _UsersScreenState extends State<UsersScreen> with SingleTickerProviderStat
       if (_tabController.indexIsChanging) {
         setState(() {
           _filterStatus = '';
-          // Jangan reset search — biarkan query tetap saat ganti tab
         });
       }
     });
@@ -65,6 +64,9 @@ class _UsersScreenState extends State<UsersScreen> with SingleTickerProviderStat
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isMobile = screenWidth < 768;
+
     return Stack(
       clipBehavior: Clip.none,
       children: [
@@ -132,22 +134,26 @@ class _UsersScreenState extends State<UsersScreen> with SingleTickerProviderStat
                         ),
                       ],
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 6),
                     Text(
                       'Manajemen User',
-                      style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                            fontWeight: FontWeight.w800,
-                            color: const Color(0xFF0F172A),
-                            letterSpacing: -0.5,
-                          ),
+                      style: (isMobile
+                              ? Theme.of(context).textTheme.headlineMedium
+                              : Theme.of(context).textTheme.headlineLarge)
+                          ?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: const Color(0xFF0F172A),
+                        letterSpacing: -0.5,
+                      ),
                     ),
                   ],
                 ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.04, end: 0, curve: Curves.easeOutQuad),
-                const SizedBox(height: 28),
+                SizedBox(height: isMobile ? 16 : 24),
 
                 // ── Custom TabBar ─────────────────────────────────────────
                 Container(
-                  width: 320,
+                  width: isMobile ? double.infinity : 320,
+                  constraints: const BoxConstraints(maxWidth: 360),
                   decoration: BoxDecoration(
                     color: const Color(0xFFF1F5F9),
                     borderRadius: BorderRadius.circular(20),
@@ -196,14 +202,14 @@ class _UsersScreenState extends State<UsersScreen> with SingleTickerProviderStat
                     ],
                   ),
                 ).animate().fadeIn(delay: 100.ms, duration: 400.ms).slideY(begin: 0.04, end: 0, curve: Curves.easeOutQuad),
-                const SizedBox(height: 28),
+                SizedBox(height: isMobile ? 16 : 24),
 
                 // ── Search & Filter Bar ───────────────────────────────────
                 Container(
-                  padding: const EdgeInsets.all(20),
+                  padding: EdgeInsets.all(isMobile ? 14 : 20),
                   decoration: BoxDecoration(
                     color: Colors.white,
-                    borderRadius: BorderRadius.circular(24),
+                    borderRadius: BorderRadius.circular(isMobile ? 18 : 24),
                     border: Border.all(color: const Color(0xFFE2E8F0), width: 1.2),
                     boxShadow: [
                       BoxShadow(
@@ -213,120 +219,221 @@ class _UsersScreenState extends State<UsersScreen> with SingleTickerProviderStat
                       ),
                     ],
                   ),
-                  child: Row(
-                    children: [
-                      // Search Field
-                      Expanded(
-                        child: TextField(
-                          controller: _searchController,
-                          decoration: InputDecoration(
-                            hintText: _tabController.index == 0
-                                ? 'Cari nama, ID, atau kelas murid...'
-                                : 'Cari nama, ID, atau sekolah guru...',
-                            hintStyle: const TextStyle(color: Color(0xFF94A3B8), fontSize: 14),
-                            prefixIcon: const Icon(Icons.search_rounded, color: Color(0xFF64748B), size: 20),
-                            suffixIcon: _searchQuery.isNotEmpty
-                                ? IconButton(
-                                    icon: const Icon(Icons.close_rounded, size: 18, color: Color(0xFF94A3B8)),
-                                    onPressed: () {
-                                      _searchController.clear();
-                                      setState(() => _searchQuery = '');
+                  child: isMobile
+                      ? Column(
+                          children: [
+                            // Search Field
+                            TextField(
+                              controller: _searchController,
+                              decoration: InputDecoration(
+                                hintText: _tabController.index == 0
+                                    ? 'Cari nama, ID, atau kelas...'
+                                    : 'Cari nama, ID, atau sekolah...',
+                                hintStyle: const TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
+                                prefixIcon: const Icon(Icons.search_rounded, color: Color(0xFF64748B), size: 18),
+                                suffixIcon: _searchQuery.isNotEmpty
+                                    ? IconButton(
+                                        icon: const Icon(Icons.close_rounded, size: 16, color: Color(0xFF94A3B8)),
+                                        onPressed: () {
+                                          _searchController.clear();
+                                          setState(() => _searchQuery = '');
+                                        },
+                                      )
+                                    : null,
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                  borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                  borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                  borderSide: const BorderSide(color: AdminColors.primary, width: 1.5),
+                                ),
+                                filled: true,
+                                fillColor: const Color(0xFFF8FAFC),
+                                isDense: true,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: AnimatedBuilder(
+                                    animation: _tabController,
+                                    builder: (context, _) {
+                                      final validValues = _currentFilterOptions.map((o) => o['value']!).toList();
+                                      final currentFilter = validValues.contains(_filterStatus) ? _filterStatus : '';
+
+                                      return Container(
+                                        height: 44,
+                                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFF8FAFC),
+                                          borderRadius: BorderRadius.circular(14),
+                                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                                        ),
+                                        child: DropdownButtonHideUnderline(
+                                          child: DropdownButton<String>(
+                                            value: currentFilter,
+                                            isExpanded: true,
+                                            icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 20, color: Color(0xFF64748B)),
+                                            style: const TextStyle(fontSize: 13, color: Color(0xFF0F172A), fontWeight: FontWeight.w500),
+                                            items: _currentFilterOptions
+                                                .map((opt) => DropdownMenuItem<String>(
+                                                      value: opt['value']!,
+                                                      child: Text(opt['label']!),
+                                                    ))
+                                                .toList(),
+                                            onChanged: (val) => setState(() => _filterStatus = val ?? ''),
+                                          ),
+                                        ),
+                                      );
                                     },
-                                  )
-                                : null,
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(16),
-                              borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                                  ),
+                                ),
+                                if (_searchQuery.isNotEmpty || _filterStatus.isNotEmpty) ...[
+                                  const SizedBox(width: 10),
+                                  Container(
+                                    height: 44,
+                                    width: 44,
+                                    decoration: BoxDecoration(
+                                      color: AdminColors.primary.withOpacity(0.08),
+                                      border: Border.all(color: AdminColors.primary.withOpacity(0.2)),
+                                      borderRadius: BorderRadius.circular(14),
+                                    ),
+                                    child: IconButton(
+                                      icon: const Icon(Icons.filter_list_off_rounded, color: AdminColors.primary, size: 18),
+                                      onPressed: () {
+                                        _searchController.clear();
+                                        setState(() {
+                                          _searchQuery = '';
+                                          _filterStatus = '';
+                                        });
+                                      },
+                                    ),
+                                  ),
+                                ],
+                              ],
                             ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(16),
-                              borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(16),
-                              borderSide: const BorderSide(color: AdminColors.primary, width: 1.5),
-                            ),
-                            filled: true,
-                            fillColor: const Color(0xFFF8FAFC),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-
-                      // Filter Dropdown — rebuild saat tab berubah
-                      AnimatedBuilder(
-                        animation: _tabController,
-                        builder: (context, _) {
-                          // Pastikan filterStatus yang dipilih valid untuk tab ini
-                          final validValues = _currentFilterOptions.map((o) => o['value']!).toList();
-                          final currentFilter = validValues.contains(_filterStatus) ? _filterStatus : '';
-
-                          return DropdownMenu<String>(
-                            key: ValueKey(_tabController.index), // force rebuild saat tab ganti
-                            initialSelection: currentFilter,
-                            width: 200,
-                            inputDecorationTheme: InputDecorationTheme(
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(16),
-                                borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                          ],
+                        )
+                      : Row(
+                          children: [
+                            // Search Field
+                            Expanded(
+                              child: TextField(
+                                controller: _searchController,
+                                decoration: InputDecoration(
+                                  hintText: _tabController.index == 0
+                                      ? 'Cari nama, ID, atau kelas murid...'
+                                      : 'Cari nama, ID, atau sekolah guru...',
+                                  hintStyle: const TextStyle(color: Color(0xFF94A3B8), fontSize: 14),
+                                  prefixIcon: const Icon(Icons.search_rounded, color: Color(0xFF64748B), size: 20),
+                                  suffixIcon: _searchQuery.isNotEmpty
+                                      ? IconButton(
+                                          icon: const Icon(Icons.close_rounded, size: 18, color: Color(0xFF94A3B8)),
+                                          onPressed: () {
+                                            _searchController.clear();
+                                            setState(() => _searchQuery = '');
+                                          },
+                                        )
+                                      : null,
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                    borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                    borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                    borderSide: const BorderSide(color: AdminColors.primary, width: 1.5),
+                                  ),
+                                  filled: true,
+                                  fillColor: const Color(0xFFF8FAFC),
+                                ),
                               ),
-                              enabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(16),
-                                borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(16),
-                                borderSide: const BorderSide(color: AdminColors.primary, width: 1.5),
-                              ),
-                              filled: true,
-                              fillColor: const Color(0xFFF8FAFC),
                             ),
-                            onSelected: (value) => setState(() => _filterStatus = value ?? ''),
-                            dropdownMenuEntries: _currentFilterOptions
-                                .map((opt) => DropdownMenuEntry<String>(
-                                      value: opt['value']!,
-                                      label: opt['label']!,
-                                    ))
-                                .toList(),
-                          );
-                        },
-                      ),
+                            const SizedBox(width: 16),
 
-                      const SizedBox(width: 16),
+                            // Filter Dropdown
+                            AnimatedBuilder(
+                              animation: _tabController,
+                              builder: (context, _) {
+                                final validValues = _currentFilterOptions.map((o) => o['value']!).toList();
+                                final currentFilter = validValues.contains(_filterStatus) ? _filterStatus : '';
 
-                      // Tombol reset filter
-                      AnimatedOpacity(
-                        opacity: (_searchQuery.isNotEmpty || _filterStatus.isNotEmpty) ? 1.0 : 0.0,
-                        duration: const Duration(milliseconds: 200),
-                        child: Tooltip(
-                          message: 'Reset Pencarian & Filter',
-                          child: Container(
-                            height: 48,
-                            width: 48,
-                            decoration: BoxDecoration(
-                              color: AdminColors.primary.withOpacity(0.06),
-                              border: Border.all(color: AdminColors.primary.withOpacity(0.2), width: 1.2),
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            child: IconButton(
-                              icon: const Icon(Icons.filter_list_off_rounded, color: AdminColors.primary, size: 20),
-                              onPressed: () {
-                                _searchController.clear();
-                                setState(() {
-                                  _searchQuery = '';
-                                  _filterStatus = '';
-                                });
+                                return DropdownMenu<String>(
+                                  key: ValueKey(_tabController.index),
+                                  initialSelection: currentFilter,
+                                  width: 200,
+                                  inputDecorationTheme: InputDecorationTheme(
+                                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                      borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                                    ),
+                                    enabledBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                      borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                                    ),
+                                    focusedBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                      borderSide: const BorderSide(color: AdminColors.primary, width: 1.5),
+                                    ),
+                                    filled: true,
+                                    fillColor: const Color(0xFFF8FAFC),
+                                  ),
+                                  onSelected: (value) => setState(() => _filterStatus = value ?? ''),
+                                  dropdownMenuEntries: _currentFilterOptions
+                                      .map((opt) => DropdownMenuEntry<String>(
+                                            value: opt['value']!,
+                                            label: opt['label']!,
+                                          ))
+                                      .toList(),
+                                );
                               },
                             ),
-                          ),
+
+                            const SizedBox(width: 16),
+
+                            // Tombol reset filter
+                            AnimatedOpacity(
+                              opacity: (_searchQuery.isNotEmpty || _filterStatus.isNotEmpty) ? 1.0 : 0.0,
+                              duration: const Duration(milliseconds: 200),
+                              child: Tooltip(
+                                message: 'Reset Pencarian & Filter',
+                                child: Container(
+                                  height: 48,
+                                  width: 48,
+                                  decoration: BoxDecoration(
+                                    color: AdminColors.primary.withOpacity(0.06),
+                                    border: Border.all(color: AdminColors.primary.withOpacity(0.2), width: 1.2),
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                  child: IconButton(
+                                    icon: const Icon(Icons.filter_list_off_rounded, color: AdminColors.primary, size: 20),
+                                    onPressed: () {
+                                      _searchController.clear();
+                                      setState(() {
+                                        _searchQuery = '';
+                                        _filterStatus = '';
+                                      });
+                                    },
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
-                    ],
-                  ),
                 ).animate().fadeIn(delay: 200.ms, duration: 400.ms).slideY(begin: 0.04, end: 0, curve: Curves.easeOutQuad),
-                const SizedBox(height: 24),
+                SizedBox(height: isMobile ? 16 : 24),
 
                 // ── Tab Views (Tables) ────────────────────────────────────
                 Expanded(

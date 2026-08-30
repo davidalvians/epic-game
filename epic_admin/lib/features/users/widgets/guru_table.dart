@@ -1,9 +1,9 @@
-import 'package:epic_admin/core/theme/admin_colors.dart';
-import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:epic_admin/core/theme/admin_colors.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+import 'package:go_router/go_router.dart';
 
 String _getProxiedImageUrl(String url) {
   if (url.isEmpty) return '';
@@ -29,6 +29,8 @@ class GuruTable extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isMobile = MediaQuery.of(context).size.width < 768;
+
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection('users')
@@ -68,8 +70,6 @@ class GuruTable extends StatelessWidget {
         if (filterStatus.isNotEmpty) {
           docs = docs.where((doc) {
             final data = doc.data();
-            // Filter bisa berupa status akun ('active'/'suspended') atau
-            // status verifikasi guru ('approved'/'pending'/'rejected')
             final accountStatus = (data['status'] ?? 'active').toString();
             final guruStatus = (data['guruStatus'] ?? 'pending').toString();
             return accountStatus == filterStatus || guruStatus == filterStatus;
@@ -80,8 +80,10 @@ class GuruTable extends StatelessWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildHeaderRow(context),
-            const SizedBox(height: 6),
+            if (!isMobile) ...[
+              _buildHeaderRow(context),
+              const SizedBox(height: 6),
+            ],
             Expanded(
               child: docs.isEmpty
                   ? _buildEmptyState(
@@ -95,14 +97,14 @@ class GuruTable extends StatelessWidget {
                       itemCount: docs.length,
                       itemBuilder: (context, index) {
                         final doc = docs[index];
-                        final data = doc.data() as Map<String, dynamic>;
+                        final data = doc.data();
                         final String uid = doc.id;
                         final String name = data['namaLengkap'] ?? 'Tanpa Nama';
                         final String school = data['sekolah'] ?? 'Belum diisi';
                         final String guruStatus = data['guruStatus'] ?? 'pending';
+                        final String accountStatus = data['status'] ?? 'active';
                         final String? avatarUrl = data['avatarUrl'] as String?;
 
-                        // Format status string
                         String statusDisplay = 'Pending';
                         if (guruStatus == 'approved') statusDisplay = 'Approved';
                         if (guruStatus == 'rejected') statusDisplay = 'Rejected';
@@ -119,9 +121,11 @@ class GuruTable extends StatelessWidget {
                               school: school,
                               classes: classesCount,
                               status: statusDisplay,
+                              accountStatus: accountStatus,
                               id: uid,
                               avatarUrl: avatarUrl,
-                              delay: Duration(milliseconds: index * 50),
+                              isMobile: isMobile,
+                              delay: Duration(milliseconds: index * 40),
                             );
                           },
                         );
@@ -182,8 +186,10 @@ class _HoverableGuruRow extends StatefulWidget {
   final String school;
   final int classes;
   final String status;
+  final String accountStatus;
   final String id;
   final String? avatarUrl;
+  final bool isMobile;
   final Duration delay;
 
   const _HoverableGuruRow({
@@ -191,8 +197,10 @@ class _HoverableGuruRow extends StatefulWidget {
     required this.school,
     required this.classes,
     required this.status,
+    required this.accountStatus,
     required this.id,
     this.avatarUrl,
+    required this.isMobile,
     required this.delay,
   });
 
@@ -215,8 +223,182 @@ class _HoverableGuruRowState extends State<_HoverableGuruRow> {
     }
 
     final bool isApproved = widget.status == 'Approved';
-    final Color badgeColor = isApproved ? const Color(0xFF10B981) : (widget.status == 'Rejected' ? const Color(0xFFEF4444) : const Color(0xFFF59E0B));
-    
+    final bool isSuspended = widget.accountStatus == 'suspended';
+    final Color badgeColor = isApproved
+        ? const Color(0xFF10B981)
+        : (widget.status == 'Rejected' ? const Color(0xFFEF4444) : const Color(0xFFF59E0B));
+
+    if (widget.isMobile) {
+      // Mobile Card Layout
+      return Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: isSuspended ? AdminColors.danger.withOpacity(0.3) : const Color(0xFFE2E8F0),
+            width: 1.2,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.015),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Top row: Avatar + Name + School + Status Badge
+            Row(
+              children: [
+                _buildAvatarWidget(initials),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              widget.name,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF0F172A),
+                                fontSize: 14,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (isSuspended)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              margin: const EdgeInsets.only(left: 6),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFEF2F2),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(color: const Color(0xFFFCA5A5)),
+                              ),
+                              child: const Text(
+                                'SUSPENDED',
+                                style: TextStyle(color: Color(0xFFEF4444), fontSize: 9, fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Row(
+                        children: [
+                          const Icon(Icons.school_rounded, size: 13, color: Color(0xFF64748B)),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              widget.school,
+                              style: const TextStyle(
+                                color: Color(0xFF64748B),
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: badgeColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: badgeColor.withOpacity(0.2)),
+                  ),
+                  child: Text(
+                    widget.status,
+                    style: TextStyle(
+                      color: badgeColor,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 11,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            const Divider(color: Color(0xFFF1F5F9), height: 1),
+            const SizedBox(height: 8),
+
+            // Bottom row: Info & Action Buttons
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'ID: ${widget.id}',
+                      style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 10),
+                    ),
+                    Text(
+                      '${widget.classes} Kelas Dikelola',
+                      style: const TextStyle(color: Color(0xFF334155), fontSize: 12, fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                ),
+                Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.visibility_outlined, size: 18),
+                      color: AdminColors.primary,
+                      style: IconButton.styleFrom(
+                        backgroundColor: AdminColors.primary.withOpacity(0.08),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        padding: const EdgeInsets.all(8),
+                      ),
+                      onPressed: () => context.go('/users/guru/${widget.id}'),
+                      tooltip: 'Lihat Detail',
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      icon: Icon(isSuspended ? Icons.check_circle_outline_rounded : Icons.block_rounded, size: 18),
+                      color: isSuspended ? const Color(0xFF10B981) : const Color(0xFFF59E0B),
+                      style: IconButton.styleFrom(
+                        backgroundColor: (isSuspended ? const Color(0xFF10B981) : const Color(0xFFF59E0B)).withOpacity(0.08),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        padding: const EdgeInsets.all(8),
+                      ),
+                      onPressed: () => _showSuspendDialog(context, widget.id, widget.name),
+                      tooltip: isSuspended ? 'Aktifkan Akun' : 'Suspend Akun',
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline_rounded, size: 18),
+                      color: const Color(0xFFEF4444),
+                      style: IconButton.styleFrom(
+                        backgroundColor: const Color(0xFFEF4444).withOpacity(0.08),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        padding: const EdgeInsets.all(8),
+                      ),
+                      onPressed: () => _showDeleteConfirmation(context, widget.id, widget.name),
+                      tooltip: 'Hapus Guru',
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ],
+        ),
+      ).animate().fadeIn(delay: widget.delay, duration: 250.ms).slideY(begin: 0.04, end: 0, curve: Curves.easeOutQuad);
+    }
+
+    // Desktop Row Layout
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
@@ -254,39 +436,7 @@ class _HoverableGuruRowState extends State<_HoverableGuruRow> {
               flex: 3,
               child: Row(
                 children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(color: AdminColors.primary.withOpacity(0.2)),
-                    ),
-                    child: widget.avatarUrl != null && widget.avatarUrl!.isNotEmpty
-                        ? ClipRRect(
-                            borderRadius: BorderRadius.circular(20),
-                            child: Image.network(
-                              _getProxiedImageUrl(widget.avatarUrl!),
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) => _buildInitials(initials),
-                              loadingBuilder: (context, child, loadingProgress) {
-                                if (loadingProgress == null) return child;
-                                return Center(
-                                  child: SizedBox(
-                                    width: 16,
-                                    height: 16,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      valueColor: AlwaysStoppedAnimation<Color>(
-                                        AdminColors.primary.withOpacity(0.3),
-                                      ),
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-                          )
-                        : _buildInitials(initials),
-                  ),
+                  _buildAvatarWidget(initials),
                   const SizedBox(width: 14),
                   Expanded(
                     child: Column(
@@ -319,7 +469,7 @@ class _HoverableGuruRowState extends State<_HoverableGuruRow> {
                 ],
               ),
             ),
-            
+
             // School
             Expanded(
               flex: 2,
@@ -334,7 +484,7 @@ class _HoverableGuruRowState extends State<_HoverableGuruRow> {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-            
+
             // Number of Classes
             Expanded(
               flex: 2,
@@ -347,7 +497,7 @@ class _HoverableGuruRowState extends State<_HoverableGuruRow> {
                 ),
               ),
             ),
-            
+
             // Status Badge with Soft Glow
             Expanded(
               flex: 2,
@@ -393,7 +543,7 @@ class _HoverableGuruRowState extends State<_HoverableGuruRow> {
                 ],
               ),
             ),
-            
+
             // Action Buttons
             Expanded(
               flex: 2,
@@ -407,11 +557,11 @@ class _HoverableGuruRowState extends State<_HoverableGuruRow> {
                     tooltip: 'Lihat Detail',
                   ),
                   IconButton(
-                    icon: const Icon(Icons.block_rounded, size: 20),
-                    color: const Color(0xFFF59E0B),
-                    hoverColor: const Color(0xFFF59E0B).withOpacity(0.08),
+                    icon: Icon(isSuspended ? Icons.check_circle_outline_rounded : Icons.block_rounded, size: 20),
+                    color: isSuspended ? const Color(0xFF10B981) : const Color(0xFFF59E0B),
+                    hoverColor: (isSuspended ? const Color(0xFF10B981) : const Color(0xFFF59E0B)).withOpacity(0.08),
                     onPressed: () => _showSuspendDialog(context, widget.id, widget.name),
-                    tooltip: 'Suspend / Aktifkan Akun',
+                    tooltip: isSuspended ? 'Aktifkan Akun' : 'Suspend Akun',
                   ),
                   IconButton(
                     icon: const Icon(Icons.delete_outline_rounded, size: 20),
@@ -427,6 +577,42 @@ class _HoverableGuruRowState extends State<_HoverableGuruRow> {
         ),
       ),
     ).animate().fadeIn(delay: widget.delay, duration: 300.ms).slideY(begin: 0.05, end: 0, curve: Curves.easeOutCubic);
+  }
+
+  Widget _buildAvatarWidget(String initials) {
+    return Container(
+      width: 40,
+      height: 40,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(color: AdminColors.primary.withOpacity(0.2)),
+      ),
+      child: widget.avatarUrl != null && widget.avatarUrl!.isNotEmpty
+          ? ClipRRect(
+              borderRadius: BorderRadius.circular(20),
+              child: Image.network(
+                _getProxiedImageUrl(widget.avatarUrl!),
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) => _buildInitials(initials),
+                loadingBuilder: (context, child, loadingProgress) {
+                  if (loadingProgress == null) return child;
+                  return Center(
+                    child: SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          AdminColors.primary.withOpacity(0.3),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            )
+          : _buildInitials(initials),
+    );
   }
 
   Widget _buildInitials(String initials) {
@@ -455,7 +641,6 @@ class _HoverableGuruRowState extends State<_HoverableGuruRow> {
     );
   }
 
-
   void _showDeleteConfirmation(BuildContext context, String uid, String name) {
     showDialog(
       context: context,
@@ -481,14 +666,11 @@ class _HoverableGuruRowState extends State<_HoverableGuruRow> {
               style: ElevatedButton.styleFrom(backgroundColor: AdminColors.danger, foregroundColor: Colors.white),
               child: const Text('Hapus Permanen'),
               onPressed: () async {
-                Navigator.of(context).pop(); // Dismiss confirmation dialog
+                Navigator.of(context).pop();
 
-                // Capture rootNavigator and scaffoldMessenger before doing async work
-                // and before the widget gets disposed when the user doc is deleted
                 final rootNavigator = Navigator.of(context, rootNavigator: true);
                 final scaffoldMessenger = ScaffoldMessenger.of(context);
 
-                // Show loading spinner
                 showDialog(
                   context: context,
                   barrierDismissible: false,
@@ -501,7 +683,6 @@ class _HoverableGuruRowState extends State<_HoverableGuruRow> {
                 );
 
                 try {
-                  // 1. Read user data FIRST before deleting
                   final snap = await FirebaseFirestore.instance.collection('users').doc(uid).get();
                   String? username;
                   String? avatarUrl;
@@ -511,7 +692,6 @@ class _HoverableGuruRowState extends State<_HoverableGuruRow> {
                     avatarUrl = data?['avatarUrl'] as String?;
                   }
 
-                  // 2. Delete verification documents and their proof files in Storage
                   final verifSnap = await FirebaseFirestore.instance
                       .collection('guru_verifikasi')
                       .where('uid', isEqualTo: uid)
@@ -532,7 +712,6 @@ class _HoverableGuruRowState extends State<_HoverableGuruRow> {
                     }
                   }
 
-                  // 3. Process classes and artworks cascading
                   final kelasSnap = await FirebaseFirestore.instance
                       .collection('kelas')
                       .where('guruUid', isEqualTo: uid)
@@ -542,7 +721,6 @@ class _HoverableGuruRowState extends State<_HoverableGuruRow> {
                     for (var classDoc in kelasSnap.docs) {
                       final classId = classDoc.id;
 
-                      // Query artworks associated with this class
                       final artworksSnap = await FirebaseFirestore.instance
                           .collection('artworks')
                           .where('kelasId', isEqualTo: classId)
@@ -556,30 +734,26 @@ class _HoverableGuruRowState extends State<_HoverableGuruRow> {
                           final String imageUrl = artData['imageUrl']?.toString() ?? '';
 
                           if (deletedByMurid) {
-                            // Delete permanently
                             if (imageUrl.isNotEmpty && imageUrl.contains('firebasestorage.googleapis.com')) {
                               try {
                                 final ref = FirebaseStorage.instance.refFromURL(imageUrl);
                                 await ref.delete();
                               } catch (e) {
-                                debugPrint('Error deleting artwork file in class delete: $e');
+                                debugPrint('Error deleting artwork file: $e');
                               }
                             }
                             artworksBatch.delete(artDoc.reference);
                           } else {
-                            // Unlink
                             artworksBatch.update(artDoc.reference, {'kelasId': null});
                           }
                         }
                         await artworksBatch.commit();
                       }
 
-                      // Delete the class doc
                       await classDoc.reference.delete();
                     }
                   }
 
-                  // 4. Delete profile photo (avatarUrl) from Storage
                   if (avatarUrl != null && avatarUrl.isNotEmpty && avatarUrl.contains('firebasestorage.googleapis.com')) {
                     try {
                       final ref = FirebaseStorage.instance.refFromURL(avatarUrl);
@@ -589,19 +763,16 @@ class _HoverableGuruRowState extends State<_HoverableGuruRow> {
                     }
                   }
 
-                  // 5. Delete username reservation if exists
                   if (username != null && username.isNotEmpty) {
                     await FirebaseFirestore.instance.collection('usernames').doc(username.toLowerCase()).delete();
                   }
 
-                  // 6. Delete user document
                   await FirebaseFirestore.instance.collection('users').doc(uid).delete();
 
-                  // Safely pop the loading spinner using captured rootNavigator
                   try {
                     rootNavigator.pop();
                   } catch (_) {}
-                  
+
                   scaffoldMessenger.showSnackBar(
                     SnackBar(
                       content: Text('Guru "$name" beserta semua kelas, permohonan, dan berkas berhasil dihapus.'),
@@ -625,7 +796,6 @@ class _HoverableGuruRowState extends State<_HoverableGuruRow> {
   }
 
   void _showSuspendDialog(BuildContext context, String uid, String name) async {
-    // Fetch current status first
     try {
       final snap = await FirebaseFirestore.instance.collection('users').doc(uid).get();
       if (!snap.exists || !context.mounted) return;

@@ -5,12 +5,14 @@ class _DrawingPainter extends CustomPainter {
   final DrawingStroke? currentStroke;
   final int activeLayerIndex;
   final double zoomScale;
+  final bool renderStempels;
 
   const _DrawingPainter({
     required this.layers,
     required this.currentStroke,
     required this.activeLayerIndex,
     this.zoomScale = 1.0,
+    this.renderStempels = true,
   });
 
   @override
@@ -26,6 +28,44 @@ class _DrawingPainter extends CustomPainter {
       for (final stroke in layer.strokes) {
         _paintStroke(canvas, stroke, size);
       }
+      
+      // Render stempels
+      if (renderStempels) {
+        for (final stempel in layer.stempels) {
+        canvas.save();
+        
+        // stempel.position.value adalah titik awal dari shape box (sebelum margin).
+        // _StempelWidget menggunakan box berukuran:
+        final double shapeBoxW = 48.0 * stempel.scaleX.value + 16.0;
+        final double shapeBoxH = 48.0 * stempel.scaleY.value + 16.0;
+        
+        // Pindah ke pusat shape box untuk melakukan rotasi
+        final double centerX = stempel.position.value.dx + shapeBoxW / 2;
+        final double centerY = stempel.position.value.dy + shapeBoxH / 2;
+        
+        canvas.translate(centerX, centerY);
+        canvas.rotate(stempel.rotation.value);
+        canvas.translate(-centerX, -centerY);
+        
+        // Pindah ke posisi gambar aktual (tambah padding 8px dari _StempelWidget)
+        canvas.translate(stempel.position.value.dx + 8.0, stempel.position.value.dy + 8.0);
+        
+        final shapePainter = StempelShapePainter(
+          shape: stempel.shape,
+          color: stempel.color.value,
+          strokeWidth: stempel.strokeWidth.value,
+          opacity: stempel.opacity.value,
+        );
+        
+        // Gambar dengan ukuran asli konten
+        shapePainter.paint(
+          canvas, 
+          Size(48.0 * stempel.scaleX.value, 48.0 * stempel.scaleY.value),
+        );
+        
+        canvas.restore();
+      }
+    }
       
       // Render current stroke on the active layer
       if (currentStroke != null && i == activeLayerIndex) {
@@ -68,26 +108,43 @@ class _DrawingPainter extends CustomPainter {
     if (stroke.tool == DrawingTool.eraser) {
       paint.color = Colors.transparent; // Akan clear pixels
     } else {
-      final opacity = pencilType.opacityFactor;
+      final opacity = stroke.opacity * pencilType.opacityFactor;
       final a = stroke.color.a; // nilai double 0.0 - 1.0 pada Flutter 3.27+
       paint.color = stroke.color.withValues(
-        alpha: a * opacity,
+        alpha: (a * opacity).clamp(0.0, 1.0),
       );
 
       // Tambahkan efek realistis
-      switch (pencilType) {
-        case PencilType.pencil:
-          paint.maskFilter = const MaskFilter.blur(BlurStyle.solid, 1.0);
-          break;
-        case PencilType.watercolor:
-          paint.maskFilter = MaskFilter.blur(BlurStyle.normal, stroke.thickness * 0.4);
-          break;
-        case PencilType.marker:
-          // Spidol tajam dan flat
-          break;
-        case PencilType.ballpoint:
-          // Bolpoin tajam dan bersih
-          break;
+      // PENTING: Blur sigma HARUS dibagi zoomScale agar ukuran blur di layar
+      // tetap konstan. Tanpa ini, saat zoom=20x:
+      //   Pensil:  sigma_layar = 1.0 × 20 = 20px  (berat)
+      //   Stabilo: sigma_layar = (thickness×0.4) × 20 → crash GPU!
+      //
+      // BATASAN ENGINE (Impeller): Saat zoom sangat besar (misal > 5x),
+      // bounding box dari path yang diberi MaskFilter bisa melampaui
+      // batas tekstur maksimum (16384x16384) dan menyebabkan CRASH.
+      // Solusi: Matikan efek blur sama sekali jika zoom sangat besar.
+      if (zoomScale < 5.0) {
+        final double z = zoomScale.clamp(0.1, 10.0);
+        switch (pencilType) {
+          case PencilType.pencil:
+            // Blur konstan di layar: sigma_canvas = 1.0/zoom
+            paint.maskFilter = MaskFilter.blur(BlurStyle.solid, (1.0 / z).clamp(0.05, 2.0));
+            break;
+          case PencilType.watercolor:
+            // Blur proporsional ketebalan, tapi dibatasi di screen
+            paint.maskFilter = MaskFilter.blur(
+              BlurStyle.normal,
+              (stroke.thickness * 0.4 / z).clamp(0.05, 8.0),
+            );
+            break;
+          case PencilType.marker:
+            // Spidol tajam dan flat
+            break;
+          case PencilType.ballpoint:
+            // Bolpoin tajam dan bersih
+            break;
+        }
       }
     }
 
@@ -122,39 +179,48 @@ class _DrawingPainter extends CustomPainter {
     final bool isEraser = stroke.tool == DrawingTool.eraser;
 
     if (usePressureSensitive || isEraser) {
-      // Configure stroke based on tool type
       if (stroke.cachedPath == null) {
         final double thinning = isEraser
             ? 0.0
             : (pencilType == PencilType.ballpoint ? 0.7 : 0.5);
-            
-        // Limit zoomScale to avoid perfect_freehand blowing up with massive coordinates
-        final effectiveZoomScale = zoomScale.clamp(0.2, 4.0);
-            
+
+        // ─── Normalisasi Zoom untuk simulatePressure ────────────────────────
+        // perfect_freehand dengan simulatePressure menggunakan JARAK antar titik
+        // untuk menghitung "kecepatan" → menentukan ketebalan (lambat = tebal).
+        //
+        // Masalah: saat zoom=2x, 1px layar = 0.5px canvas → titik lebih rapat
+        //          → terlihat "lambat" → garis tebal. Sebaliknya saat zoom out.
+        //
+        // Solusi:
+        //   1. Scale titik × zoom  → jarak antar titik kelihatan sama di semua zoom
+        //   2. Scale size × zoom   → rasio (jarak/size) tetap sama → pressure sama
+        //   3. Bagi path ÷ zoom   → kembalikan ke canvas space
+        //   Hasil: visual thickness = (size × zoom) / zoom = size  (zoom-invariant) ✓
+        final double z = zoomScale.clamp(0.1, 10.0);
+
         final options = pf.StrokeOptions(
-          size: stroke.thickness * effectiveZoomScale * (isEraser ? 2.0 : pencilType.thicknessMultiplier),
+          size: stroke.thickness * z * (isEraser ? 2.0 : pencilType.thicknessMultiplier),
           thinning: thinning,
           smoothing: 0.5,
           streamline: 0.5,
           simulatePressure: true,
         );
 
-        final scaledPoints = stroke.points.map((p) => pf.PointVector(p.dx * effectiveZoomScale, p.dy * effectiveZoomScale)).toList();
-        final outlinePoints = pf.getStroke(
-          scaledPoints,
-          options: options,
-        );
+        final scaledPoints = stroke.points
+            .map((p) => pf.PointVector(p.dx * z, p.dy * z))
+            .toList();
+        final outlinePoints = pf.getStroke(scaledPoints, options: options);
 
         if (outlinePoints.isNotEmpty) {
           final path = Path();
-          path.moveTo(outlinePoints[0].dx / effectiveZoomScale, outlinePoints[0].dy / effectiveZoomScale);
+          path.moveTo(outlinePoints[0].dx / z, outlinePoints[0].dy / z);
           for (int i = 1; i < outlinePoints.length; i++) {
-            path.lineTo(outlinePoints[i].dx / effectiveZoomScale, outlinePoints[i].dy / effectiveZoomScale);
+            path.lineTo(outlinePoints[i].dx / z, outlinePoints[i].dy / z);
           }
           path.close();
           stroke.cachedPath = path;
         } else {
-          stroke.cachedPath = Path(); // empty
+          stroke.cachedPath = Path();
         }
       }
 

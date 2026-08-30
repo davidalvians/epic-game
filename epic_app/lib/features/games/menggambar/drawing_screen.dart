@@ -15,7 +15,7 @@ part 'widgets/stempel_widget.dart';
 part 'widgets/drawing_toolbar.dart';
 part 'widgets/drawing_painter.dart';
 /// Layar menggambar utama dengan canvas, toolbar, dan timer.
-class DrawingScreen extends StatelessWidget {
+class DrawingScreen extends StatefulWidget {
   final String kategori;
   final int level;
 
@@ -26,13 +26,85 @@ class DrawingScreen extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    final controller = Get.put(
-      DrawingController(kategori: kategori, level: level),
-      tag: '${kategori}_$level',
-    );
+  State<DrawingScreen> createState() => _DrawingScreenState();
+}
 
-    return Scaffold(
+class _DrawingScreenState extends State<DrawingScreen> {
+  late final DrawingController controller;
+
+  @override
+  void initState() {
+    super.initState();
+    final tag = '${widget.kategori}_${widget.level}';
+
+    // Hapus controller lama jika masih ada di memori GetX (misalnya dari sesi submit sebelumnya),
+    // agar setiap sesi baru selalu dimulai dengan state yang benar-benar bersih.
+    if (Get.isRegistered<DrawingController>(tag: tag)) {
+      Get.delete<DrawingController>(tag: tag, force: true);
+    }
+
+    controller = Get.put(
+      DrawingController(kategori: widget.kategori, level: widget.level),
+      tag: tag,
+    );
+  }
+
+  @override
+  void dispose() {
+    final tag = '${widget.kategori}_${widget.level}';
+    if (Get.isRegistered<DrawingController>(tag: tag)) {
+      Get.delete<DrawingController>(tag: tag, force: true);
+    }
+    super.dispose();
+  }
+
+  void _showExitDialog() {
+    controller.pauseTimer();
+    Get.dialog(
+      AlertDialog(
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20)),
+        title: const Text('Keluar?',
+            style: TextStyle(fontFamily: 'FredokaOne')),
+        content: const Text(
+            'Progres gambarmu akan otomatis tersimpan di Draf dan bisa dilanjutkan nanti.',
+            style: TextStyle(fontFamily: 'Nunito')),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Get.back();
+              controller.resumeTimer();
+            },
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              // Simpan secara paksa sebelum keluar
+              await controller.forceSaveDraft();
+              Get.back(); // Tutup dialog
+              Get.back(); // Keluar screen
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFEF4444),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Keluar'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) {
+          _showExitDialog();
+        }
+      },
+      child: Scaffold(
       backgroundColor: const Color(0xFF1E293B),
       body: Stack(
         children: [
@@ -50,7 +122,10 @@ class DrawingScreen extends StatelessWidget {
             right: 0,
             child: SafeArea(
               bottom: false,
-              child: _DrawingHeader(controller: controller),
+              child: _DrawingHeader(
+                controller: controller,
+                onBack: _showExitDialog,
+              ),
             ),
           ),
 
@@ -63,6 +138,7 @@ class DrawingScreen extends StatelessWidget {
           ),
         ],
       ),
+      ),
     );
   }
 }
@@ -71,8 +147,9 @@ class DrawingScreen extends StatelessWidget {
 
 class _DrawingHeader extends StatelessWidget {
   final DrawingController controller;
+  final VoidCallback onBack;
 
-  const _DrawingHeader({required this.controller});
+  const _DrawingHeader({required this.controller, required this.onBack});
 
   @override
   Widget build(BuildContext context) {
@@ -97,44 +174,7 @@ class _DrawingHeader extends StatelessWidget {
                   children: [
                     // Back Button
                     GestureDetector(
-                      onTap: () {
-                        controller.pauseTimer();
-                        Get.dialog(
-                          AlertDialog(
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(20)),
-                            title: const Text('Keluar?',
-                                style: TextStyle(fontFamily: 'FredokaOne')),
-                            content: const Text(
-                                'Progres gambarmu akan hilang jika belum dikumpulkan.',
-                                style: TextStyle(fontFamily: 'Nunito')),
-                            actions: [
-                              TextButton(
-                                onPressed: () {
-                                  Get.back();
-                                  controller.resumeTimer();
-                                },
-                                child: const Text('Batal'),
-                              ),
-                              ElevatedButton(
-                                onPressed: () {
-                                  Get.back();
-                                  Get.back();
-                                },
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFFEF4444),
-                                  foregroundColor: Colors.white,
-                                ),
-                                child: const Text('Keluar'),
-                              ),
-                            ],
-                          ),
-                        ).then((_) {
-                          if (!controller.isTimeUp.value) {
-                            controller.resumeTimer();
-                          }
-                        });
-                      },
+                      onTap: onBack,
                       child: Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
@@ -232,11 +272,7 @@ class _DrawingHeader extends StatelessWidget {
                               ),
                             ],
                           ),
-                        ).then((_) {
-                          if (!controller.isTimeUp.value) {
-                            controller.resumeTimer();
-                          }
-                        });
+                        );
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF22C55E),
@@ -418,16 +454,27 @@ class _LayerPanel extends StatelessWidget {
         title: const Text('Ganti Nama Layer', style: TextStyle(fontFamily: 'FredokaOne', color: Colors.white)),
         content: TextField(
           controller: textController,
-          style: const TextStyle(color: Colors.white, fontFamily: 'Nunito'),
+          style: const TextStyle(color: Colors.white, fontFamily: 'Nunito', fontSize: 15),
+          cursorColor: const Color(0xFF8B5CF6),
           autofocus: true,
           decoration: InputDecoration(
             hintText: 'Nama Layer',
             hintStyle: const TextStyle(color: Color(0xFF475569)),
             filled: true,
             fillColor: const Color(0xFF0F172A),
+            isDense: true,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide.none,
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFF334155)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFF8B5CF6), width: 1.5),
             ),
           ),
         ),

@@ -1,4 +1,5 @@
 import 'package:epic_admin/core/theme/admin_colors.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 class Topbar extends StatelessWidget implements PreferredSizeWidget {
@@ -6,6 +7,15 @@ class Topbar extends StatelessWidget implements PreferredSizeWidget {
 
   @override
   Widget build(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+    final displayName = (user?.displayName != null && user!.displayName!.trim().isNotEmpty)
+        ? user.displayName!
+        : 'Admin EPIC';
+    final email = (user?.email != null && user!.email!.trim().isNotEmpty)
+        ? user.email!
+        : 'Administrator';
+    final photoUrl = user?.photoURL;
+
     return Container(
       height: 72,
       decoration: BoxDecoration(
@@ -80,22 +90,28 @@ class Topbar extends StatelessWidget implements PreferredSizeWidget {
                 children: [
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
-                        'Admin EPIC',
+                        displayName,
                         style: Theme.of(context).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.bold),
                       ),
                       Text(
-                        'Administrator',
+                        email,
                         style: Theme.of(context).textTheme.labelSmall?.copyWith(color: AdminColors.onSurfaceVariant),
                       ),
                     ],
                   ),
-              const SizedBox(width: 12),
-              CircleAvatar(
-                backgroundColor: AdminColors.primaryContainer.withOpacity(0.2),
-                child: const Icon(Icons.person, color: AdminColors.primary),
-              ),
+                  const SizedBox(width: 12),
+                  CircleAvatar(
+                    backgroundColor: AdminColors.primaryContainer.withOpacity(0.2),
+                    backgroundImage: (photoUrl != null && photoUrl.isNotEmpty)
+                        ? NetworkImage(photoUrl)
+                        : null,
+                    child: (photoUrl == null || photoUrl.isEmpty)
+                        ? const Icon(Icons.person, color: AdminColors.primary)
+                        : null,
+                  ),
                 ],
               ),
             ],

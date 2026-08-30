@@ -5,14 +5,43 @@ import 'package:epic_app/core/utils/helpers.dart';
 import 'package:epic_app/features/games/anyaman/anyaman_controller.dart';
 
 /// Layar utama game Anyaman — canvas berupa grid interaktif
-class AnyamanScreen extends StatelessWidget {
+class AnyamanScreen extends StatefulWidget {
   final int level;
   const AnyamanScreen({super.key, required this.level});
 
   @override
-  Widget build(BuildContext context) {
-    final controller = Get.put(AnyamanController(level: level));
+  State<AnyamanScreen> createState() => _AnyamanScreenState();
+}
 
+class _AnyamanScreenState extends State<AnyamanScreen> {
+  late final AnyamanController controller;
+
+  @override
+  void initState() {
+    super.initState();
+    final tag = 'anyaman_${widget.level}';
+
+    if (Get.isRegistered<AnyamanController>(tag: tag)) {
+      Get.delete<AnyamanController>(tag: tag, force: true);
+    }
+
+    controller = Get.put(
+      AnyamanController(level: widget.level),
+      tag: tag,
+    );
+  }
+
+  @override
+  void dispose() {
+    final tag = 'anyaman_${widget.level}';
+    if (Get.isRegistered<AnyamanController>(tag: tag)) {
+      Get.delete<AnyamanController>(tag: tag, force: true);
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
@@ -131,7 +160,8 @@ class AnyamanScreen extends StatelessWidget {
                 const Text('Tetap Main', style: TextStyle(fontFamily: 'Nunito')),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
+              await controller.forceSaveDraft();
               Get.back();
               Get.back();
             },
@@ -420,6 +450,8 @@ class _AnyamanGrid extends StatelessWidget {
                         mainAxisSize: MainAxisSize.min, // Shrink-wrap horizontally
                         children: List.generate(size, (col) {
                           return GetBuilder<AnyamanController>(
+                            init: controller,
+                            global: false,
                             id: 'grid_${row}_$col',
                             builder: (ctrl) {
                               // Safe check to prevent out of bounds when grid resizes

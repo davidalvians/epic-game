@@ -1,5 +1,5 @@
 import 'package:epic_admin/core/theme/admin_colors.dart';
-import 'package:epic_admin/core/theme/admin_sizes.dart';
+import 'package:epic_admin/shared/layout/admin_bottom_navbar.dart';
 import 'package:epic_admin/shared/layout/admin_header.dart';
 import 'package:epic_admin/shared/layout/admin_sidebar.dart';
 import 'package:flutter/material.dart';
@@ -18,16 +18,25 @@ class _AdminLayoutState extends State<AdminLayout> {
 
   @override
   Widget build(BuildContext context) {
-    final isDesktop = MediaQuery.of(context).size.width >= 1024;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isDesktop = screenWidth >= 1024;
 
     return Scaffold(
       key: _scaffoldKey,
       backgroundColor: AdminColors.background,
-      drawer: isDesktop ? null : const AdminSidebar(),
+      drawer: isDesktop
+          ? null
+          : const Drawer(
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+              child: SafeArea(
+                child: AdminSidebar(),
+              ),
+            ),
+      bottomNavigationBar: isDesktop ? null : const AdminBottomNavBar(),
       body: Row(
         children: [
-          if (isDesktop)
-            const AdminSidebar(),
+          if (isDesktop) const AdminSidebar(),
           Expanded(
             child: Column(
               children: [
@@ -40,7 +49,10 @@ class _AdminLayoutState extends State<AdminLayout> {
                 Expanded(
                   child: Container(
                     color: AdminColors.background,
-                    padding: const EdgeInsets.all(AdminSizes.paddingPage),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: isDesktop ? 28.0 : 16.0,
+                      vertical: isDesktop ? 24.0 : 12.0,
+                    ),
                     child: widget.child,
                   ),
                 ),

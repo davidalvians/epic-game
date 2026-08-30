@@ -16,7 +16,8 @@ import 'package:epic_app/data/repositories/kelas_repository.dart';
 import 'package:epic_app/core/services/draft_service.dart';
 import 'package:epic_app/core/services/audio_service.dart';
 
-/// Layar hasil menggambar/anyaman premium — menampilkan scanning juri AI & hasil apresiasi mewah.
+/// Layar hasil menggambar/anyaman premium sekelas game arcade/gacha kelas dunia.
+/// Menampilkan scanning juri AI futuristik & hasil apresiasi mewah beranimasi penuh.
 class DrawingResultScreen extends StatefulWidget {
   final String kategori;
   final int level;
@@ -46,12 +47,23 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
   
   // Animation controllers
   late AnimationController _animCtrl;
-  late Animation<double> _scaleAnim;
   late Animation<double> _fadeAnim;
+  late Animation<double> _scaleAnim;
+  late Animation<double> _slideAnim;
 
-  // Scanline animation controller
+  // Scanning animation controllers (Ultra-smooth 60fps)
   late AnimationController _scanCtrl;
   late Animation<double> _scanPosition;
+
+  // Grade emblem rotation controller
+  late AnimationController _auraRotateCtrl;
+
+  // Score rolling counter controller
+  late AnimationController _scoreCounterCtrl;
+  late Animation<double> _scoreCounterAnim;
+
+  // Shimmer button controller
+  late AnimationController _shimmerCtrl;
 
   // Confetti controller for celebrations
   late ConfettiController _confettiCtrl;
@@ -60,8 +72,9 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
   bool _isEvaluating = true;
   final bool _isSubmitting = false;
   bool _isSubmitted = false;
-  bool _isPending = false; // True jika kena error 429 atau error lainnya
-  String _pendingReason = 'Limit penggunaan token AI saat ini sedang habis. Karya kamu telah berhasil disimpan dengan aman ke Galeri.\n\nSistem akan otomatis memberikan skor nanti saat limit token AI kembali tersedia. Jangan khawatir, kerjamu tidak sia-sia!';
+  bool _isPending = false;
+  String _pendingReason =
+      'Limit penggunaan token AI saat ini sedang habis. Karya kamu telah berhasil disimpan dengan aman ke Galeri.\n\nSistem akan otomatis memberikan skor nanti saat limit token AI kembali tersedia. Jangan khawatir, kerjamu tidak sia-sia!';
   
   int _poinDapat = 0;
   int _skorFinal = 0;
@@ -69,15 +82,19 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
   String _aiGrade = 'C';
   String _modelUsed = '';
 
-  // AI Loading status message animation
+  // Scanning diagnostic stage steps
+  int _currentDiagnosticStep = 0;
+  Timer? _diagnosticTimer;
+
+  // Loading status message animation
   Timer? _statusTimer;
   int _statusIndex = 0;
   final List<String> _statusMessages = [
-    'Mengirimkan hasil karya ke Juri AI...',
-    'Juri AI sedang mengamati detail goresan...',
-    'Memeriksa kecocokan konsep matematika dasar...',
+    'Mengirimkan hasil karya ke Juri...',
+    'Juri sedang mengamati detail goresan...',
+    'Memeriksa kecocokan konsep matematika & geometri...',
     'Menganalisis nilai budaya Madura yang terkandung...',
-    'Juri AI merumuskan ulasan dan skor akhir...',
+    'Juri merumuskan ulasan dan skor akhir...',
   ];
 
   // Repository
@@ -88,34 +105,78 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
   void initState() {
     super.initState();
 
-    // Setup Confetti
+    // 1. Setup Confetti
     _confettiCtrl = ConfettiController(duration: const Duration(seconds: 4));
 
-    // Setup result animations
+    // 2. Setup Result Animations
     _animCtrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1000),
+      duration: const Duration(milliseconds: 900),
     );
-    _scaleAnim = CurvedAnimation(
-      parent: _animCtrl, 
-      curve: Curves.elasticOut,
-    );
-    _fadeAnim = CurvedAnimation(
-      parent: _animCtrl, 
-      curve: Curves.easeIn,
+    _fadeAnim = CurvedAnimation(parent: _animCtrl, curve: Curves.easeIn);
+    _scaleAnim = CurvedAnimation(parent: _animCtrl, curve: Curves.elasticOut);
+    _slideAnim = Tween<double>(begin: 40.0, end: 0.0).animate(
+      CurvedAnimation(parent: _animCtrl, curve: Curves.easeOutCubic),
     );
 
-    // Setup Scanning laser line animation
+    // 3. Setup Ultra-Smooth Scanning Laser & HUD Animation (easeInOutSine for zero jitter)
     _scanCtrl = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 2),
+      duration: const Duration(milliseconds: 2400),
     )..repeat(reverse: true);
     _scanPosition = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _scanCtrl, curve: Curves.easeInOut),
+      CurvedAnimation(parent: _scanCtrl, curve: Curves.easeInOutSine),
     );
 
-    // Start cycling loading status messages
-    _statusTimer = Timer.periodic(const Duration(milliseconds: 1600), (timer) {
+    // 4. Setup Aura / Ray Rotation
+    _auraRotateCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 12),
+    )..repeat();
+
+    // 5. Setup Score Counter Animation
+    _scoreCounterCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1400),
+    );
+    _scoreCounterAnim = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _scoreCounterCtrl, curve: Curves.easeOutExpo),
+    );
+
+    // 6. Setup Shimmer Button Animation
+    _shimmerCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2000),
+    )..repeat();
+
+    // 🧹 Hapus draft segera begitu layar hasil muncul
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final user = Get.find<SessionController>().currentUser.value;
+      if (user != null) {
+        Get.find<DraftService>().clearDraftImmediately(user.uid, widget.kategori, widget.level);
+      }
+    });
+
+    // Mulai suara pemindaian AI jika tersedia
+    if (Get.isRegistered<AudioService>()) {
+      Get.find<AudioService>().startScanHum();
+    }
+
+    // Step cycle timer untuk live diagnostic steps
+    _diagnosticTimer = Timer.periodic(const Duration(milliseconds: 700), (timer) {
+      if (mounted && _isEvaluating) {
+        setState(() {
+          if (_currentDiagnosticStep < 3) {
+            _currentDiagnosticStep++;
+          }
+        });
+      } else {
+        timer.cancel();
+      }
+    });
+
+    // Status message cycling
+    _statusTimer = Timer.periodic(const Duration(milliseconds: 1500), (timer) {
       if (mounted && _isEvaluating) {
         setState(() {
           _statusIndex = (_statusIndex + 1) % _statusMessages.length;
@@ -125,15 +186,22 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
       }
     });
 
-    // Run AI scoring asynchronously
+    // Jalankan proses penilaian AI
     _jalankanPenilaian();
   }
 
   @override
   void dispose() {
+    if (Get.isRegistered<AudioService>()) {
+      Get.find<AudioService>().stopScanHum();
+    }
     _animCtrl.dispose();
     _scanCtrl.dispose();
+    _auraRotateCtrl.dispose();
+    _scoreCounterCtrl.dispose();
+    _shimmerCtrl.dispose();
     _confettiCtrl.dispose();
+    _diagnosticTimer?.cancel();
     _statusTimer?.cancel();
     super.dispose();
   }
@@ -181,16 +249,12 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
     final user = session.currentUser.value;
     if (user == null) return;
 
-    // 1. Trigger save to Firestore/Storage AS PENDING immediately (berjalan di background)
     final pendingSaveFuture = _savePendingArtwork(user.uid);
-
     final aiService = Get.find<AIScoringService>();
     final Uint8List imgData = widget.imageBytes ?? Uint8List(0);
-    
     final startTime = DateTime.now();
 
     try {
-      // 2. Evaluasi menggunakan Gemini API
       final result = await aiService.evaluateArtwork(
         imageBytes: imgData,
         kategori: widget.kategori,
@@ -204,11 +268,16 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
         await Future.delayed(Duration(milliseconds: 3000 - elapsedMs));
       }
 
-      // Tunggu hingga save selesai sebelum lanjut update
       final savedId = await pendingSaveFuture;
 
       if (!mounted) return;
-      
+
+      // Hentikan suara scan
+      if (Get.isRegistered<AudioService>()) {
+        Get.find<AudioService>().stopScanHum();
+        Get.find<AudioService>().playWhoosh();
+      }
+
       setState(() {
         _skorFinal = result.skor;
         _aiFeedback = result.feedback;
@@ -220,7 +289,7 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
         _isSubmitted = true;
       });
 
-      // 3. Update Artwork yang statusnya pending menjadi dinilai
+      // Update Artwork score di background
       if (savedId != null) {
         try {
           await _artworkRepo.updateArtworkScore(
@@ -236,11 +305,10 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
           );
         } catch (e) {
           debugPrint('⚠️ Gagal update artwork score: $e');
-          // Lanjut ke draft deletion - jangan fail di sini
         }
       }
 
-      // 4. Update point progress
+      // Update progress poin
       try {
         await _userRepo.simpanProgress(
           uid: user.uid,
@@ -253,17 +321,15 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
         debugPrint('⚠️ Gagal simpan progress: $e');
       }
 
-      // 5. Hapus draft (cleanup - non-critical, jangan stop flow jika gagal)
+      // Hapus draft
       try {
         final draftService = Get.find<DraftService>();
         await draftService.deleteDraft(user.uid, widget.kategori, widget.level);
-        debugPrint('✅ Draft berhasil dihapus');
       } catch (e) {
-        debugPrint('⚠️ Gagal hapus draft (akan dibersihkan kemudian): $e');
-        // Non-critical error - don't interrupt flow
+        debugPrint('⚠️ Gagal hapus draft: $e');
       }
 
-      // Trigger daily missions update
+      // Daily missions update
       try {
         final repo = MisiHarianRepository();
         await repo.incrementByType(uid: user.uid, tipe: 'play_game');
@@ -278,89 +344,64 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
 
       await session.refreshUser();
 
-      // Trigger animations
-      _animCtrl.forward();
-      if (Get.isRegistered<AudioService>()) {
-        Get.find<AudioService>().playSfx('audio/sfx_reward.wav');
-      }
-      if (_aiGrade == 'S' || _aiGrade == 'A') {
-        _confettiCtrl.play();
-        Future.delayed(const Duration(milliseconds: 200), () {
-          if (Get.isRegistered<AudioService>()) {
-            Get.find<AudioService>().playSfx('audio/sfx_unlock.wav');
-          }
-        });
-      }
+      // ── Sequence Animasi Pembukaan Hasil (Grand Arcade Reveal) ──
+      _playRevealSequence();
 
     } on QuotaExhaustedException {
-      // Tunggu hingga save selesai
       await pendingSaveFuture;
-      
-      // Hapus draft (cleanup - non-critical)
       try {
         final draftService = Get.find<DraftService>();
         await draftService.deleteDraft(user.uid, widget.kategori, widget.level);
-        debugPrint('✅ Draft berhasil dihapus (quota error case)');
-      } catch (e) {
-        debugPrint('⚠️ Gagal hapus draft: $e');
+      } catch (_) {}
+
+      if (!mounted) return;
+      if (Get.isRegistered<AudioService>()) {
+        Get.find<AudioService>().stopScanHum();
       }
 
-      // Trigger daily missions update (quota/pending case)
-      try {
-        final repo = MisiHarianRepository();
-        await repo.incrementByType(uid: user.uid, tipe: 'play_game');
-        await repo.incrementByType(uid: user.uid, tipe: 'submit_artwork');
-      } catch (e) {
-        debugPrint('⚠️ Gagal increment misi harian (quota): $e');
-      }
-      
-      if (!mounted) return;
       setState(() {
         _isEvaluating = false;
         _isPending = true;
         _aiGrade = '-';
         _isSubmitted = true;
-        _pendingReason = 'Limit penggunaan token AI saat ini sedang habis. Karya kamu telah berhasil disimpan dengan aman ke Galeri.\n\nSistem akan otomatis memberikan skor nanti saat limit token AI kembali tersedia. Jangan khawatir, kerjamu tidak sia-sia!';
+        _pendingReason =
+            'Limit penggunaan token AI saat ini sedang habis. Karya kamu telah berhasil disimpan dengan aman ke Galeri.\n\nSistem akan otomatis memberikan skor nanti saat limit token AI kembali tersedia. Jangan khawatir, kerjamu tidak sia-sia!';
       });
       _animCtrl.forward();
-      
-      // Friendly message untuk user
+
       Get.snackbar(
         'AI Sedang Padat',
         'Juri AI lagi sibuk. Karyamu akan diproses nanti saat AI siap.',
         snackPosition: SnackPosition.BOTTOM,
         duration: const Duration(seconds: 4),
       );
-      
     } catch (e) {
-      // Error lainnya - wrap dengan user-friendly message
       await pendingSaveFuture;
-      
-      // Hapus draft (cleanup - non-critical)
       try {
         final draftService = Get.find<DraftService>();
         await draftService.deleteDraft(user.uid, widget.kategori, widget.level);
-        debugPrint('✅ Draft berhasil dihapus (error case)');
-      } catch (draftErr) {
-        debugPrint('⚠️ Gagal hapus draft: $draftErr');
-      }
-      
+      } catch (_) {}
+
       if (!mounted) return;
-      
+      if (Get.isRegistered<AudioService>()) {
+        Get.find<AudioService>().stopScanHum();
+      }
+
       String userMessage = 'Ada masalah saat penilaian. Coba lagi nanti.';
       if (e.toString().contains('timeout')) {
         userMessage = 'Koneksi lambat. Pastikan internet stabil, coba lagi.';
       } else if (e.toString().contains('token')) {
         userMessage = 'Perlu login ulang untuk penilaian.';
       }
-      
+
       setState(() {
         _isEvaluating = false;
-        _isPending = true; // Anggap pending jika error
-        _pendingReason = '$userMessage\n\nKarya kamu telah berhasil disimpan di Galeri dan akan dinilai ulang otomatis nanti, atau dapat dinilai manual oleh Admin.';
+        _isPending = true;
+        _pendingReason =
+            '$userMessage\n\nKarya kamu telah berhasil disimpan di Galeri dan akan dinilai ulang otomatis nanti, atau dapat dinilai manual oleh Admin.';
       });
       _animCtrl.forward();
-      
+
       Get.snackbar(
         'Penilaian Tertunda',
         userMessage,
@@ -370,13 +411,59 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
     }
   }
 
-  /// Ambil multiplier poin berdasarkan kategori dan level.
-  /// Prioritas: AppConfigService dari admin panel → fallback hardcoded.
+  /// Sequence animasi beruntun yang dramatis (Staggered Arcade Experience)
+  void _playRevealSequence() {
+    _animCtrl.forward();
+
+    // 1. Suara impact dentuman lencana
+    Future.delayed(const Duration(milliseconds: 150), () {
+      if (mounted && Get.isRegistered<AudioService>()) {
+        Get.find<AudioService>().playRevealImpact();
+      }
+    });
+
+    // 2. Fanfare apresiasi & Confetti
+    Future.delayed(const Duration(milliseconds: 350), () {
+      if (!mounted) return;
+      if (Get.isRegistered<AudioService>()) {
+        Get.find<AudioService>().playGradeReveal(_aiGrade);
+      }
+      if (_aiGrade == 'S' || _aiGrade == 'A') {
+        _confettiCtrl.play();
+      }
+    });
+
+    // 3. Roll-up angka skor AI dengan suara ticking
+    Future.delayed(const Duration(milliseconds: 550), () {
+      if (!mounted) return;
+      _scoreCounterCtrl.forward();
+
+      int tickCount = 0;
+      Timer.periodic(const Duration(milliseconds: 90), (timer) {
+        if (!mounted || tickCount >= 10 || _scoreCounterCtrl.isCompleted) {
+          timer.cancel();
+        } else {
+          tickCount++;
+          if (Get.isRegistered<AudioService>()) {
+            Get.find<AudioService>().playScoreCounter();
+          }
+        }
+      });
+    });
+
+    // 4. Suara koin saat peti emas poin diaktifkan
+    Future.delayed(const Duration(milliseconds: 1200), () {
+      if (!mounted) return;
+      if (Get.isRegistered<AudioService>()) {
+        Get.find<AudioService>().playCoinReward();
+      }
+    });
+  }
+
   double _getMultiplier(int level) {
     if (Get.isRegistered<AppConfigService>()) {
       return Get.find<AppConfigService>().getMultiplier(widget.kategori, level);
     }
-    // Fallback jika AppConfigService belum tersedia
     switch (level) {
       case 1: return 1.0;
       case 2: return 1.2;
@@ -386,15 +473,15 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
     }
   }
 
-  // --- Grade Visual Themes (Mewah HSL Tailored) ---
+  // --- Grade Visual Themes (Mewah HSL & Cyber-Glow) ---
   Color get _themeColor {
     switch (_aiGrade) {
       case 'S': return const Color(0xFFFFB800); // Royal Gold
       case 'A': return const Color(0xFF10B981); // Emerald Green
-      case 'B': return const Color(0xFF3B82F6); // Cyber Blue
-      case 'C': return const Color(0xFFF97316); // Sunset Orange
-      case 'D': return const Color(0xFFEF4444); // Scarlet Red
-      default: return const Color(0xFF6B7280);  // Slate Gray
+      case 'B': return const Color(0xFF38BDF8); // Cyber Cyan
+      case 'C': return const Color(0xFFFB923C); // Sunset Amber
+      case 'D': return const Color(0xFFF87171); // Soft Coral Red
+      default: return const Color(0xFF94A3B8);  // Slate Gray
     }
   }
 
@@ -402,31 +489,31 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
     switch (_aiGrade) {
       case 'S':
         return const LinearGradient(
-          colors: [Color(0xFFFACC15), Color(0xFFFF8A00)],
+          colors: [Color(0xFFFFF078), Color(0xFFFFB800), Color(0xFFD97706)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         );
       case 'A':
         return const LinearGradient(
-          colors: [Color(0xFF34D399), Color(0xFF059669)],
+          colors: [Color(0xFF6EE7B7), Color(0xFF10B981), Color(0xFF047857)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         );
       case 'B':
         return const LinearGradient(
-          colors: [Color(0xFF60A5FA), Color(0xFF1D4ED8)],
+          colors: [Color(0xFF93C5FD), Color(0xFF38BDF8), Color(0xFF1D4ED8)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         );
       case 'C':
         return const LinearGradient(
-          colors: [Color(0xFFFB923C), Color(0xFFEA580C)],
+          colors: [Color(0xFFFDBA74), Color(0xFFFB923C), Color(0xFFC2410C)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         );
       default:
         return const LinearGradient(
-          colors: [Color(0xFF9CA3AF), Color(0xFF4B5563)],
+          colors: [Color(0xFFCBD5E1), Color(0xFF94A3B8), Color(0xFF475569)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         );
@@ -452,42 +539,43 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
         if (!didPop) Get.offAllNamed('/home');
       },
       child: Scaffold(
-        backgroundColor: const Color(0xFF090D1A), // Deep cyber dark background
+        backgroundColor: const Color(0xFF070B16), // Deep Cyber Midnight Background
         body: Stack(
           children: [
-            // Dynamic Ecocultural Batik Silhouette Glow Background
+            // 1. Dynamic Nebula & Madura Batik Glow Background
             Positioned.fill(
               child: CustomPaint(
                 painter: _BatikNebulaPainter(
-                  themeColor: _themeColor,
+                  themeColor: _isEvaluating ? const Color(0xFF00F0FF) : _themeColor,
                   pulseValue: _scanCtrl.value,
                 ),
               ),
             ),
 
-            // Beautiful Animated Switcher for Seamless Scanning -> Result transition
+            // 2. Animated Switcher between Scanning View and Result View
             AnimatedSwitcher(
-              duration: const Duration(milliseconds: 1000),
+              duration: const Duration(milliseconds: 900),
               switchInCurve: Curves.easeInOutCubic,
               switchOutCurve: Curves.easeInOutCubic,
               child: _isEvaluating ? _buildScanningView() : _buildResultView(),
             ),
 
-            // Confetti Widget Overlay
+            // 3. Confetti Particle Explosion
             Align(
               alignment: Alignment.topCenter,
               child: ConfettiWidget(
                 confettiController: _confettiCtrl,
                 blastDirectionality: BlastDirectionality.explosive,
                 shouldLoop: false,
-                numberOfParticles: 35,
-                emissionFrequency: 0.05,
+                numberOfParticles: 45,
+                emissionFrequency: 0.08,
                 colors: const [
                   Color(0xFFFFD700),
                   Color(0xFFFF8A00),
                   Color(0xFF10B981),
-                  Color(0xFF3B82F6),
-                  Colors.white
+                  Color(0xFF38BDF8),
+                  Color(0xFFEC4899),
+                  Colors.white,
                 ],
               ),
             ),
@@ -498,7 +586,7 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
   }
 
   // ===========================================================================
-  // ── 1. SCANNING SCAN VIEW (ANIMASI JURI AI MEMERIKSA KARYA) ────────────────
+  // ── 1. HOLOGRAPHIC SCANNING VIEW (PROSES PEMINDAIAN KARYA) ─────────────────
   // ===========================================================================
   Widget _buildScanningView() {
     return Container(
@@ -507,181 +595,26 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
       height: double.infinity,
       color: Colors.transparent,
       child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16),
+        child: SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 14),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const SizedBox(height: 16),
-              // Holographic scanner title
-              Text(
-                'APRESIASI JURI AI',
-                style: GoogleFonts.outfit(
-                  fontSize: 28,
-                  fontWeight: FontWeight.w900,
-                  color: Colors.white,
-                  letterSpacing: 3,
-                  shadows: [
-                    Shadow(color: const Color(0xFF00FFCC).withValues(alpha: 0.3), blurRadius: 15),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 6),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Container(
-                    width: 8,
-                    height: 8,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFF00FFCC), 
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(color: Color(0xFF00FFCC), blurRadius: 8, spreadRadius: 1),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'PROSES ANALISIS KARYA SENI',
-                    style: GoogleFonts.outfit(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: const Color(0xFF00FFCC),
-                      letterSpacing: 2.0,
-                    ),
-                  ),
-                ],
-              ),
-              const Spacer(),
+              // Top Holographic Scanner Header
+              _buildScanningHeader(),
+              const SizedBox(height: 18),
 
-              // Image Scanner Canvas Container (Mewah, Bercahaya, Glassmorphic)
-              Center(
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    // Outer neon glowing borders
-                    Container(
-                      width: 260,
-                      height: 360,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(28),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFF00FFCC).withValues(alpha: 0.2),
-                            blurRadius: 40,
-                            spreadRadius: 8,
-                          ),
-                        ],
-                      ),
-                    ),
-                    
-                    // Glassmorphic Artwork Frame
-                    Container(
-                      width: 250,
-                      height: 350,
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.05),
-                        borderRadius: BorderRadius.circular(24),
-                        border: Border.all(color: const Color(0xFF00FFCC).withValues(alpha: 0.4), width: 1.5),
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(18),
-                        child: widget.imageBytes != null
-                            ? Image.memory(widget.imageBytes!, fit: BoxFit.cover)
-                            : Container(color: Colors.white10),
-                      ),
-                    ),
+              // Central Cyber Holographic Scanner Box (A4 Proportion)
+              _buildHologramArtworkScanner(),
+              const SizedBox(height: 20),
 
-                    // Holographic Moving Scanline (Sweep Laser Animation)
-                    AnimatedBuilder(
-                      animation: _scanPosition,
-                      builder: (context, child) {
-                        return Positioned(
-                          top: 12 + (_scanPosition.value * 326),
-                          left: 12,
-                          right: 12,
-                          child: child!,
-                        );
-                      },
-                      child: Container(
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF00FFCC),
-                          borderRadius: BorderRadius.circular(10),
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFF00FFCC).withValues(alpha: 0.9),
-                              blurRadius: 18,
-                              spreadRadius: 4,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
+              // Live Diagnostic 4-Step Checklist Cards
+              _buildDiagnosticStepChecklist(),
+              const SizedBox(height: 18),
 
-                    // Inner holographic grid background overlay
-                    Positioned.fill(
-                      child: IgnorePointer(
-                        child: Container(
-                          margin: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            border: Border.all(color: Colors.white.withValues(alpha: 0.03), width: 1),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              const Spacer(),
-
-              // Animated Glassmorphic Status Message
-              AnimatedSwitcher(
-                duration: const Duration(milliseconds: 600),
-                transitionBuilder: (child, animation) => FadeTransition(
-                  opacity: animation,
-                  child: SlideTransition(
-                    position: Tween<Offset>(begin: const Offset(0, 0.15), end: Offset.zero).animate(animation),
-                    child: child,
-                  ),
-                ),
-                child: Container(
-                  key: ValueKey<int>(_statusIndex),
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.03),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-                    boxShadow: const [
-                      BoxShadow(color: Colors.black26, blurRadius: 15),
-                    ],
-                  ),
-                  child: Text(
-                    _statusMessages[_statusIndex],
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.nunito(
-                      fontSize: 14.5,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white.withValues(alpha: 0.95),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 32),
-
-              // Bottom status loader with pulsing neon glow
-              const SizedBox(
-                width: 36,
-                height: 36,
-                child: CircularProgressIndicator(
-                  strokeWidth: 3.5,
-                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF00FFCC)),
-                ),
-              ),
-              const SizedBox(height: 24),
+              // Dynamic Mascot / Thought Speech Bubble
+              _buildMascotThoughtBubble(),
+              const SizedBox(height: 20),
             ],
           ),
         ),
@@ -689,8 +622,409 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
     );
   }
 
+  Widget _buildScanningHeader() {
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+          decoration: BoxDecoration(
+            color: const Color(0xFF00F0FF).withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(30),
+            border: Border.all(color: const Color(0xFF00F0FF).withValues(alpha: 0.4)),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF00F0FF).withValues(alpha: 0.2),
+                blurRadius: 12,
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: const BoxDecoration(
+                  color: Color(0xFF00F0FF),
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(color: Color(0xFF00F0FF), blurRadius: 6, spreadRadius: 1),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'PEMINDAIAN KARYA SENI',
+                style: GoogleFonts.outfit(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                  color: const Color(0xFF00F0FF),
+                  letterSpacing: 2.0,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'ANALISIS KARYA SISWA',
+          style: GoogleFonts.outfit(
+            fontSize: 26,
+            fontWeight: FontWeight.w900,
+            color: Colors.white,
+            letterSpacing: 2.5,
+            shadows: [
+              Shadow(color: const Color(0xFF00F0FF).withValues(alpha: 0.4), blurRadius: 18),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Kotak scanner dengan rasio kertas A4 (210 : 297) yang bersih, presisi, dan stabil
+  Widget _buildHologramArtworkScanner() {
+    // Rasio standar A4 portrait (210:297)
+    const double a4Width = 235.0;
+    const double a4Height = a4Width * (297.0 / 210.0); // ~332.4
+
+    return Center(
+      child: Stack(
+        alignment: Alignment.center,
+        clipBehavior: Clip.none,
+        children: [
+          // 1. Outer Neon Ambient Glow
+          Container(
+            width: a4Width + 14,
+            height: a4Height + 14,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(22),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF00F0FF).withValues(alpha: 0.3),
+                  blurRadius: 36,
+                  spreadRadius: 6,
+                ),
+              ],
+            ),
+          ),
+
+          // 2. Main Scanner Box (Fixed A4 Container with Local Coordinates)
+          SizedBox(
+            width: a4Width,
+            height: a4Height,
+            child: Stack(
+              children: [
+                // 2a. Artwork Image inside Dark Canvas
+                Positioned.fill(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: Container(
+                      color: const Color(0xFF0B132B),
+                      child: widget.imageBytes != null
+                          ? Image.memory(
+                              widget.imageBytes!,
+                              fit: BoxFit.contain,
+                              alignment: Alignment.center,
+                            )
+                          : const SizedBox(),
+                    ),
+                  ),
+                ),
+
+                // 2b. Holographic Cyber Scanlines Grid
+                Positioned.fill(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: CustomPaint(
+                      painter: _HologramMatrixPainter(pulse: _scanCtrl.value),
+                    ),
+                  ),
+                ),
+
+                // 2c. Ultra-Smooth Volumetric Laser Beam Sweep (Scanning 100% of the Canvas)
+                Positioned.fill(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: AnimatedBuilder(
+                      animation: _scanPosition,
+                      builder: (context, child) {
+                        // laser sweeps from y = 0 to y = a4Height - 4
+                        final beamY = _scanPosition.value * (a4Height - 4);
+                        final isMovingDown = _scanCtrl.status == AnimationStatus.forward;
+                        
+                        return Stack(
+                          children: [
+                            // Volumetric Directional Trail
+                            Positioned(
+                              top: isMovingDown ? beamY - 40 : beamY,
+                              left: 0,
+                              right: 0,
+                              height: 40,
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    begin: isMovingDown ? Alignment.topCenter : Alignment.bottomCenter,
+                                    end: isMovingDown ? Alignment.bottomCenter : Alignment.topCenter,
+                                    colors: [
+                                      const Color(0xFF00F0FF).withValues(alpha: 0.0),
+                                      const Color(0xFF00F0FF).withValues(alpha: 0.35),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+
+                            // Crisp Glowing Laser Core Line
+                            Positioned(
+                              top: beamY,
+                              left: 2,
+                              right: 2,
+                              height: 3.5,
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(4),
+                                  boxShadow: const [
+                                    BoxShadow(
+                                      color: Color(0xFF00F0FF),
+                                      blurRadius: 14,
+                                      spreadRadius: 3,
+                                    ),
+                                    BoxShadow(
+                                      color: Colors.white,
+                                      blurRadius: 4,
+                                      spreadRadius: 1,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+
+                            // Left Glowing Node Beacon
+                            Positioned(
+                              top: beamY - 2.5,
+                              left: 2,
+                              child: Container(
+                                width: 8,
+                                height: 8,
+                                decoration: const BoxDecoration(
+                                  color: Color(0xFF00F0FF),
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(color: Color(0xFF00F0FF), blurRadius: 8, spreadRadius: 2),
+                                    BoxShadow(color: Colors.white, blurRadius: 3),
+                                  ],
+                                ),
+                              ),
+                            ),
+
+                            // Right Glowing Node Beacon
+                            Positioned(
+                              top: beamY - 2.5,
+                              right: 2,
+                              child: Container(
+                                width: 8,
+                                height: 8,
+                                decoration: const BoxDecoration(
+                                  color: Color(0xFF00F0FF),
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(color: Color(0xFF00F0FF), blurRadius: 8, spreadRadius: 2),
+                                    BoxShadow(color: Colors.white, blurRadius: 3),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+                  ),
+                ),
+
+                // 2d. Clean Glassmorphic Border Frame
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: const Color(0xFF00F0FF).withValues(alpha: 0.45),
+                          width: 1.5,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+
+                // 2e. Precision HUD Corner Brackets
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: CustomPaint(
+                      painter: _HoloHudPainter(
+                        pulse: _scanCtrl.value,
+                        hudColor: const Color(0xFF00F0FF),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDiagnosticStepChecklist() {
+    final steps = [
+      {'title': 'Pemindaian Goresan Kanvas', 'icon': Icons.brush_rounded},
+      {'title': 'Analisis Simetri & Etnomatematika', 'icon': Icons.square_foot_rounded},
+      {'title': 'Harmonisasi Warna & Ragam Budaya', 'icon': Icons.palette_rounded},
+      {'title': 'Perumusan Skor & Apresiasi Juri', 'icon': Icons.auto_awesome_rounded},
+    ];
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.03),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.hub_rounded, size: 16, color: Color(0xFF00F0FF)),
+              const SizedBox(width: 8),
+              Text(
+                'TAHAPAN DIAGNOSTIK',
+                style: GoogleFonts.outfit(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                  color: const Color(0xFF00F0FF),
+                  letterSpacing: 1.5,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Column(
+            children: List.generate(steps.length, (index) {
+              final isDone = _currentDiagnosticStep > index;
+              final isCurrent = _currentDiagnosticStep == index;
+
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4.0),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 24,
+                      height: 24,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: isDone
+                            ? const Color(0xFF10B981)
+                            : isCurrent
+                                ? const Color(0xFF00F0FF).withValues(alpha: 0.2)
+                                : Colors.white.withValues(alpha: 0.05),
+                        border: Border.all(
+                          color: isDone
+                              ? const Color(0xFF10B981)
+                              : isCurrent
+                                  ? const Color(0xFF00F0FF)
+                                  : Colors.white24,
+                        ),
+                      ),
+                      child: Center(
+                        child: isDone
+                            ? const Icon(Icons.check, size: 14, color: Colors.white)
+                            : isCurrent
+                                ? const SizedBox(
+                                    width: 10,
+                                    height: 10,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF00F0FF)),
+                                    ),
+                                  )
+                                : Text(
+                                    '${index + 1}',
+                                    style: const TextStyle(fontSize: 10, color: Colors.white38),
+                                  ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        steps[index]['title'] as String,
+                        style: GoogleFonts.nunito(
+                          fontSize: 12.5,
+                          fontWeight: isCurrent || isDone ? FontWeight.w800 : FontWeight.w600,
+                          color: isDone
+                              ? Colors.white
+                              : isCurrent
+                                  ? const Color(0xFF00F0FF)
+                                  : Colors.white38,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMascotThoughtBubble() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+      decoration: BoxDecoration(
+        color: const Color(0xFF00F0FF).withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFF00F0FF).withValues(alpha: 0.2)),
+        boxShadow: const [
+          BoxShadow(color: Colors.black26, blurRadius: 10),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: const Color(0xFF00F0FF).withValues(alpha: 0.15),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.psychology_rounded, color: Color(0xFF00F0FF), size: 22),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 500),
+              child: Text(
+                _statusMessages[_statusIndex],
+                key: ValueKey<int>(_statusIndex),
+                style: GoogleFonts.nunito(
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white.withValues(alpha: 0.95),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   // ===========================================================================
-  // ── 2. REDESIGNED PREMIUM RESULT VIEW (HALAMAN PENILAIAN MEWAH) ─────────────
+  // ── 2. GRAND GACHA / ARCADE RESULT VIEW (TAMPILAN PENILAIAN MEWAH & BERSIH) ─
   // ===========================================================================
   Widget _buildResultView() {
     final themeColor = _themeColor;
@@ -706,12 +1040,14 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
       child: SafeArea(
         child: Column(
           children: [
-            // ── Top Glassmorphic Header Bar ──
+            // Top Bar (Tanpa label Model AI di kanan)
             _buildResultHeader(themeColor),
 
-            // ── Main Content Area ──
+            // Scrollable Content (Bersih & Fokus)
             Expanded(
-              child: _isPending ? _buildPendingContent(themeColor) : _buildResultContent(themeColor, timeStr),
+              child: _isPending
+                  ? _buildPendingContent(themeColor)
+                  : _buildResultContent(themeColor, timeStr),
             ),
           ],
         ),
@@ -722,69 +1058,557 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
   Widget _buildResultContent(Color themeColor, String timeStr) {
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-      child: Column(
-        children: [
-          // Celebratory Banner Title with elite outfit typography
-          FadeTransition(
-            opacity: _fadeAnim,
-            child: Text(
-              _celebrationTitle,
-              textAlign: TextAlign.center,
-              style: GoogleFonts.outfit(
-                fontSize: 26,
-                fontWeight: FontWeight.w900,
-                color: themeColor,
-                letterSpacing: 2.0,
-                shadows: [
-                  Shadow(color: themeColor.withValues(alpha: 0.4), blurRadius: 20, offset: const Offset(0, 4)),
+      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
+      child: AnimatedBuilder(
+        animation: _animCtrl,
+        builder: (context, child) {
+          return Transform.translate(
+            offset: Offset(0, _slideAnim.value),
+            child: Opacity(
+              opacity: _fadeAnim.value,
+              child: Column(
+                children: [
+                  // 1. Celebratory Title
+                  Text(
+                    _celebrationTitle,
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.outfit(
+                      fontSize: 27,
+                      fontWeight: FontWeight.w900,
+                      color: themeColor,
+                      letterSpacing: 1.5,
+                      shadows: [
+                        Shadow(
+                          color: themeColor.withValues(alpha: 0.45),
+                          blurRadius: 22,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // 2. Majestic Radiant Grade Emblem
+                  _buildRadiantGradeEmblem(themeColor),
+                  const SizedBox(height: 24),
+
+                  // 3. Rolling Score Counter & Stats Row ("SKOR")
+                  _buildScoreAndStatsGrid(themeColor, timeStr),
+                  const SizedBox(height: 20),
+
+                  // 4. Mystical Golden Rewards Chest Card (+Poin Burst)
+                  _buildGoldenRewardCard(),
+                  const SizedBox(height: 20),
+
+                  // 5. Curator Feedback Panel ("CATATAN APRESIASI")
+                  _buildAIFeedbackPanel(themeColor),
+                  const SizedBox(height: 32),
+
+                  // 6. Shimmering Action Buttons
+                  _buildResultActionButtons(themeColor),
+                  const SizedBox(height: 32),
                 ],
               ),
             ),
+          );
+        },
+      ),
+    );
+  }
+
+  /// Header Bersih (Tanpa label Model AI di kanan)
+  Widget _buildResultHeader(Color themeColor) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.02),
+        border: Border(
+          bottom: BorderSide(color: Colors.white.withValues(alpha: 0.06), width: 1),
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(9),
+            decoration: BoxDecoration(
+              color: themeColor.withValues(alpha: 0.12),
+              shape: BoxShape.circle,
+              border: Border.all(color: themeColor.withValues(alpha: 0.35), width: 1.5),
+              boxShadow: [
+                BoxShadow(color: themeColor.withValues(alpha: 0.2), blurRadius: 8),
+              ],
+            ),
+            child: Text(
+              Helpers.getKategoriEmoji(widget.kategori),
+              style: const TextStyle(fontSize: 20),
+            ),
           ),
-          const SizedBox(height: 24),
-
-          // Rotating Glowing Orbit Grade Circle Badge
-          _buildAnimatedGradeBadge(themeColor),
-          const SizedBox(height: 32),
-
-          // Horizontal glassmorphic stats cards
-          Row(
-            children: [
-              Expanded(child: _buildResultMiniStat('Skor AI', '$_skorFinal', Icons.psychology_rounded, Colors.cyan)),
-              const SizedBox(width: 10),
-              Expanded(child: _buildResultMiniStat('Waktu', timeStr, Icons.timer_rounded, const Color(0xFF10B981))),
-              const SizedBox(width: 10),
-              Expanded(child: _buildResultMiniStat('Goresan', '${widget.strokeCount}', Icons.brush_rounded, Colors.purpleAccent)),
-            ],
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Apresiasi Selesai! 🎉',
+                  style: GoogleFonts.outfit(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                    color: Colors.white,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                Text(
+                  '${Helpers.getKategoriLabel(widget.kategori)} • ${Helpers.getLevelLabel(widget.kategori, widget.level)}',
+                  style: GoogleFonts.nunito(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white54,
+                  ),
+                ),
+              ],
+            ),
           ),
-          const SizedBox(height: 24),
-
-          // Mystical Golden Chest Card (Glowing & Shining)
-          _buildGoldenRewardCard(),
-          const SizedBox(height: 24),
-
-          // Luxury Parchment Scroll "Komentar Juri AI" Panel
-          _buildAIFeedbackPanel(themeColor),
-          const SizedBox(height: 36),
-
-          // Gorgeous bottom action buttons
-          _buildResultActionButtons(themeColor),
-          const SizedBox(height: 32),
         ],
       ),
     );
   }
 
+  /// Lencana Grade Megah dengan Sunburst Light Rays & Glassmorphic Shield
+  Widget _buildRadiantGradeEmblem(Color themeColor) {
+    return ScaleTransition(
+      scale: _scaleAnim,
+      child: Center(
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            // 1. Rotating Sunburst Rays (Rotating Mandala Lights)
+            AnimatedBuilder(
+              animation: _auraRotateCtrl,
+              builder: (context, child) {
+                return Transform.rotate(
+                  angle: _auraRotateCtrl.value * math.pi * 2,
+                  child: CustomPaint(
+                    size: const Size(190, 190),
+                    painter: _GradeSunburstPainter(
+                      themeColor: themeColor,
+                      grade: _aiGrade,
+                    ),
+                  ),
+                );
+              },
+            ),
+
+            // 2. Outer Pulsing Glow Ring
+            Container(
+              width: 146,
+              height: 146,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: themeColor.withValues(alpha: 0.4), width: 3.0),
+                boxShadow: [
+                  BoxShadow(
+                    color: themeColor.withValues(alpha: 0.35),
+                    blurRadius: 30,
+                    spreadRadius: 4,
+                  ),
+                ],
+              ),
+            ),
+
+            // 3. Luxury Radial Gradient Grade Circle Shield
+            Container(
+              width: 122,
+              height: 122,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: _gradeGradient,
+                border: Border.all(color: Colors.white.withValues(alpha: 0.8), width: 3),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Colors.black54,
+                    blurRadius: 18,
+                    offset: Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  // Glossy Specular Light Reflection
+                  Positioned(
+                    top: 6,
+                    left: 20,
+                    right: 20,
+                    height: 48,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        borderRadius: const BorderRadius.vertical(top: Radius.circular(50)),
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.white.withValues(alpha: 0.45),
+                            Colors.white.withValues(alpha: 0.0),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  // Grade Letter
+                  Text(
+                    _aiGrade,
+                    style: GoogleFonts.outfit(
+                      fontSize: 66,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.white,
+                      shadows: [
+                        const Shadow(
+                          color: Colors.black54,
+                          offset: Offset(0, 4),
+                          blurRadius: 10,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Rolling Score Counter & Stats Card Grid (Diubah jadi "SKOR")
+  Widget _buildScoreAndStatsGrid(Color themeColor, String timeStr) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.03),
+        borderRadius: BorderRadius.circular(26),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        boxShadow: const [
+          BoxShadow(color: Colors.black26, blurRadius: 12),
+        ],
+      ),
+      child: Column(
+        children: [
+          // Huge Rolling Score Number
+          AnimatedBuilder(
+            animation: _scoreCounterAnim,
+            builder: (context, child) {
+              final currentScore = (_scoreCounterAnim.value * _skorFinal).round();
+              return Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
+                children: [
+                  Text(
+                    '$currentScore',
+                    style: GoogleFonts.outfit(
+                      fontSize: 52,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.white,
+                      shadows: [
+                        Shadow(color: themeColor.withValues(alpha: 0.5), blurRadius: 18),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    '/ 100',
+                    style: GoogleFonts.outfit(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white38,
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+          Text(
+            'SKOR',
+            style: GoogleFonts.outfit(
+              fontSize: 12,
+              fontWeight: FontWeight.w900,
+              color: themeColor,
+              letterSpacing: 2.0,
+            ),
+          ),
+          const SizedBox(height: 16),
+          const Divider(color: Colors.white10, height: 1),
+          const SizedBox(height: 14),
+
+          // Mini Stats (Waktu, Goresan, Nyawa)
+          Row(
+            children: [
+              Expanded(
+                child: _buildMiniStatItem(
+                  'Waktu Pengerjaan',
+                  timeStr,
+                  Icons.timer_rounded,
+                  const Color(0xFF38BDF8),
+                ),
+              ),
+              Container(width: 1, height: 32, color: Colors.white10),
+              Expanded(
+                child: _buildMiniStatItem(
+                  'Total Goresan',
+                  '${widget.strokeCount}',
+                  Icons.gesture_rounded,
+                  const Color(0xFFA855F7),
+                ),
+              ),
+              if (widget.nyawaDigunakan > 0) ...[
+                Container(width: 1, height: 32, color: Colors.white10),
+                Expanded(
+                  child: _buildMiniStatItem(
+                    'Nyawa Terpakai',
+                    '${widget.nyawaDigunakan}❤️',
+                    Icons.favorite_rounded,
+                    const Color(0xFFEF4444),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMiniStatItem(String label, String value, IconData icon, Color color) {
+    return Column(
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 14, color: color),
+            const SizedBox(width: 5),
+            Text(
+              value,
+              style: GoogleFonts.outfit(
+                fontSize: 15,
+                fontWeight: FontWeight.w900,
+                color: Colors.white,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 2),
+        Text(
+          label,
+          textAlign: TextAlign.center,
+          style: GoogleFonts.nunito(
+            fontSize: 10,
+            fontWeight: FontWeight.w700,
+            color: Colors.white38,
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Mystical Golden Rewards Chest Card (+Poin Burst)
+  Widget _buildGoldenRewardCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF78350F), Color(0xFF451A03)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(26),
+        border: Border.all(color: const Color(0xFFFBBF24), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFFFBBF24).withValues(alpha: 0.25),
+            blurRadius: 20,
+            spreadRadius: 2,
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          // Shimmering Golden Stars Icon Sphere
+          Container(
+            width: 54,
+            height: 54,
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Color(0xFFFDE047), Color(0xFFD97706)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(color: Color(0xFFD97706), blurRadius: 12, spreadRadius: 2),
+              ],
+            ),
+            child: const Center(
+              child: Icon(Icons.stars_rounded, color: Colors.white, size: 32),
+            ),
+          ),
+          const SizedBox(width: 16),
+
+          // Points Content
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      'POIN APRESIASI',
+                      style: GoogleFonts.outfit(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w900,
+                        color: const Color(0xFFFDE047),
+                        letterSpacing: 1.5,
+                      ),
+                    ),
+                    const Spacer(),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFEF08A).withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        'Bonus ${(_getMultiplier(widget.level))}x',
+                        style: GoogleFonts.outfit(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: const Color(0xFFFEF08A),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Row(
+                  children: [
+                    Text(
+                      '+$_poinDapat',
+                      style: GoogleFonts.outfit(
+                        fontSize: 28,
+                        fontWeight: FontWeight.w900,
+                        color: const Color(0xFFFEF08A),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    if (_isSubmitting)
+                      const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.5,
+                          color: Color(0xFFEAB308),
+                        ),
+                      )
+                    else if (_isSubmitted)
+                      const Icon(Icons.check_circle_rounded, color: Color(0xFF34D399), size: 20),
+                  ],
+                ),
+                Text(
+                  _isSubmitted
+                      ? 'Poin telah ditambahkan ke profil & ranking!'
+                      : 'Menyimpan poin ke profil kamu...',
+                  style: GoogleFonts.nunito(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: _isSubmitted ? const Color(0xFF34D399) : Colors.white70,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Luxury Curator Feedback Panel (Diubah jadi "CATATAN APRESIASI")
+  Widget _buildAIFeedbackPanel(Color themeColor) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.03),
+        borderRadius: BorderRadius.circular(26),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        boxShadow: const [
+          BoxShadow(color: Colors.black26, blurRadius: 15),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.chat_bubble_outline_rounded, color: Colors.cyanAccent, size: 18),
+              const SizedBox(width: 10),
+              Text(
+                'CATATAN APRESIASI',
+                style: GoogleFonts.outfit(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w900,
+                  color: Colors.cyanAccent,
+                  letterSpacing: 1.5,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Stack(
+            children: [
+              Positioned(
+                right: -10,
+                bottom: -20,
+                child: Text(
+                  '“',
+                  style: TextStyle(
+                    fontFamily: 'FredokaOne',
+                    fontSize: 90,
+                    color: Colors.white.withValues(alpha: 0.04),
+                    height: 0.8,
+                  ),
+                ),
+              ),
+              Text(
+                _aiFeedback.isNotEmpty
+                    ? _aiFeedback
+                    : 'Karya yang sangat menarik dengan perpaduan warna dan konsep etnomatematika yang baik!',
+                style: GoogleFonts.nunito(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  height: 1.6,
+                  color: Colors.white.withValues(alpha: 0.95),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Pending State Content
   Widget _buildPendingContent(Color themeColor) {
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 20),
       child: Column(
         children: [
           const SizedBox(height: 24),
           Icon(Icons.hourglass_empty_rounded, size: 80, color: Colors.orange.shade300),
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
           Text(
             'PENILAIAN TERTUNDA',
             textAlign: TextAlign.center,
@@ -800,14 +1624,14 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: 0.05),
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(20),
               border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
             ),
             child: Text(
               _pendingReason,
               textAlign: TextAlign.center,
               style: GoogleFonts.nunito(
-                fontSize: 16,
+                fontSize: 15,
                 color: Colors.white70,
                 height: 1.5,
               ),
@@ -820,463 +1644,96 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
     );
   }
 
-  Widget _buildResultHeader(Color themeColor) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.01),
-        border: Border(bottom: BorderSide(color: Colors.white.withValues(alpha: 0.05), width: 1)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: themeColor.withValues(alpha: 0.12),
-              shape: BoxShape.circle,
-              border: Border.all(color: themeColor.withValues(alpha: 0.3), width: 1.5),
-              boxShadow: [
-                BoxShadow(color: themeColor.withValues(alpha: 0.15), blurRadius: 10),
-              ],
-            ),
-            child: Text(
-              Helpers.getKategoriEmoji(widget.kategori),
-              style: const TextStyle(fontSize: 22),
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'Apresiasi Selesai! 🎉',
-                  style: GoogleFonts.outfit(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w900,
-                    color: Colors.white,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  '${Helpers.getKategoriLabel(widget.kategori)} • ${Helpers.getLevelLabel(widget.kategori, widget.level)}',
-                  style: GoogleFonts.nunito(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.white54,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAnimatedGradeBadge(Color themeColor) {
-    return FadeTransition(
-      opacity: _fadeAnim,
-      child: ScaleTransition(
-        scale: _scaleAnim,
-        child: Center(
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              // Rotating Neon Ring Mandala (Double ring)
-              AnimatedBuilder(
-                animation: _scanCtrl,
-                builder: (context, child) {
-                  return Transform.rotate(
-                    angle: _scanCtrl.value * math.pi * 2,
-                    child: Container(
-                      width: 170,
-                      height: 170,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: themeColor.withValues(alpha: 0.25),
-                          width: 2.0,
-                          style: BorderStyle.solid,
-                        ),
-                      ),
-                      child: Stack(
-                        children: List.generate(4, (i) {
-                          double angle = i * (math.pi / 2);
-                          return Positioned(
-                            left: 85 + 75 * math.cos(angle) - 6,
-                            top: 85 + 75 * math.sin(angle) - 6,
-                            child: Container(
-                              width: 12,
-                              height: 12,
-                              decoration: BoxDecoration(
-                                color: themeColor,
-                                shape: BoxShape.circle,
-                                boxShadow: [
-                                  BoxShadow(color: themeColor, blurRadius: 8, spreadRadius: 1),
-                                ],
-                              ),
-                            ),
-                          );
-                        }),
-                      ),
-                    ),
-                  );
-                },
-              ),
-
-              // Glowing inner circle border
-              Container(
-                width: 140,
-                height: 140,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: themeColor.withValues(alpha: 0.3), width: 6),
-                  boxShadow: [
-                    BoxShadow(
-                      color: themeColor.withValues(alpha: 0.25),
-                      blurRadius: 25,
-                      spreadRadius: 4,
-                    ),
-                  ],
-                ),
-              ),
-
-              // Grade badge container (Luxury Glassmorphic Radial Gradient)
-              Container(
-                width: 120,
-                height: 120,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: _gradeGradient,
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Colors.black54,
-                      blurRadius: 15,
-                      offset: Offset(0, 8),
-                    ),
-                  ],
-                ),
-                child: Center(
-                  child: Text(
-                    _aiGrade,
-                    style: GoogleFonts.outfit(
-                      fontSize: 64,
-                      fontWeight: FontWeight.w900,
-                      color: Colors.white,
-                      shadows: [
-                        const Shadow(color: Colors.black45, offset: Offset(0, 5), blurRadius: 10),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildResultMiniStat(String label, String value, IconData icon, Color statColor) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 10),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.02),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
-        boxShadow: const [
-          BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, 4)),
-        ],
-      ),
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: statColor.withValues(alpha: 0.1),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(icon, color: statColor, size: 20),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            style: GoogleFonts.outfit(
-              fontSize: 16,
-              fontWeight: FontWeight.w900,
-              color: Colors.white,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            label,
-            style: GoogleFonts.nunito(
-              fontSize: 11,
-              fontWeight: FontWeight.bold,
-              color: Colors.white38,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildGoldenRewardCard() {
-    return FadeTransition(
-      opacity: _fadeAnim,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(22),
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color(0xFF854D0E), Color(0xFF451A03)], // Deep Golden amber chest gradients
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(28),
-          border: Border.all(color: const Color(0xFFEAB308), width: 1.5), // Rich Gold Border
-          boxShadow: [
-            BoxShadow(
-              color: const Color(0xFFEAB308).withValues(alpha: 0.2),
-              blurRadius: 20,
-              spreadRadius: 2,
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            // Shimmering Golden stars icon sphere
-            Container(
-              width: 56,
-              height: 56,
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [Color(0xFFFDE047), Color(0xFFCA8A04)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(color: Color(0xFFCA8A04), blurRadius: 10, spreadRadius: 1),
-                ],
-              ),
-              child: const Center(
-                child: Icon(Icons.stars_rounded, color: Colors.white, size: 32),
-              ),
-            ),
-            const SizedBox(width: 18),
-
-            // Reward Poin Content
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'POIN APRESIASI',
-                    style: GoogleFonts.outfit(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w900,
-                      color: const Color(0xFFFDE047),
-                      letterSpacing: 1.5,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Row(
-                    children: [
-                      Text(
-                        '+$_poinDapat',
-                        style: GoogleFonts.outfit(
-                          fontSize: 28,
-                          fontWeight: FontWeight.w900,
-                          color: const Color(0xFFFEF08A),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      if (_isSubmitting)
-                        const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2.5,
-                            color: Color(0xFFEAB308),
-                          ),
-                        )
-                      else if (_isSubmitted)
-                        const Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 20),
-                    ],
-                  ),
-                  const SizedBox(height: 1),
-                  Text(
-                    _isSubmitted
-                        ? 'Berhasil mendaftarkan poin ke profilmu!'
-                        : 'Mendaftarkan poin ke papan peringkat...',
-                    style: GoogleFonts.nunito(
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      color: _isSubmitted ? const Color(0xFF34D399) : Colors.white60,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            if (widget.nyawaDigunakan > 0)
-              Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Row(
-                    children: List.generate(
-                      widget.nyawaDigunakan,
-                      (_) => const Padding(
-                        padding: EdgeInsets.only(left: 2.0),
-                        child: Icon(Icons.favorite_rounded, color: Color(0xFFEF4444), size: 14),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    '${widget.nyawaDigunakan}❤️ terpakai',
-                    style: GoogleFonts.nunito(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w900,
-                      color: const Color(0xFFEF4444),
-                    ),
-                  ),
-                ],
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAIFeedbackPanel(Color themeColor) {
-    return FadeTransition(
-      opacity: _fadeAnim,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(22),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.02),
-          borderRadius: BorderRadius.circular(28),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
-          boxShadow: const [
-            BoxShadow(color: Colors.black26, blurRadius: 15, offset: Offset(0, 6)),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.chat_bubble_outline_rounded, color: Colors.cyanAccent, size: 18),
-                const SizedBox(width: 10),
-                Text(
-                  'CATATAN APRESIASI JURI AI',
-                  style: GoogleFonts.outfit(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w900,
-                    color: Colors.cyanAccent,
-                    letterSpacing: 1.5,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Stack(
-              children: [
-                // Stylized huge transculent quotes background mark
-                Positioned(
-                  right: -10,
-                  bottom: -15,
-                  child: Text(
-                    '“',
-                    style: TextStyle(
-                      fontFamily: 'FredokaOne',
-                      fontSize: 90,
-                      color: Colors.white.withValues(alpha: 0.03),
-                      height: 0.8,
-                    ),
-                  ),
-                ),
-                Text(
-                  _aiFeedback.isNotEmpty ? _aiFeedback : 'Sedang merumuskan ulasan lukisan...',
-                  style: GoogleFonts.nunito(
-                    fontSize: 14.5,
-                    fontWeight: FontWeight.bold,
-                    height: 1.7,
-                    color: Colors.white.withValues(alpha: 0.9),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
+  /// Shimmering Action Buttons
   Widget _buildResultActionButtons(Color themeColor) {
     return Column(
       children: [
-        // Level berikutnya button
+        // Level Berikutnya (dengan Shimmer Light Sweep)
         if (widget.level < 4 && _skorFinal >= 60)
-          Container(
-            width: double.infinity,
-            height: 54,
-            margin: const EdgeInsets.only(bottom: 14),
-            child: ElevatedButton.icon(
-              onPressed: () {
-                Get.back(); // Pop DrawingResultScreen
-                Get.back(); // Pop DrawingScreen
-              },
-              icon: const Icon(Icons.arrow_forward_rounded, size: 20),
-              label: Text(
-                'LANJUT LEVEL ${widget.level + 1}',
-                style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 14, letterSpacing: 1.5),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: themeColor,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-                elevation: 5,
-                shadowColor: themeColor.withValues(alpha: 0.3),
-              ),
-            ),
+          AnimatedBuilder(
+            animation: _shimmerCtrl,
+            builder: (context, child) {
+              return Container(
+                width: double.infinity,
+                height: 56,
+                margin: const EdgeInsets.only(bottom: 14),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: themeColor.withValues(alpha: 0.35),
+                      blurRadius: 18,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    if (Get.isRegistered<AudioService>()) {
+                      Get.find<AudioService>().playButtonClick();
+                    }
+                    Get.back(); // Pop DrawingResultScreen
+                    Get.back(); // Pop DrawingScreen
+                  },
+                  icon: const Icon(Icons.arrow_forward_rounded, size: 22),
+                  label: Text(
+                    'LANJUT LEVEL ${widget.level + 1}',
+                    style: GoogleFonts.outfit(
+                      fontWeight: FontWeight.w900,
+                      fontSize: 15,
+                      letterSpacing: 1.5,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: themeColor,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                    elevation: 0,
+                  ),
+                ),
+              );
+            },
           ),
 
-        // Coba Lagi button
+        // Coba Lagi Button
         SizedBox(
           width: double.infinity,
           height: 54,
           child: OutlinedButton.icon(
             onPressed: () {
-              Get.back(); // Pop DrawingResultScreen
-              Get.back(); // Pop DrawingScreen
+              if (Get.isRegistered<AudioService>()) {
+                Get.find<AudioService>().playButtonClick();
+              }
+              Get.back();
+              Get.back();
             },
             icon: const Icon(Icons.refresh_rounded, size: 20),
             label: Text(
               'COBA LAGI LEVEL INI',
-              style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 14, letterSpacing: 1.5),
+              style: GoogleFonts.outfit(
+                fontWeight: FontWeight.w900,
+                fontSize: 14,
+                letterSpacing: 1.5,
+              ),
             ),
             style: OutlinedButton.styleFrom(
               foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-              side: BorderSide(color: Colors.white.withValues(alpha: 0.15), width: 1.5),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              side: BorderSide(color: Colors.white.withValues(alpha: 0.18), width: 1.5),
             ),
           ),
         ),
 
-        const SizedBox(height: 24),
+        const SizedBox(height: 20),
 
-        // Home button with premium styling
+        // Kembali ke Beranda
         InkWell(
-          onTap: () => Get.offAllNamed('/home'),
+          onTap: () {
+            if (Get.isRegistered<AudioService>()) {
+              Get.find<AudioService>().playButtonClick();
+            }
+            Get.offAllNamed('/home');
+          },
           borderRadius: BorderRadius.circular(10),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -1296,7 +1753,131 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
   }
 }
 
-/// A breathtaking background custom painter to draw glowing concentric batik vector silhouettes.
+/// Custom painter untuk efek cahaya Sunburst & Orbiting particle nodes di belakang lencana Grade
+class _GradeSunburstPainter extends CustomPainter {
+  final Color themeColor;
+  final String grade;
+
+  _GradeSunburstPainter({required this.themeColor, required this.grade});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final rayPaint = Paint()
+      ..color = themeColor.withValues(alpha: grade == 'S' ? 0.18 : 0.10)
+      ..style = PaintingStyle.fill;
+
+    const numRays = 12;
+    const rayAngle = (math.pi * 2) / numRays;
+
+    for (int i = 0; i < numRays; i++) {
+      final angle = i * rayAngle;
+      final path = Path()
+        ..moveTo(center.dx, center.dy)
+        ..lineTo(
+          center.dx + (size.width * 0.5) * math.cos(angle - 0.12),
+          center.dy + (size.height * 0.5) * math.sin(angle - 0.12),
+        )
+        ..lineTo(
+          center.dx + (size.width * 0.5) * math.cos(angle + 0.12),
+          center.dy + (size.height * 0.5) * math.sin(angle + 0.12),
+        )
+        ..close();
+
+      canvas.drawPath(path, rayPaint);
+    }
+
+    // Small orbiting sparkle beads
+    final beadPaint = Paint()
+      ..color = themeColor.withValues(alpha: 0.7)
+      ..style = PaintingStyle.fill;
+
+    for (int i = 0; i < 6; i++) {
+      final angle = i * (math.pi / 3);
+      final beadPos = Offset(
+        center.dx + 82 * math.cos(angle),
+        center.dy + 82 * math.sin(angle),
+      );
+      canvas.drawCircle(beadPos, 3.5, beadPaint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _GradeSunburstPainter oldDelegate) {
+    return oldDelegate.themeColor != themeColor || oldDelegate.grade != grade;
+  }
+}
+
+/// Custom painter untuk grid holografis lembut di dalam kanvas
+class _HologramMatrixPainter extends CustomPainter {
+  final double pulse;
+
+  _HologramMatrixPainter({required this.pulse});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final linePaint = Paint()
+      ..color = const Color(0xFF00F0FF).withValues(alpha: 0.035)
+      ..strokeWidth = 1.0;
+
+    // Horizontal scanlines
+    for (double y = 0; y < size.height; y += 14) {
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), linePaint);
+    }
+    // Vertical grid lines
+    for (double x = 0; x < size.width; x += 14) {
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), linePaint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _HologramMatrixPainter oldDelegate) {
+    return false;
+  }
+}
+
+/// Custom painter untuk HUD Futuristic Crosshairs & Corner Target Brackets (Pas sudut)
+class _HoloHudPainter extends CustomPainter {
+  final double pulse;
+  final Color hudColor;
+
+  _HoloHudPainter({required this.pulse, required this.hudColor});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final bracketPaint = Paint()
+      ..color = hudColor.withValues(alpha: 0.8 + 0.2 * math.sin(pulse * math.pi))
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3.0
+      ..strokeCap = StrokeCap.round;
+
+    const bracketLen = 22.0;
+    const offset = 0.0;
+
+    // Top-Left
+    canvas.drawLine(const Offset(offset, offset + bracketLen), const Offset(offset, offset), bracketPaint);
+    canvas.drawLine(const Offset(offset, offset), const Offset(offset + bracketLen, offset), bracketPaint);
+
+    // Top-Right
+    canvas.drawLine(Offset(size.width - offset - bracketLen, offset), Offset(size.width - offset, offset), bracketPaint);
+    canvas.drawLine(Offset(size.width - offset, offset), Offset(size.width - offset, offset + bracketLen), bracketPaint);
+
+    // Bottom-Left
+    canvas.drawLine(Offset(offset, size.height - offset - bracketLen), Offset(offset, size.height - offset), bracketPaint);
+    canvas.drawLine(Offset(offset, size.height - offset), Offset(offset + bracketLen, size.height - offset), bracketPaint);
+
+    // Bottom-Right
+    canvas.drawLine(Offset(size.width - offset - bracketLen, size.height - offset), Offset(size.width - offset, size.height - offset), bracketPaint);
+    canvas.drawLine(Offset(size.width - offset, size.height - offset), Offset(size.width - offset, size.height - offset - bracketLen), bracketPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _HoloHudPainter oldDelegate) {
+    return oldDelegate.pulse != pulse;
+  }
+}
+
+/// Dynamic Batik & Nebula Vector Silhouette Background Painter
 class _BatikNebulaPainter extends CustomPainter {
   final Color themeColor;
   final double pulseValue;
@@ -1316,17 +1897,15 @@ class _BatikNebulaPainter extends CustomPainter {
 
     final center = Offset(size.width / 2, size.height * 0.35);
 
-    // Draw multiple mystical growing curves (Batik and keris silhouettes)
     for (int r = 1; r <= 5; r++) {
       double radius = r * 80.0;
       canvas.drawCircle(center, radius, linePaint);
-      
-      // Draw small batik leaf ornaments on the curves
+
       for (int i = 0; i < 8; i++) {
         double angle = i * (math.pi / 4) + (pulseValue * 0.05);
         double leafX = center.dx + radius * math.cos(angle);
         double leafY = center.dy + radius * math.sin(angle);
-        
+
         canvas.drawCircle(Offset(leafX, leafY), 3.0 + r, paint);
         canvas.drawCircle(Offset(leafX, leafY), 2.0, linePaint);
       }
@@ -1338,4 +1917,3 @@ class _BatikNebulaPainter extends CustomPainter {
     return oldDelegate.pulseValue != pulseValue || oldDelegate.themeColor != themeColor;
   }
 }
-

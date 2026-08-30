@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:epic_admin/core/theme/admin_colors.dart';
 import 'package:epic_admin/features/dashboard/widgets/activity_chart.dart';
 import 'package:epic_admin/features/dashboard/widgets/grade_distribution_chart.dart';
@@ -5,7 +6,6 @@ import 'package:epic_admin/features/dashboard/widgets/popular_games_chart.dart';
 import 'package:epic_admin/features/dashboard/widgets/stat_card.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -40,88 +40,156 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isMobile = screenWidth < 768;
+
     return SingleChildScrollView(
       key: _refreshKey,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Header
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+          if (isMobile)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Ringkasan Dasbor',
+                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: const Color(0xFF0F172A),
+                        letterSpacing: -0.5,
+                      ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Selamat datang kembali, Administrator!',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: const Color(0xFF64748B),
+                      ),
+                ),
+                const SizedBox(height: 12),
+                Row(
                   children: [
-                    Text(
-                      'Ringkasan Dasbor',
-                      style: Theme.of(context).textTheme.headlineLarge,
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: AdminColors.surfaceContainerLow,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AdminColors.outlineVariant.withOpacity(0.4)),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.calendar_today, size: 14, color: AdminColors.primary),
+                          const SizedBox(width: 6),
+                          Text(
+                            '${DateTime.now().day} ${_getMonthName(DateTime.now().month)} ${DateTime.now().year}',
+                            style: Theme.of(context).textTheme.labelSmall?.copyWith(fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Selamat datang kembali, Administrator! Berikut adalah ringkasan hari ini.',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    const Spacer(),
+                    Container(
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: AdminColors.primary.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: IconButton(
+                        icon: Icon(Icons.refresh, color: AdminColors.primary, size: 18),
+                        onPressed: _handleRefresh,
+                        tooltip: 'Refresh Data',
                       ),
                     ),
                   ],
                 ),
-              ),
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: AdminColors.surfaceContainerLow,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: AdminColors.outlineVariant.withOpacity(0.3)),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(Icons.calendar_today, size: 16, color: AdminColors.primary),
-                        const SizedBox(width: 8),
-                        Text(
-                          '${DateTime.now().day} ${_getMonthName(DateTime.now().month)} ${DateTime.now().year}',
-                          style: Theme.of(context).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.bold),
-                        ),
-                      ],
-                    ),
+              ],
+            )
+          else
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Ringkasan Dasbor',
+                        style: Theme.of(context).textTheme.headlineLarge,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Selamat datang kembali, Administrator! Berikut adalah ringkasan hari ini.',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 16),
-                  Container(
-                    decoration: BoxDecoration(
-                      color: AdminColors.primary.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
+                ),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: AdminColors.surfaceContainerLow,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: AdminColors.outlineVariant.withOpacity(0.3)),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.calendar_today, size: 16, color: AdminColors.primary),
+                          const SizedBox(width: 8),
+                          Text(
+                            '${DateTime.now().day} ${_getMonthName(DateTime.now().month)} ${DateTime.now().year}',
+                            style: Theme.of(context).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
                     ),
-                    child: IconButton(
-                      icon: Icon(Icons.refresh, color: AdminColors.primary),
-                      onPressed: _handleRefresh,
-                      tooltip: 'Refresh Data',
+                    const SizedBox(width: 16),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: AdminColors.primary.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: IconButton(
+                        icon: Icon(Icons.refresh, color: AdminColors.primary),
+                        onPressed: _handleRefresh,
+                        tooltip: 'Refresh Data',
+                      ),
                     ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(height: 32),
-          
-          // Statistik Grid (3 Columns on Desktop, 2 on Tablet, 1 on Mobile)
+                  ],
+                ),
+              ],
+            ),
+          SizedBox(height: isMobile ? 18 : 32),
+
+          // Statistik Grid (3 Columns on Desktop, 2 on Tablet/Mobile, 1 on very small Mobile)
           LayoutBuilder(
             builder: (context, constraints) {
               int crossAxisCount = 3;
-              if (constraints.maxWidth < 650) {
+              double aspectRatio = 2.3;
+
+              if (constraints.maxWidth < 520) {
                 crossAxisCount = 1;
+                aspectRatio = 2.8;
+              } else if (constraints.maxWidth < 768) {
+                crossAxisCount = 2;
+                aspectRatio = 1.7;
               } else if (constraints.maxWidth < 1100) {
                 crossAxisCount = 2;
+                aspectRatio = 2.1;
               }
 
               return GridView.count(
                 crossAxisCount: crossAxisCount,
-                crossAxisSpacing: 24,
-                mainAxisSpacing: 24,
+                crossAxisSpacing: isMobile ? 12 : 24,
+                mainAxisSpacing: isMobile ? 12 : 24,
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                childAspectRatio: 2.3,
+                childAspectRatio: aspectRatio,
                 children: [
                   _buildStatCardStream(
                     title: 'Murid Terdaftar',
@@ -132,15 +200,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                   _buildStatCardStream(
                     title: 'Guru Aktif',
-                    query: FirebaseFirestore.instance.collection('users').where('role', isEqualTo: 'guru').where('guruStatus', isEqualTo: 'approved'),
+                    query: FirebaseFirestore.instance
+                        .collection('users')
+                        .where('role', isEqualTo: 'guru')
+                        .where('guruStatus', isEqualTo: 'approved'),
                     subtitle: 'Pengelola kelas',
                     icon: Icons.person_rounded,
                     color: Colors.green,
                   ),
                   _buildStatCardStream(
                     title: 'Guru Pending',
-                    query: FirebaseFirestore.instance.collection('users').where('role', isEqualTo: 'guru').where('guruStatus', isEqualTo: 'pending'),
-                    subtitle: 'Butuh verifikasi segera',
+                    query: FirebaseFirestore.instance
+                        .collection('users')
+                        .where('role', isEqualTo: 'guru')
+                        .where('guruStatus', isEqualTo: 'pending'),
+                    subtitle: 'Butuh verifikasi',
                     icon: Icons.warning_amber_rounded,
                     color: Colors.red,
                   ),
@@ -169,13 +243,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
               );
             },
           ),
-          const SizedBox(height: 32),
-          
+          SizedBox(height: isMobile ? 20 : 32),
+
           // Responsive Rows for Charts and Tables
           LayoutBuilder(
             builder: (context, constraints) {
               final isDesktop = constraints.maxWidth >= 1024;
-              
+
               if (isDesktop) {
                 return Column(
                   children: [
@@ -201,7 +275,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       children: [
                         Expanded(
                           flex: 2,
-                          child: _buildAktivitasTerbaru(context),
+                          child: _buildAktivitasTerbaru(context, isDesktop: true),
                         ),
                         const SizedBox(width: 24),
                         const Expanded(
@@ -217,17 +291,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 return Column(
                   children: [
                     const GradeDistributionChart(),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 20),
                     const ActivityChart(),
-                    const SizedBox(height: 24),
-                    _buildAktivitasTerbaru(context),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 20),
+                    _buildAktivitasTerbaru(context, isDesktop: false),
+                    const SizedBox(height: 20),
                     const PopularGamesChart(),
                   ],
                 );
               }
             },
-          ).animate().fadeIn(duration: 700.ms).slideY(begin: 0.05, end: 0, curve: Curves.easeOutQuad),
+          ).animate().fadeIn(duration: 500.ms).slideY(begin: 0.05, end: 0, curve: Curves.easeOutQuad),
           const SizedBox(height: 32),
         ],
       ),
@@ -272,8 +346,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // Beautiful Tabular "Aktivitas Terbaru" (styled after the reference's "Last Trips")
-  Widget _buildAktivitasTerbaru(BuildContext context) {
+  // Beautiful Tabular "Aktivitas Terbaru" (with mobile adaptive card layout)
+  Widget _buildAktivitasTerbaru(BuildContext context, {required bool isDesktop}) {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection('artworks')
@@ -283,8 +357,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           return Container(
-            height: 420,
-            padding: const EdgeInsets.all(24),
+            height: 360,
+            padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               color: AdminColors.surface,
               borderRadius: BorderRadius.circular(24),
@@ -302,8 +376,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
         final docs = snapshot.hasData ? snapshot.data!.docs : [];
 
         return Container(
-          height: 420,
-          padding: const EdgeInsets.all(24),
+          constraints: BoxConstraints(minHeight: isDesktop ? 420 : 340),
+          padding: EdgeInsets.all(isDesktop ? 24 : 16),
           decoration: BoxDecoration(
             color: AdminColors.surface,
             borderRadius: BorderRadius.circular(24),
@@ -318,6 +392,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -330,9 +405,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         style: Theme.of(context).textTheme.titleLarge?.copyWith(
                               fontWeight: FontWeight.bold,
                               color: AdminColors.textPrimary,
+                              fontSize: isDesktop ? 18 : 16,
                             ),
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 2),
                       Text(
                         'Daftar karya seni siswa yang baru disubmit',
                         style: Theme.of(context).textTheme.labelSmall?.copyWith(
@@ -343,99 +419,116 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                 ],
               ),
-              const SizedBox(height: 24),
-              // Table Headers
-              Row(
-                children: const [
-                  Expanded(
-                    flex: 3,
-                    child: Text(
-                      'PENGGUNA',
-                      style: TextStyle(fontWeight: FontWeight.bold, color: AdminColors.textSecondary, fontSize: 11, letterSpacing: 0.8),
+              const SizedBox(height: 16),
+
+              if (isDesktop) ...[
+                // Desktop Table Headers
+                Row(
+                  children: const [
+                    Expanded(
+                      flex: 3,
+                      child: Text(
+                        'PENGGUNA',
+                        style: TextStyle(fontWeight: FontWeight.bold, color: AdminColors.textSecondary, fontSize: 11, letterSpacing: 0.8),
+                      ),
                     ),
-                  ),
-                  Expanded(
-                    flex: 3,
-                    child: Text(
-                      'AKTIVITAS / JUDUL KARYA',
-                      style: TextStyle(fontWeight: FontWeight.bold, color: AdminColors.textSecondary, fontSize: 11, letterSpacing: 0.8),
+                    Expanded(
+                      flex: 3,
+                      child: Text(
+                        'AKTIVITAS / JUDUL KARYA',
+                        style: TextStyle(fontWeight: FontWeight.bold, color: AdminColors.textSecondary, fontSize: 11, letterSpacing: 0.8),
+                      ),
                     ),
-                  ),
-                  Expanded(
-                    flex: 2,
-                    child: Text(
-                      'KATEGORI',
-                      style: TextStyle(fontWeight: FontWeight.bold, color: AdminColors.textSecondary, fontSize: 11, letterSpacing: 0.8),
+                    Expanded(
+                      flex: 2,
+                      child: Text(
+                        'KATEGORI',
+                        style: TextStyle(fontWeight: FontWeight.bold, color: AdminColors.textSecondary, fontSize: 11, letterSpacing: 0.8),
+                      ),
                     ),
-                  ),
-                  Expanded(
-                    flex: 2,
-                    child: Text(
-                      'SKOR AI',
-                      style: TextStyle(fontWeight: FontWeight.bold, color: AdminColors.textSecondary, fontSize: 11, letterSpacing: 0.8),
+                    Expanded(
+                      flex: 2,
+                      child: Text(
+                        'SKOR AI',
+                        style: TextStyle(fontWeight: FontWeight.bold, color: AdminColors.textSecondary, fontSize: 11, letterSpacing: 0.8),
+                      ),
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              const Divider(color: Color(0xFFF1F5F9)),
-              const SizedBox(height: 8),
-              // Table Body List
-              Expanded(
-                child: docs.isEmpty
-                    ? const Center(
+                  ],
+                ),
+                const SizedBox(height: 12),
+                const Divider(color: Color(0xFFF1F5F9)),
+                const SizedBox(height: 8),
+              ],
+
+              // Table / Card Body List
+              docs.isEmpty
+                  ? const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 32),
+                      child: Center(
                         child: Text(
                           'Belum ada karya terbaru',
                           style: TextStyle(color: AdminColors.textSecondary, fontSize: 13),
                         ),
-                      )
-                    : ListView.separated(
-                        itemCount: docs.length,
-                        separatorBuilder: (context, index) => const SizedBox(height: 12),
-                        itemBuilder: (context, index) {
-                          final artDoc = docs[index];
-                          final data = artDoc.data() as Map<String, dynamic>;
-                          final String uid = data['uid'] ?? '';
-                          final String judulKarya = data['judulKarya'] ?? 'Tanpa Judul';
-                          final String kategori = data['kategori'] ?? '-';
-                          final int? skorAI = data['skorAI'] is int ? data['skorAI'] : null;
-                          final String grade = data['grade'] ?? '-';
-                          final timestamp = data['createdAt'];
-                          DateTime createdAt = DateTime.now();
-                          if (timestamp is Timestamp) {
-                            createdAt = timestamp.toDate();
-                          }
+                      ),
+                    )
+                  : ListView.separated(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: docs.length,
+                      separatorBuilder: (context, index) => isDesktop
+                          ? const SizedBox(height: 12)
+                          : const Divider(color: Color(0xFFF8FAFC), height: 16),
+                      itemBuilder: (context, index) {
+                        final artDoc = docs[index];
+                        final data = artDoc.data() as Map<String, dynamic>;
+                        final String uid = data['uid'] ?? '';
+                        final String judulKarya = data['judulKarya'] ?? 'Tanpa Judul';
+                        final String kategori = data['kategori'] ?? '-';
+                        final int? skorAI = data['skorAI'] is int ? data['skorAI'] : null;
+                        final String grade = data['grade'] ?? '-';
+                        final timestamp = data['createdAt'];
+                        DateTime createdAt = DateTime.now();
+                        if (timestamp is Timestamp) {
+                          createdAt = timestamp.toDate();
+                        }
 
-                          Color roleColor = AdminColors.primary;
-                          if (kategori.toLowerCase() == 'batik') roleColor = const Color(0xFF2563EB);
-                          if (kategori.toLowerCase() == 'keris') roleColor = const Color(0xFF64748B);
-                          if (kategori.toLowerCase() == 'anyaman') roleColor = const Color(0xFFF59E0B);
+                        Color roleColor = AdminColors.primary;
+                        if (kategori.toLowerCase() == 'batik') roleColor = const Color(0xFF2563EB);
+                        if (kategori.toLowerCase() == 'keris') roleColor = const Color(0xFF64748B);
+                        if (kategori.toLowerCase() == 'anyaman') roleColor = const Color(0xFFF59E0B);
 
-                          return FutureBuilder<DocumentSnapshot>(
-                            future: FirebaseFirestore.instance.collection('users').doc(uid).get(),
-                            builder: (context, userSnapshot) {
-                              String studentName = 'Loading...';
-                              String studentEmail = '...';
-                              if (userSnapshot.hasData && userSnapshot.data!.exists) {
-                                final userData = userSnapshot.data!.data() as Map<String, dynamic>;
-                                studentName = userData['namaLengkap'] ?? 'Siswa';
-                                studentEmail = userData['email'] ?? '';
-                              } else if (userSnapshot.hasError) {
-                                studentName = 'Error';
-                              }
+                        return FutureBuilder<DocumentSnapshot>(
+                          future: FirebaseFirestore.instance.collection('users').doc(uid).get(),
+                          builder: (context, userSnapshot) {
+                            String studentName = 'Loading...';
+                            String studentEmail = '...';
+                            if (userSnapshot.hasData && userSnapshot.data!.exists) {
+                              final userData = userSnapshot.data!.data() as Map<String, dynamic>;
+                              studentName = userData['namaLengkap'] ?? 'Siswa';
+                              studentEmail = userData['email'] ?? '';
+                            } else if (userSnapshot.hasError) {
+                              studentName = 'Error';
+                            }
 
-                              final String avatarText = studentName.isNotEmpty ? studentName[0].toUpperCase() : 'S';
+                            final String avatarText = studentName.isNotEmpty ? studentName[0].toUpperCase() : 'S';
 
-                              return Row(
-                                children: [
-                                  // Member Avatar & Details
-                                  Expanded(
-                                    flex: 3,
-                                    child: Row(
+                            if (!isDesktop) {
+                              // Mobile Card Layout
+                              return Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF8FAFC),
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
                                       children: [
                                         CircleAvatar(
-                                          radius: 18,
-                                          backgroundColor: roleColor.withOpacity(0.1),
+                                          radius: 16,
+                                          backgroundColor: roleColor.withOpacity(0.12),
                                           child: Text(
                                             avatarText,
                                             style: TextStyle(
@@ -445,7 +538,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                             ),
                                           ),
                                         ),
-                                        const SizedBox(width: 12),
+                                        const SizedBox(width: 10),
                                         Expanded(
                                           child: Column(
                                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -460,9 +553,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                                 maxLines: 1,
                                                 overflow: TextOverflow.ellipsis,
                                               ),
-                                              const SizedBox(height: 2),
                                               Text(
-                                                studentEmail,
+                                                'Menggambar "$judulKarya"',
                                                 style: const TextStyle(
                                                   fontSize: 11,
                                                   color: AdminColors.textSecondary,
@@ -473,78 +565,172 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                             ],
                                           ),
                                         ),
-                                      ],
-                                    ),
-                                  ),
-                                  // Action
-                                  Expanded(
-                                    flex: 3,
-                                    child: Text(
-                                      'Menggambar "$judulKarya"',
-                                      style: const TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w500,
-                                        color: AdminColors.textPrimary,
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                  // Kategori Pill Badge
-                                  Expanded(
-                                    flex: 2,
-                                    child: Row(
-                                      children: [
                                         Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                                           decoration: BoxDecoration(
                                             color: roleColor.withOpacity(0.1),
-                                            borderRadius: BorderRadius.circular(10),
+                                            borderRadius: BorderRadius.circular(8),
                                           ),
                                           child: Text(
                                             kategori.toUpperCase(),
                                             style: TextStyle(
                                               color: roleColor,
-                                              fontSize: 11,
+                                              fontSize: 10,
                                               fontWeight: FontWeight.bold,
                                             ),
                                           ),
                                         ),
                                       ],
                                     ),
-                                  ),
-                                  // Score / Time
-                                  Expanded(
-                                    flex: 2,
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                    const SizedBox(height: 8),
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                       children: [
                                         Text(
-                                          skorAI != null ? '$skorAI ($grade)' : 'Pending',
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.bold,
-                                            color: skorAI != null ? AdminColors.success : AdminColors.inactive,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 2),
-                                        Text(
                                           _formatTimeAgo(createdAt),
-                                          style: const TextStyle(
-                                            fontSize: 11,
-                                            color: AdminColors.textSecondary,
+                                          style: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
+                                        ),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: (skorAI != null ? AdminColors.success : AdminColors.inactive).withOpacity(0.1),
+                                            borderRadius: BorderRadius.circular(8),
+                                          ),
+                                          child: Text(
+                                            skorAI != null ? 'Skor: $skorAI ($grade)' : 'Pending AI',
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.bold,
+                                              color: skorAI != null ? AdminColors.success : AdminColors.inactive,
+                                            ),
                                           ),
                                         ),
                                       ],
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               );
-                            },
-                          );
-                        },
-                      ),
-              ),
+                            }
+
+                            // Desktop Row Layout
+                            return Row(
+                              children: [
+                                // Member Avatar & Details
+                                Expanded(
+                                  flex: 3,
+                                  child: Row(
+                                    children: [
+                                      CircleAvatar(
+                                        radius: 18,
+                                        backgroundColor: roleColor.withOpacity(0.1),
+                                        child: Text(
+                                          avatarText,
+                                          style: TextStyle(
+                                            color: roleColor,
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              studentName,
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 13,
+                                                color: AdminColors.textPrimary,
+                                              ),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              studentEmail,
+                                              style: const TextStyle(
+                                                fontSize: 11,
+                                                color: AdminColors.textSecondary,
+                                              ),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                // Action
+                                Expanded(
+                                  flex: 3,
+                                  child: Text(
+                                    'Menggambar "$judulKarya"',
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w500,
+                                      color: AdminColors.textPrimary,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                // Kategori Pill Badge
+                                Expanded(
+                                  flex: 2,
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                        decoration: BoxDecoration(
+                                          color: roleColor.withOpacity(0.1),
+                                          borderRadius: BorderRadius.circular(10),
+                                        ),
+                                        child: Text(
+                                          kategori.toUpperCase(),
+                                          style: TextStyle(
+                                            color: roleColor,
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                // Score / Time
+                                Expanded(
+                                  flex: 2,
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        skorAI != null ? '$skorAI ($grade)' : 'Pending',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                          color: skorAI != null ? AdminColors.success : AdminColors.inactive,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        _formatTimeAgo(createdAt),
+                                        style: const TextStyle(
+                                          fontSize: 11,
+                                          color: AdminColors.textSecondary,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
+                        );
+                      },
+                    ),
             ],
           ),
         );

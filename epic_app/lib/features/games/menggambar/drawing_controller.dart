@@ -104,6 +104,7 @@ class DrawingStroke {
   final List<Offset> points;
   final Color color;
   final double thickness;
+  final double opacity;
   final bool isDot;
   final bool isStraightLine;
   final String? shapeType;
@@ -115,6 +116,7 @@ class DrawingStroke {
     required this.points,
     required this.color,
     required this.thickness,
+    this.opacity = 1.0,
     this.pencilType = PencilType.ballpoint,
     this.isDot = false,
     this.isStraightLine = false,
@@ -127,6 +129,7 @@ class DrawingStroke {
     'points': points.map((p) => [p.dx, p.dy]).toList(),
     'color': color.toARGB32(),
     'thickness': thickness,
+    'opacity': opacity,
     'isDot': isDot,
     'isStraightLine': isStraightLine,
     'shapeType': shapeType,
@@ -147,6 +150,7 @@ class DrawingStroke {
           .toList(),
       color: Color(json['color'] as int),
       thickness: (json['thickness'] as num).toDouble(),
+      opacity: (json['opacity'] as num?)?.toDouble() ?? 1.0,
       isDot: json['isDot'] as bool? ?? false,
       isStraightLine: json['isStraightLine'] as bool? ?? false,
       shapeType: json['shapeType'] as String?,
@@ -188,6 +192,12 @@ class DrawingLayer {
         .map((e) => DrawingStroke.fromJson(e as Map<String, dynamic>))
         .toList();
     layer.strokes.assignAll(strokeList);
+    
+    final stempelList = (json['stempels'] as List? ?? [])
+        .map((e) => StempelModel.fromJson(e as Map<String, dynamic>))
+        .toList();
+    layer.stempels.assignAll(stempelList);
+    
     layer.isVisible.value = json['isVisible'] as bool? ?? true;
     return layer;
   }
@@ -487,7 +497,13 @@ class DrawingController extends GetxController with WidgetsBindingObserver {
   bool _isDraggingStempel = false;
 
   /// Helper to convert screen coordinates to canvas coordinates
+  Offset screenToCanvas(Offset screenPos) => _screenToCanvas(screenPos);
+  
   Offset _screenToCanvas(Offset screenPos) {
+    final renderBox = canvasKey.currentContext?.findRenderObject() as RenderBox?;
+    if (renderBox != null && renderBox.hasSize) {
+      return renderBox.globalToLocal(screenPos);
+    }
     final inverse = Matrix4.tryInvert(canvasMatrix.value);
     if (inverse == null) return screenPos;
     return MatrixUtils.transformPoint(inverse, screenPos);
@@ -563,6 +579,7 @@ class DrawingController extends GetxController with WidgetsBindingObserver {
   final Rx<PencilType> activePencilType = PencilType.ballpoint.obs;
   final Rx<Color> activeColor = const Color(0xFF1E293B).obs;
   final RxDouble thickness = 4.0.obs;
+  final RxDouble opacity = 1.0.obs;
   final Rx<String?> activeShape = Rx<String?>(null);
 
   // ─── Layers (Layer System) ────────────────────────────────────────────────
@@ -613,13 +630,15 @@ class DrawingController extends GetxController with WidgetsBindingObserver {
     final nextZ = activeLayer.stempels.isEmpty
         ? 0
         : activeLayer.stempels.map((s) => s.zIndex.value).reduce(math.max) + 1;
+    final isLine = activeStempelShape.value == StempelShape.garisLurus;
     activeLayer.stempels.add(StempelModel(
       id: id,
       shape: activeStempelShape.value!,
       initialPosition: position - const Offset(24, 24),
       initialColor: activeColor.value,
       initialStrokeWidth: thickness.value,
-      initialScaleX: 1.0,
+      initialOpacity: opacity.value,
+      initialScaleX: isLine ? 2.0 : 1.0,
       initialScaleY: 1.0,
       initialRotation: 0.0,
       initialZIndex: nextZ,
@@ -634,22 +653,34 @@ class DrawingController extends GetxController with WidgetsBindingObserver {
 
   void duplicateStempel(StempelModel stempel) {
     if (layers.isEmpty) return;
+    
+    // Temukan layer yang memiliki stempel ini
+    DrawingLayer targetLayer = activeLayer;
+    for (final layer in layers) {
+      if (layer.stempels.any((s) => s.id == stempel.id)) {
+        targetLayer = layer;
+        break;
+      }
+    }
+
     final newId = DateTime.now().millisecondsSinceEpoch.toString();
-    final nextZ = activeLayer.stempels.isEmpty
+    final nextZ = targetLayer.stempels.isEmpty
         ? 0
-        : activeLayer.stempels.map((s) => s.zIndex.value).reduce(math.max) + 1;
-    activeLayer.stempels.add(StempelModel(
+        : targetLayer.stempels.map((s) => s.zIndex.value).reduce(math.max) + 1;
+    targetLayer.stempels.add(StempelModel(
       id: newId,
       shape: stempel.shape,
-      initialPosition: stempel.position.value + const Offset(20, 20),
+      initialPosition: stempel.position.value + const Offset(24, 24),
       initialColor: stempel.color.value,
       initialStrokeWidth: stempel.strokeWidth.value,
+      initialOpacity: stempel.opacity.value,
       initialScaleX: stempel.scaleX.value,
       initialScaleY: stempel.scaleY.value,
       initialRotation: stempel.rotation.value,
       initialZIndex: nextZ,
     ));
     activeStempelId.value = newId;
+    _persistState();
     layers.refresh();
   }
 
@@ -665,6 +696,272 @@ class DrawingController extends GetxController with WidgetsBindingObserver {
     layers.refresh();
   }
 
+  final RxBool isInteractingWithStempel = false.obs;
+
+  // ─── 8-Point Precise Resizing with Anchor Pinning ─────────────────────────
+
+  /// Resize Kanan (Sumbu Lebar / X) - Sisi Kiri Tetap Terkunci
+  void resizeRight(String id, Offset canvasDelta) {
+    final stempel = _findStempel(id);
+    if (stempel == null) return;
+    
+    final rot = stempel.rotation.value;
+    final cosR = math.cos(rot);
+    final sinR = math.sin(rot);
+    final localDx = canvasDelta.dx * cosR + canvasDelta.dy * sinR;
+    
+    final deltaScale = localDx / 48.0;
+    final oldSx = stempel.scaleX.value;
+    final newSx = (oldSx + deltaScale).clamp(0.2, 30.0);
+    final deltaW = 48.0 * (newSx - oldSx);
+    
+    final shiftX = (deltaW / 2.0) * cosR;
+    final shiftY = (deltaW / 2.0) * sinR;
+    
+    stempel.position.value = Offset(
+      stempel.position.value.dx + shiftX - deltaW / 2.0,
+      stempel.position.value.dy + shiftY,
+    );
+    stempel.scaleX.value = newSx;
+  }
+
+  /// Resize Kiri (Sumbu Lebar / X) - Sisi Kanan Tetap Terkunci
+  void resizeLeft(String id, Offset canvasDelta) {
+    final stempel = _findStempel(id);
+    if (stempel == null) return;
+    
+    final rot = stempel.rotation.value;
+    final cosR = math.cos(rot);
+    final sinR = math.sin(rot);
+    final localDx = canvasDelta.dx * cosR + canvasDelta.dy * sinR;
+    
+    final deltaScale = -localDx / 48.0;
+    final oldSx = stempel.scaleX.value;
+    final newSx = (oldSx + deltaScale).clamp(0.2, 30.0);
+    final deltaW = 48.0 * (newSx - oldSx);
+    
+    final shiftX = -(deltaW / 2.0) * cosR;
+    final shiftY = -(deltaW / 2.0) * sinR;
+    
+    stempel.position.value = Offset(
+      stempel.position.value.dx + shiftX - deltaW / 2.0,
+      stempel.position.value.dy + shiftY,
+    );
+    stempel.scaleX.value = newSx;
+  }
+
+  /// Resize Bawah (Sumbu Tinggi / Y) - Sisi Atas Tetap Terkunci
+  void resizeBottom(String id, Offset canvasDelta) {
+    final stempel = _findStempel(id);
+    if (stempel == null) return;
+    
+    final rot = stempel.rotation.value;
+    final cosR = math.cos(rot);
+    final sinR = math.sin(rot);
+    final localDy = -canvasDelta.dx * sinR + canvasDelta.dy * cosR;
+    
+    final deltaScale = localDy / 48.0;
+    final oldSy = stempel.scaleY.value;
+    final newSy = (oldSy + deltaScale).clamp(0.2, 30.0);
+    final deltaH = 48.0 * (newSy - oldSy);
+    
+    final shiftX = -(deltaH / 2.0) * sinR;
+    final shiftY = (deltaH / 2.0) * cosR;
+    
+    stempel.position.value = Offset(
+      stempel.position.value.dx + shiftX,
+      stempel.position.value.dy + shiftY - deltaH / 2.0,
+    );
+    stempel.scaleY.value = newSy;
+  }
+
+  /// Resize Atas (Sumbu Tinggi / Y) - Sisi Bawah Tetap Terkunci
+  void resizeTop(String id, Offset canvasDelta) {
+    final stempel = _findStempel(id);
+    if (stempel == null) return;
+    
+    final rot = stempel.rotation.value;
+    final cosR = math.cos(rot);
+    final sinR = math.sin(rot);
+    final localDy = -canvasDelta.dx * sinR + canvasDelta.dy * cosR;
+    
+    final deltaScale = -localDy / 48.0;
+    final oldSy = stempel.scaleY.value;
+    final newSy = (oldSy + deltaScale).clamp(0.2, 30.0);
+    final deltaH = 48.0 * (newSy - oldSy);
+    
+    final shiftX = (deltaH / 2.0) * sinR;
+    final shiftY = -(deltaH / 2.0) * cosR;
+    
+    stempel.position.value = Offset(
+      stempel.position.value.dx + shiftX,
+      stempel.position.value.dy + shiftY - deltaH / 2.0,
+    );
+    stempel.scaleY.value = newSy;
+  }
+
+  /// Resize Sudut Kanan Bawah (BR) - Sudut Kiri Atas Tetap Terkunci
+  void resizeCornerBottomRight(String id, Offset canvasDelta) {
+    final stempel = _findStempel(id);
+    if (stempel == null) return;
+    
+    final rot = stempel.rotation.value;
+    final cosR = math.cos(rot);
+    final sinR = math.sin(rot);
+    
+    final oldSx = stempel.scaleX.value;
+    final oldSy = stempel.scaleY.value;
+    final oldW = 48.0 * oldSx + 16.0;
+    final oldH = 48.0 * oldSy + 16.0;
+    
+    // Diagonal vector from pinned anchor (TL) to active handle (BR)
+    final vx = oldW * cosR - oldH * sinR;
+    final vy = oldW * sinR + oldH * cosR;
+    final diag = math.sqrt(oldW * oldW + oldH * oldH);
+    
+    // Project finger delta directly along the true diagonal vector
+    final deltaProj = (canvasDelta.dx * vx + canvasDelta.dy * vy) / diag;
+    final scaleFactor = (diag + deltaProj) / diag;
+    
+    final newSx = (oldSx * scaleFactor).clamp(0.2, 30.0);
+    final newSy = (oldSy * scaleFactor).clamp(0.2, 30.0);
+    
+    final deltaW = 48.0 * (newSx - oldSx);
+    final deltaH = 48.0 * (newSy - oldSy);
+    
+    final shiftX = (deltaW / 2.0) * cosR - (deltaH / 2.0) * sinR;
+    final shiftY = (deltaW / 2.0) * sinR + (deltaH / 2.0) * cosR;
+    
+    stempel.position.value = Offset(
+      stempel.position.value.dx + shiftX - deltaW / 2.0,
+      stempel.position.value.dy + shiftY - deltaH / 2.0,
+    );
+    stempel.scaleX.value = newSx;
+    stempel.scaleY.value = newSy;
+  }
+
+  /// Resize Sudut Kiri Bawah (BL) - Sudut Kanan Atas Tetap Terkunci
+  void resizeCornerBottomLeft(String id, Offset canvasDelta) {
+    final stempel = _findStempel(id);
+    if (stempel == null) return;
+    
+    final rot = stempel.rotation.value;
+    final cosR = math.cos(rot);
+    final sinR = math.sin(rot);
+    
+    final oldSx = stempel.scaleX.value;
+    final oldSy = stempel.scaleY.value;
+    final oldW = 48.0 * oldSx + 16.0;
+    final oldH = 48.0 * oldSy + 16.0;
+    
+    // Diagonal vector from pinned anchor (TR) to active handle (BL)
+    final vx = -oldW * cosR - oldH * sinR;
+    final vy = -oldW * sinR + oldH * cosR;
+    final diag = math.sqrt(oldW * oldW + oldH * oldH);
+    
+    final deltaProj = (canvasDelta.dx * vx + canvasDelta.dy * vy) / diag;
+    final scaleFactor = (diag + deltaProj) / diag;
+    
+    final newSx = (oldSx * scaleFactor).clamp(0.2, 30.0);
+    final newSy = (oldSy * scaleFactor).clamp(0.2, 30.0);
+    
+    final deltaW = 48.0 * (newSx - oldSx);
+    final deltaH = 48.0 * (newSy - oldSy);
+    
+    final shiftX = -(deltaW / 2.0) * cosR - (deltaH / 2.0) * sinR;
+    final shiftY = -(deltaW / 2.0) * sinR + (deltaH / 2.0) * cosR;
+    
+    stempel.position.value = Offset(
+      stempel.position.value.dx + shiftX - deltaW / 2.0,
+      stempel.position.value.dy + shiftY - deltaH / 2.0,
+    );
+    stempel.scaleX.value = newSx;
+    stempel.scaleY.value = newSy;
+  }
+
+  /// Resize Sudut Kanan Atas (TR) - Sudut Kiri Bawah Tetap Terkunci
+  void resizeCornerTopRight(String id, Offset canvasDelta) {
+    final stempel = _findStempel(id);
+    if (stempel == null) return;
+    
+    final rot = stempel.rotation.value;
+    final cosR = math.cos(rot);
+    final sinR = math.sin(rot);
+    
+    final oldSx = stempel.scaleX.value;
+    final oldSy = stempel.scaleY.value;
+    final oldW = 48.0 * oldSx + 16.0;
+    final oldH = 48.0 * oldSy + 16.0;
+    
+    // Diagonal vector from pinned anchor (BL) to active handle (TR)
+    final vx = oldW * cosR + oldH * sinR;
+    final vy = oldW * sinR - oldH * cosR;
+    final diag = math.sqrt(oldW * oldW + oldH * oldH);
+    
+    final deltaProj = (canvasDelta.dx * vx + canvasDelta.dy * vy) / diag;
+    final scaleFactor = (diag + deltaProj) / diag;
+    
+    final newSx = (oldSx * scaleFactor).clamp(0.2, 30.0);
+    final newSy = (oldSy * scaleFactor).clamp(0.2, 30.0);
+    
+    final deltaW = 48.0 * (newSx - oldSx);
+    final deltaH = 48.0 * (newSy - oldSy);
+    
+    final shiftX = (deltaW / 2.0) * cosR + (deltaH / 2.0) * sinR;
+    final shiftY = (deltaW / 2.0) * sinR - (deltaH / 2.0) * cosR;
+    
+    stempel.position.value = Offset(
+      stempel.position.value.dx + shiftX - deltaW / 2.0,
+      stempel.position.value.dy + shiftY - deltaH / 2.0,
+    );
+    stempel.scaleX.value = newSx;
+    stempel.scaleY.value = newSy;
+  }
+
+  /// Resize Sudut Kiri Atas (TL) - Sudut Kanan Bawah Tetap Terkunci
+  void resizeCornerTopLeft(String id, Offset canvasDelta) {
+    final stempel = _findStempel(id);
+    if (stempel == null) return;
+    
+    final rot = stempel.rotation.value;
+    final cosR = math.cos(rot);
+    final sinR = math.sin(rot);
+    
+    final oldSx = stempel.scaleX.value;
+    final oldSy = stempel.scaleY.value;
+    final oldW = 48.0 * oldSx + 16.0;
+    final oldH = 48.0 * oldSy + 16.0;
+    
+    // Diagonal vector from pinned anchor (BR) to active handle (TL)
+    final vx = -oldW * cosR + oldH * sinR;
+    final vy = -oldW * sinR - oldH * cosR;
+    final diag = math.sqrt(oldW * oldW + oldH * oldH);
+    
+    final deltaProj = (canvasDelta.dx * vx + canvasDelta.dy * vy) / diag;
+    final scaleFactor = (diag + deltaProj) / diag;
+    
+    final newSx = (oldSx * scaleFactor).clamp(0.2, 30.0);
+    final newSy = (oldSy * scaleFactor).clamp(0.2, 30.0);
+    
+    final deltaW = 48.0 * (newSx - oldSx);
+    final deltaH = 48.0 * (newSy - oldSy);
+    
+    final shiftX = -(deltaW / 2.0) * cosR + (deltaH / 2.0) * sinR;
+    final shiftY = -(deltaW / 2.0) * sinR - (deltaH / 2.0) * cosR;
+    
+    stempel.position.value = Offset(
+      stempel.position.value.dx + shiftX - deltaW / 2.0,
+      stempel.position.value.dy + shiftY - deltaH / 2.0,
+    );
+    stempel.scaleX.value = newSx;
+    stempel.scaleY.value = newSy;
+  }
+
+  // Alias kompatibilitas
+  void resizeStempel(String id, Offset canvasDelta) => resizeCornerBottomRight(id, canvasDelta);
+  void resizeStempelX(String id, Offset canvasDelta) => resizeRight(id, canvasDelta);
+  void resizeStempelY(String id, Offset canvasDelta) => resizeBottom(id, canvasDelta);
+
   void updateStempelPosition(String id, Offset delta) {
     final stempel = _findStempel(id);
     if (stempel != null) {
@@ -672,50 +969,32 @@ class DrawingController extends GetxController with WidgetsBindingObserver {
     }
   }
 
-  void resizeStempel(String id, Offset delta) {
-    final stempel = _findStempel(id);
-    if (stempel == null) return;
-    
-    // Uniform scaling dari corner handle
-    const sensitivity = 0.015;
-    final avgDelta = (delta.dx + delta.dy) / 2;
-    final scaleChange = avgDelta * sensitivity;
-    
-    final newScaleX = (stempel.scaleX.value + scaleChange).clamp(0.3, 15.0);
-    final newScaleY = (stempel.scaleY.value + scaleChange).clamp(0.3, 15.0);
-      
-    // Update keduanya sekaligus — 1 rebuild saja
-    stempel.scaleX.value = newScaleX;
-    stempel.scaleY.value = newScaleY;
-  }
-
-  void resizeStempelX(String id, double deltaDx) {
-    final stempel = _findStempel(id);
-    if (stempel == null) return;
-    
-    // Faktor sensitivitas — turunkan agar tidak terlalu sensitif
-    const sensitivity = 0.015; // was 1/48 = 0.0208
-    final scaleChange = deltaDx * sensitivity;
-    stempel.scaleX.value = (stempel.scaleX.value + scaleChange).clamp(0.3, 15.0);
-  }
-
-  void resizeStempelY(String id, double deltaDy) {
-    final stempel = _findStempel(id);
-    if (stempel == null) return;
-    
-    const sensitivity = 0.015;
-    final scaleChange = deltaDy * sensitivity;
-    stempel.scaleY.value = (stempel.scaleY.value + scaleChange).clamp(0.3, 15.0);
-  }
-
   void setActiveStempel(String id) {
-    activeStempelId.value = id;
     if (id.isNotEmpty) {
+      // Pindah ke layer yang mengandung stempel ini secara otomatis
+      for (int i = 0; i < layers.length; i++) {
+        final index = layers[i].stempels.indexWhere((s) => s.id == id);
+        if (index != -1) {
+          if (activeLayerIndex.value != i) {
+            activeLayerIndex.value = i;
+          }
+          break;
+        }
+      }
+      activeStempelId.value = id;
       activeTool.value = DrawingTool.cursor;
+      _isDraggingStempel = true;
+      final stempel = _findStempel(id);
+      if (stempel != null) {
+        activeColor.value = stempel.color.value;
+        thickness.value = stempel.strokeWidth.value;
+        opacity.value = stempel.opacity.value;
+      }
+    } else {
+      activeStempelId.value = '';
+      _isDraggingStempel = false;
     }
-  }
-
-  // ─── Rotasi Stempel ───────────────────────────────────────────────────────
+  }// ─── Rotasi Stempel ───────────────────────────────────────────────────────
 
   /// Tambahkan rotasi [deltaAngle] (dalam radian) ke stempel
   void rotateStempel(String id, double deltaAngle) {
@@ -788,28 +1067,73 @@ class DrawingController extends GetxController with WidgetsBindingObserver {
   }
 
 
-  bool _isPositionOnAnyStempel(Offset position) {
-    // Hitung margin berdasarkan zoom agar area handle (termasuk tombol layer di atas)
-    // selalu tercakup dalam bounding box.
-    // mSide = 14/zoom, mTop = 28/zoom + 8/zoom = 36/zoom, mBot = 14/zoom
-    // Tambahkan buffer ekstra agar tombol layer yang lebih jauh ke atas pun terjangkau.
+  bool _isPositionOnAnyStempel(Offset canvasPos) {
     final zoom = canvasZoomScale.value > 0 ? canvasZoomScale.value : 1.0;
-    final double side = 30.0 / zoom;   // margin kiri/kanan (handle resize)
-    final double top  = 60.0 / zoom;   // margin atas (tombol layer + buffer)
-    final double bot  = 30.0 / zoom;   // margin bawah (handle resize bawah)
+    final double pad = 18.0 / zoom; // Toleransi sentuh 18px di sekeliling bentuk/handle
 
+    // 1. Periksa stempel yang sedang aktif (beserta handle sudut/sisi, toolbar atas, dan rotate bawah)
+    if (activeStempelId.value.isNotEmpty) {
+      final active = _findStempel(activeStempelId.value);
+      if (active != null) {
+        final shapeW = 48.0 * active.scaleX.value + 16.0;
+        final shapeH = 48.0 * active.scaleY.value + 16.0;
+        final center = Offset(
+          active.position.value.dx + shapeW / 2,
+          active.position.value.dy + shapeH / 2,
+        );
+
+        final dx = canvasPos.dx - center.dx;
+        final dy = canvasPos.dy - center.dy;
+
+        final cosA = math.cos(-active.rotation.value);
+        final sinA = math.sin(-active.rotation.value);
+        final localX = dx * cosA - dy * sinA;
+        final localY = dx * sinA + dy * cosA;
+
+        // A. Kotak bentuk & 8 handle di sekelilingnya
+        if (localX.abs() <= shapeW / 2 + pad && localY.abs() <= shapeH / 2 + pad) {
+          return true;
+        }
+
+        // B. Floating Toolbar di atas bentuk
+        if (localX.abs() <= (80.0 / zoom) &&
+            localY >= -shapeH / 2 - (65.0 / zoom) &&
+            localY <= -shapeH / 2) {
+          return true;
+        }
+
+        // C. Floating Rotate Button di bawah bentuk
+        if (localX.abs() <= (28.0 / zoom) &&
+            localY >= shapeH / 2 &&
+            localY <= shapeH / 2 + (55.0 / zoom)) {
+          return true;
+        }
+      }
+    }
+
+    // 2. Periksa stempel lain yang tidak aktif (hanya kotak bentuknya)
     for (final layer in layers) {
       if (!layer.isVisible.value) continue;
       for (var s in layer.stempels) {
-        final shapeW = 48 * s.scaleX.value + 16;
-        final shapeH = 48 * s.scaleY.value + 16;
-        final rect = Rect.fromLTWH(
-          s.position.value.dx - side,
-          s.position.value.dy - top,
-          shapeW + side * 2,
-          shapeH + top + bot,
+        if (s.id == activeStempelId.value) continue;
+        final shapeW = 48.0 * s.scaleX.value + 16.0;
+        final shapeH = 48.0 * s.scaleY.value + 16.0;
+        final center = Offset(
+          s.position.value.dx + shapeW / 2,
+          s.position.value.dy + shapeH / 2,
         );
-        if (rect.contains(position)) return true;
+
+        final dx = canvasPos.dx - center.dx;
+        final dy = canvasPos.dy - center.dy;
+
+        final cosA = math.cos(-s.rotation.value);
+        final sinA = math.sin(-s.rotation.value);
+        final localX = dx * cosA - dy * sinA;
+        final localY = dx * sinA + dy * cosA;
+
+        if (localX.abs() <= shapeW / 2 + pad && localY.abs() <= shapeH / 2 + pad) {
+          return true;
+        }
       }
     }
     return false;
@@ -818,6 +1142,7 @@ class DrawingController extends GetxController with WidgetsBindingObserver {
   // ─── Canvas Transform ─────────────────────────────────────────────────────
 
   final GlobalKey canvasKey = GlobalKey();
+  final RxBool isCapturing = false.obs;
 
   // ─── Template ─────────────────────────────────────────────────────────────
 
@@ -880,6 +1205,9 @@ class DrawingController extends GetxController with WidgetsBindingObserver {
 
   bool _wasPausedByLifecycle = false;
 
+  /// Flag untuk mencegah draft disimpan kembali setelah submit
+  bool _isSubmitted = false;
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused ||
@@ -888,7 +1216,10 @@ class DrawingController extends GetxController with WidgetsBindingObserver {
         _wasPausedByLifecycle = true;
         pauseTimer();
       }
-      _persistState();
+      // Jangan simpan draft jika sudah di-submit
+      if (!_isSubmitted) {
+        _persistState();
+      }
     } else if (state == AppLifecycleState.resumed) {
       _loadTimerState();
     }
@@ -896,7 +1227,12 @@ class DrawingController extends GetxController with WidgetsBindingObserver {
 
   @override
   void onClose() {
-    _persistState();
+    WidgetsBinding.instance.removeObserver(this);
+    _timer?.cancel();
+    // Jangan simpan draft jika sudah di-submit
+    if (!_isSubmitted) {
+      _persistState();
+    }
     super.onClose();
   }
 
@@ -1303,7 +1639,11 @@ class DrawingController extends GetxController with WidgetsBindingObserver {
     );
   }
 
+  bool _isUsingNyawa = false;
+
   Future<void> _gunakanNyawaUntukTambahWaktu() async {
+    if (_isUsingNyawa) return;
+    _isUsingNyawa = true;
     try {
       await Get.find<SessionController>().gunakanNyawa();
       nyawaDigunakan.value++;
@@ -1313,16 +1653,26 @@ class DrawingController extends GetxController with WidgetsBindingObserver {
     } catch (e) {
       Get.snackbar('Ups!', e.toString().replaceAll('Exception: ', ''),
           snackPosition: SnackPosition.TOP);
+    } finally {
+      _isUsingNyawa = false;
     }
   }
 
+  /// Memaksa penyimpanan draft secara instan (digunakan saat exit)
+  Future<void> forceSaveDraft() async {
+    await _persistState();
+  }
+
+  void persistState() {
+    _persistState();
+  }
+
   Future<void> _persistState() async {
+    if (_isSubmitted) return;
     if (_session == null) return;
 
-    String? strokesData;
-    if (totalStrokeCount <= 500) {
-      strokesData = _strokesToJson();
-    }
+    // Selalu serialize semua stroke agar tidak ada gambar yang hilang
+    String? strokesData = _strokesToJson();
 
     // ✅ SELALU serialisasi stempelsData dengan list kosong untuk kompatibilitas ke belakang
     // Stempel yang sebenarnya sekarang disimpan di dalam strokesData sebagai bagian dari layer.
@@ -1419,8 +1769,11 @@ class DrawingController extends GetxController with WidgetsBindingObserver {
     // Stempel cursor logic
     if (activeTool.value == DrawingTool.cursor && activePointersMap.length == 1) {
       final canvasPos = _screenToCanvas(position);
-      if (_isPositionOnAnyStempel(canvasPos)) {
-        // User clicked on a stempel. Do nothing, let the stempel gesture detector handle it.
+      final onStempel = _isPositionOnAnyStempel(canvasPos);
+      final active = activeStempelId.value.isNotEmpty ? _findStempel(activeStempelId.value) : null;
+      
+      if (onStempel || isInteractingWithStempel.value || (active != null && active.isResizing.value)) {
+        // User clicked on a stempel or handle. Let the stempel gesture detector handle it.
         _isDraggingStempel = true;
       } else {
         activeStempelId.value = '';
@@ -1431,14 +1784,16 @@ class DrawingController extends GetxController with WidgetsBindingObserver {
           _isDraggingStempel = false;
         }
       }
-    } else {
+    } else if (activeTool.value != DrawingTool.cursor) {
       activeStempelId.value = '';
       _isDraggingStempel = false;
     }
 
     if (activePointersMap.length == 1) {
       if (activeTool.value == DrawingTool.cursor) {
-         if (!_isDraggingStempel) {
+         final active = activeStempelId.value.isNotEmpty ? _findStempel(activeStempelId.value) : null;
+         final isResizing = active != null && active.isResizing.value;
+         if (!_isDraggingStempel && !isResizing && !isInteractingWithStempel.value) {
             _setupTransform();
          }
       } else {
@@ -1471,8 +1826,12 @@ class DrawingController extends GetxController with WidgetsBindingObserver {
     if (activePointersMap.length == 1) {
       if (_isDrawing) {
         onPanUpdate(_screenToCanvas(position));
-      } else if (activeTool.value == DrawingTool.cursor && !_isDraggingStempel) {
-        _updateTransform();
+      } else if (activeTool.value == DrawingTool.cursor) {
+        final active = activeStempelId.value.isNotEmpty ? _findStempel(activeStempelId.value) : null;
+        final isResizing = active != null && active.isResizing.value;
+        if (!_isDraggingStempel && !isResizing && !isInteractingWithStempel.value) {
+          _updateTransform();
+        }
       }
     } else if (activePointersMap.length >= 2) {
       _updateTransform();
@@ -1658,11 +2017,21 @@ class DrawingController extends GetxController with WidgetsBindingObserver {
   }
 
   void setThickness(double val) {
-    thickness.value = val.clamp(1.0, 30.0);
+    thickness.value = val.clamp(1.0, 40.0);
     if (activeStempelId.value.isNotEmpty) {
       final stempel = _findStempel(activeStempelId.value);
       if (stempel != null) {
         stempel.strokeWidth.value = thickness.value;
+      }
+    }
+  }
+
+  void setOpacity(double val) {
+    opacity.value = val.clamp(0.01, 1.0);
+    if (activeStempelId.value.isNotEmpty) {
+      final stempel = _findStempel(activeStempelId.value);
+      if (stempel != null) {
+        stempel.opacity.value = opacity.value;
       }
     }
   }
@@ -1687,6 +2056,7 @@ class DrawingController extends GetxController with WidgetsBindingObserver {
         points: [position, position],
         color: activeColor.value,
         thickness: thickness.value,
+        opacity: opacity.value,
         isStraightLine: true,
       );
     } else if (activeTool.value == DrawingTool.shape ||
@@ -1697,6 +2067,7 @@ class DrawingController extends GetxController with WidgetsBindingObserver {
         points: [position, position],
         color: activeColor.value,
         thickness: thickness.value,
+        opacity: opacity.value,
         shapeType: activeShape.value,
       );
     } else {
@@ -1712,6 +2083,9 @@ class DrawingController extends GetxController with WidgetsBindingObserver {
         thickness: activeTool.value == DrawingTool.eraser
             ? thickness.value * 2
             : thickness.value,
+        opacity: activeTool.value == DrawingTool.eraser
+            ? 1.0
+            : opacity.value,
       );
     }
   }
@@ -1730,6 +2104,7 @@ class DrawingController extends GetxController with WidgetsBindingObserver {
         points: [stroke.points.first, position],
         color: stroke.color,
         thickness: stroke.thickness,
+        opacity: stroke.opacity,
         isStraightLine: stroke.isStraightLine,
         shapeType: stroke.shapeType,
       );
@@ -1755,6 +2130,7 @@ class DrawingController extends GetxController with WidgetsBindingObserver {
         points: newPoints,
         color: stroke.color,
         thickness: stroke.thickness,
+        opacity: stroke.opacity,
         isDot: false,
       );
     }
@@ -1772,6 +2148,7 @@ class DrawingController extends GetxController with WidgetsBindingObserver {
         points: stroke.points,
         color: stroke.color,
         thickness: stroke.thickness,
+        opacity: stroke.opacity,
         isDot: true,
       ));
     } else {
@@ -1796,6 +2173,7 @@ class DrawingController extends GetxController with WidgetsBindingObserver {
           ? Colors.transparent
           : activeColor.value,
       thickness: thickness.value,
+      opacity: activeTool.value == DrawingTool.eraser ? 1.0 : opacity.value,
       isDot: true,
     ));
     // Pastikan tidak merusak layer dummy (safety check)
@@ -1863,10 +2241,17 @@ class DrawingController extends GetxController with WidgetsBindingObserver {
 
   Future<Uint8List?> captureCanvas() async {
     try {
-      debugPrint('🎨 [captureCanvas] Memulai proses capture...');
+      debugPrint('🎨 [captureCanvas] Memulai proses capture (hiding template/overlays)...');
+      // Sembunyikan overlay template, garis bantu simetri, dan preview alat
+      isCapturing.value = true;
+
+      // Tunggu frame selesai di-paint ulang dalam keadaan bersih (berfungsi di debug DAN release)
+      await Future.delayed(const Duration(milliseconds: 150));
+      await WidgetsBinding.instance.endOfFrame;
+
       final context = canvasKey.currentContext;
-      if (context == null) {
-        debugPrint('🎨 [captureCanvas] ERROR: canvasKey.currentContext is null');
+      if (context == null || !context.mounted) {
+        debugPrint('🎨 [captureCanvas] ERROR: canvasKey.currentContext is null or unmounted');
         return null;
       }
       final boundary = context.findRenderObject() as RenderRepaintBoundary?;
@@ -1874,9 +2259,6 @@ class DrawingController extends GetxController with WidgetsBindingObserver {
         debugPrint('🎨 [captureCanvas] ERROR: RenderRepaintBoundary is null');
         return null;
       }
-      
-      // Tunggu frame selesai di-paint (berfungsi di debug DAN release)
-      await Future.delayed(const Duration(milliseconds: 200));
 
       final image = await boundary.toImage(pixelRatio: 2.0);
       final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
@@ -1886,20 +2268,39 @@ class DrawingController extends GetxController with WidgetsBindingObserver {
     } catch (e) {
       debugPrint('🎨 [captureCanvas] ERROR: Terjadi exception -> $e');
       return null;
+    } finally {
+      isCapturing.value = false;
     }
   }
 
   Future<void> submitDrawing() async {
     debugPrint('🚀 [submitDrawing] Dipanggil!');
     pauseTimer();
-    // ✅ Minimal ada 1 stempel atau 1 coretan valid
-    final totalStempelCount = layers.fold<int>(0, (sum, l) => sum + l.stempels.length);
-    if (totalStrokeCount == 0 && totalStempelCount == 0) {
+    // ✅ Validasi elemen gambar (coretan dan stempel)
+    final totalStempelCount = layers.fold<int>(0, (acc, l) => acc + l.stempels.length);
+    final totalElements = totalStrokeCount + totalStempelCount;
+
+    if (totalElements == 0) {
       Get.snackbar(
         'Kanvas Kosong',
         'Kamu belum menggambar apa pun! Gambarlah sesuatu sebelum mengumpulkan.',
         backgroundColor: Colors.red.withValues(alpha: 0.8),
         colorText: Colors.white,
+      );
+      resumeTimer();
+      return;
+    }
+
+    // 🛡️ Pengaman: Minimal harus ada 5 goresan/elemen agar tidak dinilai hanya dari coretan asal-asalan
+    if (totalElements < 5) {
+      Get.snackbar(
+        'Perlu Lebih Banyak Goresan',
+        'Goresanmu masih terlalu sedikit. Lanjutkan Menggambar',
+        backgroundColor: const Color(0xFFF59E0B).withValues(alpha: 0.9),
+        colorText: Colors.white,
+        duration: const Duration(seconds: 3),
+        snackPosition: SnackPosition.TOP,
+        margin: const EdgeInsets.all(16),
       );
       resumeTimer();
       return;
@@ -1925,12 +2326,24 @@ class DrawingController extends GetxController with WidgetsBindingObserver {
     }
 
     activeStempelId.value = ''; // Deselect stempel so UI buttons hide
+    
+    // Tandai sudah submit SEBELUM async apapun, agar _persistState() tidak bisa
+    // menimpa draft kembali saat lifecycle change atau onClose() dipanggil.
+    _isSubmitted = true;
+    debugPrint('✅ [submitDrawing] _isSubmitted = true, draft tidak akan disimpan lagi.');
+
     await Future.delayed(const Duration(milliseconds: 100)); // Wait for UI update
 
-    // Null-kan _session agar _persistState() di onClose() tidak menimpa kembali.
-    // Draft Firestore akan dihapus di _jalankanPenilaian() setelah scoring selesai.
-    _session = null;
-    debugPrint('✅ Session di-null untuk kategori $kategori level $level');
+    // 🧹 Hapus draft secara instan dari list memori agar hilang dari UI home.
+    final uid = Get.find<SessionController>().currentUser.value?.uid ?? '';
+    try {
+      Get.find<DraftService>().clearDraftImmediately(uid, kategori, level);
+      // Null-kan _session agar _persistState() di onClose() tidak menimpa kembali.
+      _session = null;
+      debugPrint('✅ Session di-null untuk kategori $kategori level $level');
+    } catch (e) {
+      debugPrint('Error deleting draft: $e');
+    }
 
     final waktuPengerjaan = waktuTerpakai.value;
 

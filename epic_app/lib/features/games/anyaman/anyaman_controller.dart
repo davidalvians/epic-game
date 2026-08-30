@@ -19,6 +19,10 @@ import 'package:epic_app/shared/widgets/epic_transition_overlay.dart';
 class AnyamanController extends GetxController with WidgetsBindingObserver {
   DrawingSessionModel? _session;
   final int level;
+  
+  // Flag to prevent saving draft after submission
+  bool _isSubmitted = false;
+  
   AnyamanController({required this.level});
 
   // ─── Onboarding / Instrument ─────────────────────────────────────────────
@@ -307,10 +311,11 @@ class AnyamanController extends GetxController with WidgetsBindingObserver {
   /// Fallback default durasi timer (15 menit) jika AppConfigService belum tersedia
   static const int _timerDurasiDetik = 15 * 60;
 
-  /// Durasi timer aktual — dari AppConfigService jika tersedia, fallback ke 15 menit
+  /// Durasi timer aktual - dari AppConfigService jika tersedia, fallback ke 15 menit
   int get _timerDurasi {
     if (Get.isRegistered<AppConfigService>()) {
-      return Get.find<AppConfigService>().timerDurasiDetik.value;
+      final configValue = Get.find<AppConfigService>().timerDurasiDetik.value;
+      if (configValue > 0) return configValue;
     }
     return _timerDurasiDetik;
   }
@@ -394,7 +399,9 @@ class AnyamanController extends GetxController with WidgetsBindingObserver {
         _wasPausedByLifecycle = true;
         pauseTimer();
       }
-      _persistState();
+      if (!_isSubmitted) {
+        _persistState();
+      }
     } else if (state == AppLifecycleState.resumed) {
       _loadTimerState();
     }
@@ -404,7 +411,9 @@ class AnyamanController extends GetxController with WidgetsBindingObserver {
   void onClose() {
     WidgetsBinding.instance.removeObserver(this);
     _timer?.cancel();
-    _persistState();
+    if (!_isSubmitted) {
+      _persistState();
+    }
     super.onClose();
   }
 
@@ -784,7 +793,13 @@ class AnyamanController extends GetxController with WidgetsBindingObserver {
 
   // ─── Persist ─────────────────────────────────────────────────────────────
 
+  /// Memaksa penyimpanan draft secara instan (digunakan saat exit)
+  Future<void> forceSaveDraft() async {
+    await _persistState();
+  }
+
   Future<void> _persistState() async {
+    if (_isSubmitted) return;
     if (_session == null) return;
     
     _session = _session!.copyWith(
@@ -855,8 +870,13 @@ class AnyamanController extends GetxController with WidgetsBindingObserver {
     pauseTimer();
     final uid = Get.find<SessionController>().currentUser.value?.uid ?? '';
     
+    // Tandai sudah submit SEBELUM async apapun, agar _persistState() tidak bisa
+    // menimpa draft kembali saat lifecycle change atau onClose() dipanggil.
+    _isSubmitted = true;
+    debugPrint('✅ [submitWork] _isSubmitted = true, draft tidak akan disimpan lagi.');
+
     try {
-      await Get.find<DraftService>().deleteDraft(uid, 'anyaman', level);
+      Get.find<DraftService>().clearDraftImmediately(uid, 'anyaman', level);
       _session = null;
       debugPrint('✅ Draft anyaman berhasil dihapus: level $level');
     } catch (e) {

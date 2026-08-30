@@ -482,6 +482,9 @@ class _AiMonitoringScreenState extends State<AiMonitoringScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isMobile = screenWidth < 768;
+
     return StreamBuilder<QuerySnapshot>(
       stream: _artworksStream,
       builder: (context, snapshot) {
@@ -596,70 +599,122 @@ class _AiMonitoringScreenState extends State<AiMonitoringScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // Custom Header
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Text('Dashboard', style: Theme.of(context).textTheme.labelSmall?.copyWith(color: const Color(0xFF64748B))),
-                                const Icon(Icons.chevron_right, size: 14, color: Color(0xFF64748B)),
-                                Text('AI Monitoring', style: Theme.of(context).textTheme.labelSmall?.copyWith(color: AdminColors.primary, fontWeight: FontWeight.bold)),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'AI Assessment Monitoring',
-                              style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                                    fontWeight: FontWeight.w800,
-                                    color: const Color(0xFF0F172A),
-                                    letterSpacing: -0.5,
+                    if (isMobile)
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Text('Dashboard', style: Theme.of(context).textTheme.labelSmall?.copyWith(color: const Color(0xFF64748B))),
+                              const Icon(Icons.chevron_right, size: 14, color: Color(0xFF64748B)),
+                              Text('AI Monitoring', style: Theme.of(context).textTheme.labelSmall?.copyWith(color: AdminColors.primary, fontWeight: FontWeight.bold)),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'AI Monitoring',
+                                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                                      fontWeight: FontWeight.w800,
+                                      color: const Color(0xFF0F172A),
+                                      letterSpacing: -0.5,
+                                    ),
+                              ),
+                              Row(
+                                children: [
+                                  if (!hasError && !isLoading)
+                                    IconButton(
+                                      onPressed: () => setState(() => _simulatedError = true),
+                                      icon: const Icon(Icons.bug_report_rounded, color: Color(0xFFEF4444), size: 18),
+                                      tooltip: 'Simulasi Error',
+                                      style: IconButton.styleFrom(
+                                        backgroundColor: const Color(0xFFFEF2F2),
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                      ),
+                                    ),
+                                  const SizedBox(width: 8),
+                                  IconButton(
+                                    onPressed: _resetSimulationData,
+                                    icon: const Icon(Icons.refresh_rounded, color: Color(0xFF475569), size: 18),
+                                    tooltip: 'Reset Data',
+                                    style: IconButton.styleFrom(
+                                      backgroundColor: const Color(0xFFF8FAFC),
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                    ),
                                   ),
-                            ),
-                          ],
-                        ),
-                        // Simulation Buttons
-                        Row(
-                          children: [
-                            if (!hasError && !isLoading)
+                                ],
+                              ),
+                            ],
+                          ),
+                        ],
+                      ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.04, end: 0, curve: Curves.easeOutQuad)
+                    else
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Text('Dashboard', style: Theme.of(context).textTheme.labelSmall?.copyWith(color: const Color(0xFF64748B))),
+                                  const Icon(Icons.chevron_right, size: 14, color: Color(0xFF64748B)),
+                                  Text('AI Monitoring', style: Theme.of(context).textTheme.labelSmall?.copyWith(color: AdminColors.primary, fontWeight: FontWeight.bold)),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'AI Assessment Monitoring',
+                                style: Theme.of(context).textTheme.headlineLarge?.copyWith(
+                                      fontWeight: FontWeight.w800,
+                                      color: const Color(0xFF0F172A),
+                                      letterSpacing: -0.5,
+                                    ),
+                              ),
+                            ],
+                          ),
+                          // Simulation Buttons
+                          Row(
+                            children: [
+                              if (!hasError && !isLoading)
+                                ElevatedButton.icon(
+                                  onPressed: () {
+                                    setState(() {
+                                      _simulatedError = true;
+                                    });
+                                  },
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFFFEF2F2),
+                                    foregroundColor: const Color(0xFFEF4444),
+                                    shadowColor: Colors.transparent,
+                                    side: const BorderSide(color: Color(0xFFFCA5A5), width: 1.2),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                  ),
+                                  icon: const Icon(Icons.bug_report_rounded, size: 14),
+                                  label: const Text('Simulasi Error', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                                ),
+                              const SizedBox(width: 12),
                               ElevatedButton.icon(
-                                onPressed: () {
-                                  setState(() {
-                                    _simulatedError = true;
-                                  });
-                                },
+                                onPressed: _resetSimulationData,
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFFFEF2F2),
-                                  foregroundColor: const Color(0xFFEF4444),
+                                  backgroundColor: const Color(0xFFF8FAFC),
+                                  foregroundColor: const Color(0xFF475569),
                                   shadowColor: Colors.transparent,
-                                  side: const BorderSide(color: Color(0xFFFCA5A5), width: 1.2),
+                                  side: const BorderSide(color: Color(0xFFCBD5E1), width: 1.2),
                                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                                 ),
-                                icon: const Icon(Icons.bug_report_rounded, size: 14),
-                                label: const Text('Simulasi Error', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                                icon: const Icon(Icons.refresh_rounded, size: 14),
+                                label: const Text('Reset Data', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
                               ),
-                            const SizedBox(width: 12),
-                            ElevatedButton.icon(
-                              onPressed: _resetSimulationData,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFFF8FAFC),
-                                foregroundColor: const Color(0xFF475569),
-                                shadowColor: Colors.transparent,
-                                side: const BorderSide(color: Color(0xFFCBD5E1), width: 1.2),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                              ),
-                              icon: const Icon(Icons.refresh_rounded, size: 14),
-                              label: const Text('Reset Data', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.04, end: 0, curve: Curves.easeOutQuad),
-                    const SizedBox(height: 28),
+                            ],
+                          ),
+                        ],
+                      ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.04, end: 0, curve: Curves.easeOutQuad),
+                    SizedBox(height: isMobile ? 16 : 28),
 
                     if (hasError)
                       Expanded(child: _buildErrorState())
@@ -669,7 +724,7 @@ class _AiMonitoringScreenState extends State<AiMonitoringScreen> {
                         Row(
                           children: [
                             Expanded(child: _buildShimmerStatCard()),
-                            const SizedBox(width: 24),
+                            SizedBox(width: isMobile ? 12 : 24),
                             Expanded(child: _buildShimmerStatCard()),
                           ],
                         )
@@ -684,7 +739,7 @@ class _AiMonitoringScreenState extends State<AiMonitoringScreen> {
                                 color: AdminColors.primary,
                               ).animate().fadeIn(duration: 350.ms).slideY(begin: 0.05, end: 0, curve: Curves.easeOutQuad),
                             ),
-                            const SizedBox(width: 24),
+                            SizedBox(width: isMobile ? 12 : 24),
                             Expanded(
                               child: _HoverableStatCard(
                                 title: 'Pending Re-Score',
@@ -696,15 +751,15 @@ class _AiMonitoringScreenState extends State<AiMonitoringScreen> {
                             ),
                           ],
                         ),
-                      const SizedBox(height: 32),
+                      SizedBox(height: isMobile ? 16 : 32),
 
                       // Main Table Card
                       Expanded(
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
+                          padding: EdgeInsets.symmetric(horizontal: isMobile ? 14 : 28, vertical: isMobile ? 16 : 24),
                           decoration: BoxDecoration(
                             color: Colors.white,
-                            borderRadius: BorderRadius.circular(24),
+                            borderRadius: BorderRadius.circular(isMobile ? 18 : 24),
                             border: Border.all(color: const Color(0xFFE2E8F0), width: 1.2),
                             boxShadow: [
                               BoxShadow(
@@ -739,73 +794,115 @@ class _AiMonitoringScreenState extends State<AiMonitoringScreen> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     // Card Header & Actions
-                                    Row(
-                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        Row(
-                                          children: [
-                                            const Icon(Icons.warning_amber_rounded, color: AdminColors.error, size: 22),
-                                            const SizedBox(width: 10),
-                                            Text(
-                                              'Karya Pending Re-Score (${filteredItems.where((i) => !i.isResolved).length})',
-                                              style: const TextStyle(
-                                                fontWeight: FontWeight.w800,
-                                                color: Color(0xFF0F172A),
-                                                fontSize: 18,
-                                                letterSpacing: -0.3,
+                                    if (isMobile)
+                                      Column(
+                                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              const Icon(Icons.warning_amber_rounded, color: AdminColors.error, size: 18),
+                                              const SizedBox(width: 8),
+                                              Expanded(
+                                                child: Text(
+                                                  'Karya Pending Re-Score (${filteredItems.where((i) => !i.isResolved).length})',
+                                                  style: const TextStyle(
+                                                    fontWeight: FontWeight.w800,
+                                                    color: Color(0xFF0F172A),
+                                                    fontSize: 15,
+                                                  ),
+                                                  overflow: TextOverflow.ellipsis,
+                                                ),
                                               ),
-                                            ),
-                                          ],
-                                        ),
-                                        ElevatedButton.icon(
-                                          onPressed: () => _triggerBatchReScore(filteredItems),
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: AdminColors.primary,
-                                            foregroundColor: Colors.white,
-                                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                                            elevation: 0,
+                                            ],
                                           ),
-                                          icon: const Icon(Icons.auto_mode_rounded, size: 16),
-                                          label: const Text('Re-Score Semua', style: TextStyle(fontWeight: FontWeight.bold)),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 24),
+                                          const SizedBox(height: 10),
+                                          if (filteredItems.where((i) => !i.isResolved).isNotEmpty)
+                                            ElevatedButton.icon(
+                                              onPressed: () => _triggerBatchReScore(filteredItems),
+                                              style: ElevatedButton.styleFrom(
+                                                backgroundColor: AdminColors.primary,
+                                                foregroundColor: Colors.white,
+                                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                                elevation: 0,
+                                              ),
+                                              icon: const Icon(Icons.auto_fix_high_rounded, size: 16),
+                                              label: const Text('Re-Score Semua (Batch)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                                            ),
+                                        ],
+                                      )
+                                    else
+                                      Row(
+                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              const Icon(Icons.warning_amber_rounded, color: AdminColors.error, size: 22),
+                                              const SizedBox(width: 10),
+                                              Text(
+                                                'Karya Pending Re-Score (${filteredItems.where((i) => !i.isResolved).length})',
+                                                style: const TextStyle(
+                                                  fontWeight: FontWeight.w800,
+                                                  color: Color(0xFF0F172A),
+                                                  fontSize: 18,
+                                                  letterSpacing: -0.3,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          if (filteredItems.where((i) => !i.isResolved).isNotEmpty)
+                                            ElevatedButton.icon(
+                                              onPressed: () => _triggerBatchReScore(filteredItems),
+                                              style: ElevatedButton.styleFrom(
+                                                backgroundColor: AdminColors.primary,
+                                                foregroundColor: Colors.white,
+                                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                                                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                                                elevation: 0,
+                                              ),
+                                              icon: const Icon(Icons.auto_fix_high_rounded, size: 16),
+                                              label: const Text('Re-Score Semua (Batch)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                                            ),
+                                        ],
+                                      ),
+                                    SizedBox(height: isMobile ? 12 : 20),
 
-                                    // Search and filters block
+                                    // Search & Filter Controls
                                     Row(
                                       children: [
                                         Expanded(
-                                          child: Container(
-                                            height: 48,
-                                            decoration: BoxDecoration(
-                                              color: const Color(0xFFF8FAFC),
-                                              borderRadius: BorderRadius.circular(12),
-                                              border: Border.all(color: const Color(0xFFE2E8F0)),
-                                            ),
+                                          child: SizedBox(
+                                            height: 44,
                                             child: TextField(
                                               controller: _searchController,
-                                              onChanged: (val) {
-                                                setState(() {
-                                                  _searchQuery = val;
-                                                });
-                                              },
-                                              style: const TextStyle(fontSize: 13),
-                                              decoration: const InputDecoration(
-                                                hintText: 'Cari berdasarkan nama murid, karya, atau ID...',
-                                                hintStyle: TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
-                                                prefixIcon: Icon(Icons.search_rounded, color: Color(0xFF64748B), size: 18),
-                                                border: InputBorder.none,
-                                                contentPadding: EdgeInsets.symmetric(vertical: 12),
+                                              onChanged: (val) => setState(() => _searchQuery = val),
+                                              decoration: InputDecoration(
+                                                hintText: isMobile ? 'Cari UID / Karya...' : 'Cari berdasarkan nama murid, kategori, atau ID karya...',
+                                                hintStyle: const TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
+                                                prefixIcon: const Icon(Icons.search_rounded, color: Color(0xFF64748B), size: 18),
+                                                border: OutlineInputBorder(
+                                                  borderRadius: BorderRadius.circular(12),
+                                                  borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                                                ),
+                                                enabledBorder: OutlineInputBorder(
+                                                  borderRadius: BorderRadius.circular(12),
+                                                  borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                                                ),
+                                                focusedBorder: OutlineInputBorder(
+                                                  borderRadius: BorderRadius.circular(12),
+                                                  borderSide: const BorderSide(color: AdminColors.primary, width: 1.5),
+                                                ),
+                                                filled: true,
+                                                fillColor: const Color(0xFFF8FAFC),
+                                                contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
                                               ),
                                             ),
                                           ),
                                         ),
-                                        const SizedBox(width: 16),
+                                        const SizedBox(width: 10),
                                         Container(
-                                          height: 48,
-                                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                                          height: 44,
+                                          padding: const EdgeInsets.symmetric(horizontal: 12),
                                           decoration: BoxDecoration(
                                             color: const Color(0xFFF8FAFC),
                                             borderRadius: BorderRadius.circular(12),
@@ -835,54 +932,56 @@ class _AiMonitoringScreenState extends State<AiMonitoringScreen> {
                                         ),
                                       ],
                                     ),
-                                    const SizedBox(height: 24),
+                                    SizedBox(height: isMobile ? 12 : 20),
 
-                                    // Table Headers (Only if items exist)
+                                    // Table Headers (Only if desktop and items exist)
                                     if (filteredItems.isNotEmpty) ...[
-                                      Padding(
-                                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                                        child: Row(
-                                          children: const [
-                                            SizedBox(width: 52, child: Text('', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF64748B), fontSize: 11))),
-                                            Expanded(
-                                              flex: 4,
-                                              child: Text(
-                                                'KATEGORI & LEVEL',
-                                                style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF64748B), fontSize: 11, letterSpacing: 0.5),
+                                      if (!isMobile) ...[
+                                        Padding(
+                                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                                          child: Row(
+                                            children: const [
+                                              SizedBox(width: 52, child: Text('', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF64748B), fontSize: 11))),
+                                              Expanded(
+                                                flex: 4,
+                                                child: Text(
+                                                  'KATEGORI & LEVEL',
+                                                  style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF64748B), fontSize: 11, letterSpacing: 0.5),
+                                                ),
                                               ),
-                                            ),
-                                            Expanded(
-                                              flex: 3,
-                                              child: Text(
-                                                'NAMA MURID',
-                                                style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF64748B), fontSize: 11, letterSpacing: 0.5),
+                                              Expanded(
+                                                flex: 3,
+                                                child: Text(
+                                                  'NAMA MURID',
+                                                  style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF64748B), fontSize: 11, letterSpacing: 0.5),
+                                                ),
                                               ),
-                                            ),
-                                            Expanded(
-                                              flex: 3,
-                                              child: Text(
-                                                'TANGGAL',
-                                                style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF64748B), fontSize: 11, letterSpacing: 0.5),
+                                              Expanded(
+                                                flex: 3,
+                                                child: Text(
+                                                  'TANGGAL',
+                                                  style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF64748B), fontSize: 11, letterSpacing: 0.5),
+                                                ),
                                               ),
-                                            ),
-                                            Expanded(
-                                              flex: 3,
-                                              child: Text(
-                                                'STATUS',
-                                                style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF64748B), fontSize: 11, letterSpacing: 0.5),
+                                              Expanded(
+                                                flex: 3,
+                                                child: Text(
+                                                  'STATUS',
+                                                  style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF64748B), fontSize: 11, letterSpacing: 0.5),
+                                                ),
                                               ),
-                                            ),
-                                            SizedBox(width: 80, child: Center(
-                                              child: Text(
-                                                'AKSI',
-                                                style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF64748B), fontSize: 11, letterSpacing: 0.5),
-                                              ),
-                                            )),
-                                          ],
+                                              SizedBox(width: 80, child: Center(
+                                                child: Text(
+                                                  'AKSI',
+                                                  style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF64748B), fontSize: 11, letterSpacing: 0.5),
+                                                ),
+                                              )),
+                                            ],
+                                          ),
                                         ),
-                                      ),
-                                      const Divider(color: Color(0xFFE2E8F0), height: 1),
-                                      const SizedBox(height: 8),
+                                        const Divider(color: Color(0xFFE2E8F0), height: 1),
+                                        const SizedBox(height: 8),
+                                      ],
                                       
                                       // Rows
                                       Expanded(
@@ -893,6 +992,7 @@ class _AiMonitoringScreenState extends State<AiMonitoringScreen> {
                                             final item = filteredItems[index];
                                             return _PendingRow(
                                               item: item,
+                                              isMobile: isMobile,
                                               onReScorePressed: () => _triggerIndividualReScore(item),
                                             );
                                           },
@@ -900,11 +1000,11 @@ class _AiMonitoringScreenState extends State<AiMonitoringScreen> {
                                       ),
                                     ] else
                                       Expanded(child: _buildEmptyState()),
-                                    const SizedBox(height: 16),
+                                    const SizedBox(height: 12),
 
                                     // Footer Note
                                     Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                                       decoration: BoxDecoration(
                                         color: const Color(0xFFF8FAFC),
                                         borderRadius: BorderRadius.circular(12),
@@ -912,11 +1012,13 @@ class _AiMonitoringScreenState extends State<AiMonitoringScreen> {
                                       ),
                                       child: Row(
                                         children: const [
-                                          Icon(Icons.info_outline_rounded, size: 16, color: Color(0xFF64748B)),
+                                          Icon(Icons.info_outline_rounded, size: 15, color: Color(0xFF64748B)),
                                           SizedBox(width: 8),
-                                          Text(
-                                            'Keterangan: Klik icon "↻" (Re-Score) untuk memicu penilaian ulang individual menggunakan model AI Gemini.',
-                                            style: TextStyle(color: Color(0xFF64748B), fontSize: 12, fontWeight: FontWeight.w500),
+                                          Expanded(
+                                            child: Text(
+                                              'Keterangan: Klik icon "↻" (Re-Score) untuk memicu penilaian ulang via model AI Gemini.',
+                                              style: TextStyle(color: Color(0xFF64748B), fontSize: 11, fontWeight: FontWeight.w500),
+                                            ),
                                           ),
                                         ],
                                       ),
@@ -1051,10 +1153,12 @@ class _HoverableStatCardState extends State<_HoverableStatCard> {
 
 class _PendingRow extends StatelessWidget {
   final PendingScoreItem item;
+  final bool isMobile;
   final VoidCallback onReScorePressed;
 
   const _PendingRow({
     required this.item,
+    required this.isMobile,
     required this.onReScorePressed,
   });
 
@@ -1078,6 +1182,143 @@ class _PendingRow extends StatelessWidget {
         colors: [Color(0xFF6EE7B7), Color(0xFF059669)],
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
+      );
+    }
+
+    if (isMobile) {
+      return Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF8FAFC),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    gradient: previewGradient,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Center(
+                    child: Icon(Icons.art_track_rounded, color: Colors.white, size: 18),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        item.title,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF0F172A),
+                          fontSize: 13,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 2),
+                      StudentNameText(uid: item.student),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: item.isResolved
+                        ? const Color(0xFFD1FAE5)
+                        : const Color(0xFFFEF3C7),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: item.isResolved
+                          ? const Color(0xFF10B981).withValues(alpha: 0.2)
+                          : const Color(0xFFF59E0B).withValues(alpha: 0.2),
+                    ),
+                  ),
+                  child: Text(
+                    item.currentScore,
+                    style: TextStyle(
+                      color: item.isResolved ? const Color(0xFF065F46) : const Color(0xFFB45309),
+                      fontWeight: FontWeight.bold,
+                      fontSize: 10,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            const Divider(color: Color(0xFFE2E8F0), height: 1),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.calendar_today_rounded, size: 11, color: Color(0xFF94A3B8)),
+                    const SizedBox(width: 4),
+                    Text(
+                      item.date,
+                      style: const TextStyle(color: Color(0xFF64748B), fontSize: 11),
+                    ),
+                  ],
+                ),
+                item.isReScoring
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF2563EB)),
+                        ),
+                      )
+                    : item.isResolved
+                        ? Row(
+                            children: const [
+                              Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 14),
+                              SizedBox(width: 4),
+                              Text('Terkalibrasi', style: TextStyle(color: Color(0xFF065F46), fontSize: 11, fontWeight: FontWeight.bold)),
+                            ],
+                          )
+                        : InkWell(
+                            onTap: onReScorePressed,
+                            borderRadius: BorderRadius.circular(8),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFEFF6FF),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: const Color(0xFFBFDBFE)),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: const [
+                                  Icon(Icons.refresh_rounded, color: Color(0xFF2563EB), size: 13),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    'Re-Score',
+                                    style: TextStyle(
+                                      color: Color(0xFF2563EB),
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+              ],
+            ),
+          ],
+        ),
       );
     }
 

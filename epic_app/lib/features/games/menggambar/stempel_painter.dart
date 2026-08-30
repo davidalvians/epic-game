@@ -2,7 +2,8 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 enum StempelShape {
-  // Bangun Datar
+  // Garis & Bangun Datar
+  garisLurus,
   segitiga,
   persegi,
   persegiPanjang,
@@ -30,17 +31,20 @@ class StempelShapePainter extends CustomPainter {
   final StempelShape shape;
   final Color color;
   final double strokeWidth;
+  final double opacity;
 
   StempelShapePainter({
     required this.shape,
     required this.color,
     required this.strokeWidth,
+    this.opacity = 1.0,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
+    final double alpha = (color.a * opacity).clamp(0.0, 1.0);
     final paint = Paint()
-      ..color = color
+      ..color = color.withValues(alpha: alpha)
       ..style = PaintingStyle.stroke
       ..strokeWidth = strokeWidth
       ..strokeJoin = StrokeJoin.round
@@ -51,6 +55,10 @@ class StempelShapePainter extends CustomPainter {
     final h = size.height;
 
     switch (shape) {
+      case StempelShape.garisLurus:
+        path.moveTo(0, h / 2);
+        path.lineTo(w, h / 2);
+        break;
       case StempelShape.segitiga:
         path.moveTo(w / 2, 0);
         path.lineTo(w, h);
@@ -217,6 +225,7 @@ class StempelShapePainter extends CustomPainter {
   bool shouldRepaint(covariant StempelShapePainter oldDelegate) {
     return oldDelegate.shape != shape ||
         oldDelegate.color != color ||
-        oldDelegate.strokeWidth != strokeWidth;
+        oldDelegate.strokeWidth != strokeWidth ||
+        oldDelegate.opacity != opacity;
   }
 }

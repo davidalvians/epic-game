@@ -1,9 +1,9 @@
-import 'package:epic_admin/core/theme/admin_colors.dart';
-import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:epic_admin/core/theme/admin_colors.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+import 'package:go_router/go_router.dart';
 
 String _getProxiedImageUrl(String url) {
   if (url.isEmpty) return '';
@@ -28,6 +28,8 @@ class MuridTable extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isMobile = MediaQuery.of(context).size.width < 768;
+
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection('users')
@@ -76,8 +78,10 @@ class MuridTable extends StatelessWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildHeaderRow(context),
-            const SizedBox(height: 6),
+            if (!isMobile) ...[
+              _buildHeaderRow(context),
+              const SizedBox(height: 6),
+            ],
             Expanded(
               child: docs.isEmpty
                   ? _buildEmptyState(
@@ -91,7 +95,7 @@ class MuridTable extends StatelessWidget {
                       itemCount: docs.length,
                       itemBuilder: (context, index) {
                         final doc = docs[index];
-                        final data = doc.data() as Map<String, dynamic>;
+                        final data = doc.data();
                         final String uid = doc.id;
                         final String name = data['namaLengkap'] ?? 'Tanpa Nama';
                         final String className = data['kelas'] ?? 'Belum ada kelas';
@@ -100,6 +104,7 @@ class MuridTable extends StatelessWidget {
                         final int poin = data['poin'] is int ? data['poin'] : 0;
                         final String? avatarUrl = data['avatarUrl'] as String?;
                         final dynamic lastActiveVal = data['lastActiveAt'] ?? data['nyawaLastReset'];
+                        final String status = data['status'] ?? 'active';
                         String lastActive = 'Baru saja';
                         if (lastActiveVal is Timestamp) {
                           final dt = lastActiveVal.toDate();
@@ -113,7 +118,9 @@ class MuridTable extends StatelessWidget {
                           score: poin.toDouble(),
                           lastActive: lastActive,
                           avatarUrl: avatarUrl,
-                          delay: Duration(milliseconds: index * 50),
+                          status: status,
+                          isMobile: isMobile,
+                          delay: Duration(milliseconds: index * 40),
                         );
                       },
                     ),
@@ -174,6 +181,8 @@ class _HoverableMuridRow extends StatefulWidget {
   final double score;
   final String lastActive;
   final String? avatarUrl;
+  final String status;
+  final bool isMobile;
   final Duration delay;
 
   const _HoverableMuridRow({
@@ -183,6 +192,8 @@ class _HoverableMuridRow extends StatefulWidget {
     required this.score,
     required this.lastActive,
     this.avatarUrl,
+    required this.status,
+    required this.isMobile,
     required this.delay,
   });
 
@@ -203,7 +214,171 @@ class _HoverableMuridRowState extends State<_HoverableMuridRow> {
     if (initials.isEmpty) {
       initials = 'S';
     }
-    
+
+    final bool isSuspended = widget.status == 'suspended';
+
+    if (widget.isMobile) {
+      // Mobile Card Layout
+      return Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: isSuspended ? AdminColors.danger.withOpacity(0.3) : const Color(0xFFE2E8F0),
+            width: 1.2,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.015),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Top: Avatar + Name + Score + Status
+            Row(
+              children: [
+                _buildAvatarWidget(initials),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              widget.name,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF0F172A),
+                                fontSize: 14,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (isSuspended)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFEF2F2),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(color: const Color(0xFFFCA5A5)),
+                              ),
+                              child: const Text(
+                                'SUSPENDED',
+                                style: TextStyle(color: Color(0xFFEF4444), fontSize: 9, fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Kelas: ${widget.className}',
+                        style: const TextStyle(
+                          color: Color(0xFF64748B),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AdminColors.primary.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: AdminColors.primary.withOpacity(0.15)),
+                  ),
+                  child: Text(
+                    '${widget.score.toInt()} Poin',
+                    style: const TextStyle(
+                      color: AdminColors.primary,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 11,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            const Divider(color: Color(0xFFF1F5F9), height: 1),
+            const SizedBox(height: 8),
+
+            // Bottom: Info & Action Buttons
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'ID: ${widget.id}',
+                      style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 10),
+                    ),
+                    Text(
+                      'Aktif: ${widget.lastActive}',
+                      style: const TextStyle(color: Color(0xFF64748B), fontSize: 11, fontWeight: FontWeight.w500),
+                    ),
+                  ],
+                ),
+                Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.visibility_outlined, size: 18),
+                      color: AdminColors.primary,
+                      style: IconButton.styleFrom(
+                        backgroundColor: AdminColors.primary.withOpacity(0.08),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        padding: const EdgeInsets.all(8),
+                      ),
+                      onPressed: () => context.go('/users/murid/${widget.id}'),
+                      tooltip: 'Lihat Detail',
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      icon: Icon(isSuspended ? Icons.check_circle_outline_rounded : Icons.block_rounded, size: 18),
+                      color: isSuspended ? const Color(0xFF10B981) : const Color(0xFFF59E0B),
+                      style: IconButton.styleFrom(
+                        backgroundColor: (isSuspended ? const Color(0xFF10B981) : const Color(0xFFF59E0B)).withOpacity(0.08),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        padding: const EdgeInsets.all(8),
+                      ),
+                      onPressed: () => _showSuspendDialog(context, widget.id, widget.name),
+                      tooltip: isSuspended ? 'Aktifkan Akun' : 'Suspend Akun',
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline_rounded, size: 18),
+                      color: const Color(0xFFEF4444),
+                      style: IconButton.styleFrom(
+                        backgroundColor: const Color(0xFFEF4444).withOpacity(0.08),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        padding: const EdgeInsets.all(8),
+                      ),
+                      onPressed: () => _showDeleteConfirmation(context, widget.id, widget.name),
+                      tooltip: 'Hapus Murid',
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ],
+        ),
+      ).animate().fadeIn(delay: widget.delay, duration: 250.ms).slideY(begin: 0.04, end: 0, curve: Curves.easeOutQuad);
+    }
+
+    // Desktop Row Layout
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
@@ -241,39 +416,7 @@ class _HoverableMuridRowState extends State<_HoverableMuridRow> {
               flex: 3,
               child: Row(
                 children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(color: AdminColors.primary.withOpacity(0.2)),
-                    ),
-                    child: widget.avatarUrl != null && widget.avatarUrl!.isNotEmpty
-                        ? ClipRRect(
-                            borderRadius: BorderRadius.circular(20),
-                            child: Image.network(
-                              _getProxiedImageUrl(widget.avatarUrl!),
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) => _buildInitials(initials),
-                              loadingBuilder: (context, child, loadingProgress) {
-                                if (loadingProgress == null) return child;
-                                return Center(
-                                  child: SizedBox(
-                                    width: 16,
-                                    height: 16,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      valueColor: AlwaysStoppedAnimation<Color>(
-                                        AdminColors.primary.withOpacity(0.3),
-                                      ),
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-                          )
-                        : _buildInitials(initials),
-                  ),
+                  _buildAvatarWidget(initials),
                   const SizedBox(width: 14),
                   Expanded(
                     child: Column(
@@ -306,7 +449,7 @@ class _HoverableMuridRowState extends State<_HoverableMuridRow> {
                 ],
               ),
             ),
-            
+
             // Class
             Expanded(
               flex: 2,
@@ -321,7 +464,7 @@ class _HoverableMuridRowState extends State<_HoverableMuridRow> {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-            
+
             // Score (Total Poin)
             Expanded(
               flex: 2,
@@ -346,7 +489,7 @@ class _HoverableMuridRowState extends State<_HoverableMuridRow> {
                 ],
               ),
             ),
-            
+
             // Last Active
             Expanded(
               flex: 2,
@@ -358,7 +501,7 @@ class _HoverableMuridRowState extends State<_HoverableMuridRow> {
                 ),
               ),
             ),
-            
+
             // Action Buttons
             Expanded(
               flex: 2,
@@ -372,11 +515,11 @@ class _HoverableMuridRowState extends State<_HoverableMuridRow> {
                     tooltip: 'Lihat Detail',
                   ),
                   IconButton(
-                    icon: const Icon(Icons.block_rounded, size: 20),
-                    color: const Color(0xFFF59E0B),
-                    hoverColor: const Color(0xFFF59E0B).withOpacity(0.08),
+                    icon: Icon(isSuspended ? Icons.check_circle_outline_rounded : Icons.block_rounded, size: 20),
+                    color: isSuspended ? const Color(0xFF10B981) : const Color(0xFFF59E0B),
+                    hoverColor: (isSuspended ? const Color(0xFF10B981) : const Color(0xFFF59E0B)).withOpacity(0.08),
                     onPressed: () => _showSuspendDialog(context, widget.id, widget.name),
-                    tooltip: 'Suspend / Aktifkan Akun',
+                    tooltip: isSuspended ? 'Aktifkan Akun' : 'Suspend Akun',
                   ),
                   IconButton(
                     icon: const Icon(Icons.delete_outline_rounded, size: 20),
@@ -392,6 +535,42 @@ class _HoverableMuridRowState extends State<_HoverableMuridRow> {
         ),
       ),
     ).animate().fadeIn(delay: widget.delay, duration: 300.ms).slideY(begin: 0.05, end: 0, curve: Curves.easeOutCubic);
+  }
+
+  Widget _buildAvatarWidget(String initials) {
+    return Container(
+      width: 40,
+      height: 40,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(color: AdminColors.primary.withOpacity(0.2)),
+      ),
+      child: widget.avatarUrl != null && widget.avatarUrl!.isNotEmpty
+          ? ClipRRect(
+              borderRadius: BorderRadius.circular(20),
+              child: Image.network(
+                _getProxiedImageUrl(widget.avatarUrl!),
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) => _buildInitials(initials),
+                loadingBuilder: (context, child, loadingProgress) {
+                  if (loadingProgress == null) return child;
+                  return Center(
+                    child: SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          AdminColors.primary.withOpacity(0.3),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            )
+          : _buildInitials(initials),
+    );
   }
 
   Widget _buildInitials(String initials) {
@@ -445,14 +624,11 @@ class _HoverableMuridRowState extends State<_HoverableMuridRow> {
               style: ElevatedButton.styleFrom(backgroundColor: AdminColors.danger, foregroundColor: Colors.white),
               child: const Text('Hapus Permanen'),
               onPressed: () async {
-                Navigator.of(context).pop(); // Dismiss confirmation dialog
+                Navigator.of(context).pop();
 
-                // Capture rootNavigator and scaffoldMessenger before doing async work
-                // and before the widget gets disposed when the user doc is deleted
                 final rootNavigator = Navigator.of(context, rootNavigator: true);
                 final scaffoldMessenger = ScaffoldMessenger.of(context);
 
-                // Show loading spinner
                 showDialog(
                   context: context,
                   barrierDismissible: false,
@@ -465,7 +641,6 @@ class _HoverableMuridRowState extends State<_HoverableMuridRow> {
                 );
 
                 try {
-                  // 1. Read user data FIRST before deleting
                   final snap = await FirebaseFirestore.instance.collection('users').doc(uid).get();
                   String? username;
                   String? avatarUrl;
@@ -475,7 +650,6 @@ class _HoverableMuridRowState extends State<_HoverableMuridRow> {
                     avatarUrl = data?['avatarUrl'] as String?;
                   }
 
-                  // 2. Fetch and delete all student artworks (Firestore docs & Storage files)
                   final artworksSnap = await FirebaseFirestore.instance
                       .collection('artworks')
                       .where('uid', isEqualTo: uid)
@@ -499,7 +673,6 @@ class _HoverableMuridRowState extends State<_HoverableMuridRow> {
                     await batch.commit();
                   }
 
-                  // 3. Delete profile photo (avatarUrl) from Storage
                   if (avatarUrl != null && avatarUrl.isNotEmpty && avatarUrl.contains('firebasestorage.googleapis.com')) {
                     try {
                       final ref = FirebaseStorage.instance.refFromURL(avatarUrl);
@@ -509,12 +682,10 @@ class _HoverableMuridRowState extends State<_HoverableMuridRow> {
                     }
                   }
 
-                  // 4. Delete username reservation if it exists
                   if (username != null && username.isNotEmpty) {
                     await FirebaseFirestore.instance.collection('usernames').doc(username.toLowerCase()).delete();
                   }
 
-                  // 5. Remove student from all kelas muridIds arrays
                   final kelasSnap = await FirebaseFirestore.instance
                       .collection('kelas')
                       .where('muridIds', arrayContains: uid)
@@ -529,14 +700,12 @@ class _HoverableMuridRowState extends State<_HoverableMuridRow> {
                     await batch.commit();
                   }
 
-                  // 6. Delete user document
                   await FirebaseFirestore.instance.collection('users').doc(uid).delete();
 
-                  // Safely pop the loading spinner using captured rootNavigator
                   try {
                     rootNavigator.pop();
                   } catch (_) {}
-                  
+
                   scaffoldMessenger.showSnackBar(
                     SnackBar(
                       content: Text('Murid "$name" beserta semua karya dan berkas berhasil dihapus.'),

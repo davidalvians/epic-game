@@ -11,7 +11,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:excel/excel.dart' as ex;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
-import 'package:open_file_plus/open_file_plus.dart';
+import 'package:open_filex/open_filex.dart';
 import 'package:epic_app/core/constants/app_colors.dart';
 import 'package:epic_app/core/constants/app_fonts.dart';
 import 'package:epic_app/core/utils/epic_snackbar.dart';
@@ -2005,6 +2005,15 @@ class _KelasDetailGuruScreenState extends State<KelasDetailGuruScreen> {
 
             final allMembers = snapshot.data ?? [];
             
+            // Hitung ranking leaderboard berdasarkan urutan poin (Peringkat 1..N)
+            final Map<String, int> ranks = {};
+            for (int i = 0; i < allMembers.length; i++) {
+              final uid = allMembers[i]['uid']?.toString() ?? '';
+              if (uid.isNotEmpty) {
+                ranks[uid] = i + 1;
+              }
+            }
+
             // Dapatkan murid aktif
             final activeMembers = allMembers.where((m) => kelas.muridIds.contains(m['uid'] ?? '')).toList();
             
@@ -2020,6 +2029,7 @@ class _KelasDetailGuruScreenState extends State<KelasDetailGuruScreen> {
                     : '';
                 exitedMembers.add({
                   'uid': uid,
+                  'rank': ranks[uid] ?? (allMembers.length + 1),
                   'namaLengkap': ex['namaLengkap']?.toString().isNotEmpty == true
                       ? ex['namaLengkap']
                       : (profile?['namaLengkap'] ?? 'Alumni'),
@@ -2036,8 +2046,10 @@ class _KelasDetailGuruScreenState extends State<KelasDetailGuruScreen> {
             // Gabungkan menjadi satu list
             final combinedList = <Map<String, dynamic>>[];
             for (final m in activeMembers) {
+              final uid = m['uid']?.toString() ?? '';
               combinedList.add({
                 ...m,
+                'rank': ranks[uid] ?? (allMembers.length + 1),
                 'statusLabel': 'Aktif',
               });
             }
@@ -2046,6 +2058,13 @@ class _KelasDetailGuruScreenState extends State<KelasDetailGuruScreen> {
                 ...m,
               });
             }
+
+            // Urutkan daftar murid berdasarkan Abjad Nama Lengkap (A - Z)
+            combinedList.sort((a, b) {
+              final nameA = (a['namaLengkap']?.toString().isNotEmpty == true ? a['namaLengkap'] : (a['namaPanggilan'] ?? '')).toString().toLowerCase();
+              final nameB = (b['namaLengkap']?.toString().isNotEmpty == true ? b['namaLengkap'] : (b['namaPanggilan'] ?? '')).toString().toLowerCase();
+              return nameA.compareTo(nameB);
+            });
 
             if (combinedList.isEmpty) {
               return AlertDialog(
@@ -2063,7 +2082,7 @@ class _KelasDetailGuruScreenState extends State<KelasDetailGuruScreen> {
 
             // Generate CSV
             final buffer = StringBuffer();
-            buffer.writeln('"No","Nama Lengkap","Nama Panggilan","Username","Total Poin","Total Karya","Level Maks (Keris)","Level Maks (Batik)","Level Maks (Anyaman)","Rata-rata Skor AI","Grade Terfavorit","Status"');
+            buffer.writeln('"No","Peringkat","Nama Lengkap","Nama Panggilan","Username","Total Poin","Total Karya","Level Maks (Keris)","Level Maks (Batik)","Level Maks (Anyaman)","Rata-rata Skor AI","Grade Terfavorit","Status"');
             
             // Build student data list for table display
             final tableRows = <Map<String, dynamic>>[];
@@ -2071,6 +2090,7 @@ class _KelasDetailGuruScreenState extends State<KelasDetailGuruScreen> {
             for (int i = 0; i < combinedList.length; i++) {
               final member = combinedList[i];
               final uid = member['uid'] ?? '';
+              final rank = member['rank'] ?? (i + 1);
               final String namaLengkap = member['namaLengkap']?.toString().isNotEmpty == true
                   ? member['namaLengkap']
                   : (member['namaPanggilan']?.toString() ?? '');
@@ -2106,10 +2126,11 @@ class _KelasDetailGuruScreenState extends State<KelasDetailGuruScreen> {
                     .key;
               }
               
-              buffer.writeln('"${i + 1}","${namaLengkap.replaceAll('"', '""')}","${namaPanggilan.replaceAll('"', '""')}","${username.replaceAll('"', '""')}","$poin","$totalKarya","$maxKeris","$maxBatik","$maxAnyaman","${avgAI.toStringAsFixed(1)}","$favoriteGrade","$status"');
+              buffer.writeln('"${i + 1}","#$rank","${namaLengkap.replaceAll('"', '""')}","${namaPanggilan.replaceAll('"', '""')}","${username.replaceAll('"', '""')}","$poin","$totalKarya","$maxKeris","$maxBatik","$maxAnyaman","${avgAI.toStringAsFixed(1)}","$favoriteGrade","$status"');
 
               tableRows.add({
                 'no': i + 1,
+                'rank': rank,
                 'namaLengkap': namaLengkap,
                 'namaPanggilan': namaPanggilan,
                 'username': username,
@@ -2150,6 +2171,7 @@ class _KelasDetailGuruScreenState extends State<KelasDetailGuruScreen> {
                 // Table headers
                 sheet.appendRow([
                   ex.TextCellValue('No'), 
+                  ex.TextCellValue('Peringkat'), 
                   ex.TextCellValue('Nama Lengkap'), 
                   ex.TextCellValue('Nama Panggilan'), 
                   ex.TextCellValue('Username'), 
@@ -2171,6 +2193,7 @@ class _KelasDetailGuruScreenState extends State<KelasDetailGuruScreen> {
 
                   sheet.appendRow([
                     ex.IntCellValue(r['no'] as int),
+                    ex.TextCellValue('#${r['rank']}'),
                     ex.TextCellValue(r['namaLengkap'] as String),
                     ex.TextCellValue(r['namaPanggilan'] as String),
                     ex.TextCellValue(r['username'].toString().isNotEmpty ? '@${r['username']}' : ''),
@@ -2201,7 +2224,7 @@ class _KelasDetailGuruScreenState extends State<KelasDetailGuruScreen> {
                       : 'File disimpan di dokumen perangkat Anda:\n$savedPath',
                 );
 
-                await OpenFile.open(savedPath);
+                await OpenFilex.open(savedPath);
               } catch (e) {
                 Get.back(); // Dismiss loading spinner
                 EpicSnackbar.error('Gagal Mengunduh', 'Gagal memproses Excel: $e');
@@ -2279,9 +2302,10 @@ class _KelasDetailGuruScreenState extends State<KelasDetailGuruScreen> {
 
                           // The Data Table
                           pw.TableHelper.fromTextArray(
-                            headers: ['No', 'Nama Lengkap', 'Nama Panggilan', 'Username', 'Total Poin', 'Karya', 'Lvl Keris', 'Lvl Batik', 'Lvl Anyaman', 'Avg AI', 'Grade Fav', 'Status'],
+                            headers: ['No', 'Rank', 'Nama Lengkap', 'Nama Panggilan', 'Username', 'Total Poin', 'Karya', 'Lvl Keris', 'Lvl Batik', 'Lvl Anyaman', 'Avg AI', 'Grade Fav', 'Status'],
                             data: rows.map((r) => [
                               r['no'].toString(),
+                              '#${r['rank']}',
                               r['namaLengkap'].toString(),
                               r['namaPanggilan'].toString(),
                               r['username'].toString().isNotEmpty ? '@${r['username']}' : '',
@@ -2300,22 +2324,23 @@ class _KelasDetailGuruScreenState extends State<KelasDetailGuruScreen> {
                             cellAlignment: pw.Alignment.center,
                             cellStyle: const pw.TextStyle(fontSize: 8),
                             headerAlignments: {
-                              1: pw.Alignment.centerLeft, // Align student full name to the left
-                              2: pw.Alignment.centerLeft, // Align nickname to the left
+                              2: pw.Alignment.centerLeft, // Align student full name to the left
+                              3: pw.Alignment.centerLeft, // Align nickname to the left
                             },
                             columnWidths: const {
                               0: pw.FixedColumnWidth(20),  // No
-                              1: pw.FlexColumnWidth(2.0), // Nama Lengkap
-                              2: pw.FlexColumnWidth(1.5), // Nama Panggilan
-                              3: pw.FlexColumnWidth(1.2), // Username
-                              4: pw.FixedColumnWidth(30),  // Poin
-                              5: pw.FixedColumnWidth(30),  // Total Karya
-                              6: pw.FixedColumnWidth(40),  // Lvl Keris
-                              7: pw.FixedColumnWidth(40),  // Lvl Batik
-                              8: pw.FixedColumnWidth(40),  // Lvl Anyaman
-                              9: pw.FixedColumnWidth(30),  // Avg AI
-                              10: pw.FixedColumnWidth(30), // Grade Fav
-                              11: pw.FlexColumnWidth(1.8), // Status
+                              1: pw.FixedColumnWidth(25),  // Rank
+                              2: pw.FlexColumnWidth(2.0), // Nama Lengkap
+                              3: pw.FlexColumnWidth(1.5), // Nama Panggilan
+                              4: pw.FlexColumnWidth(1.2), // Username
+                              5: pw.FixedColumnWidth(30),  // Poin
+                              6: pw.FixedColumnWidth(30),  // Total Karya
+                              7: pw.FixedColumnWidth(40),  // Lvl Keris
+                              8: pw.FixedColumnWidth(40),  // Lvl Batik
+                              9: pw.FixedColumnWidth(40),  // Lvl Anyaman
+                              10: pw.FixedColumnWidth(30),  // Avg AI
+                              11: pw.FixedColumnWidth(30), // Grade Fav
+                              12: pw.FlexColumnWidth(1.8), // Status
                             },
                           ),
 
@@ -2350,7 +2375,7 @@ class _KelasDetailGuruScreenState extends State<KelasDetailGuruScreen> {
                       : 'File disimpan di dokumen perangkat Anda:\n$savedPath',
                 );
 
-                await OpenFile.open(savedPath);
+                await OpenFilex.open(savedPath);
               } catch (e) {
                 Get.back(); // Dismiss loading spinner
                 EpicSnackbar.error('Gagal Mengunduh', 'Gagal memproses PDF: $e');
@@ -2406,6 +2431,7 @@ class _KelasDetailGuruScreenState extends State<KelasDetailGuruScreen> {
                                 headingRowColor: WidgetStateProperty.all(const Color(0xFFF8FAFC)),
                                 columns: const [
                                   DataColumn(label: Text('No', style: TextStyle(fontFamily: 'FredokaOne', fontSize: 12))),
+                                  DataColumn(label: Text('Rank', style: TextStyle(fontFamily: 'FredokaOne', fontSize: 12))),
                                   DataColumn(label: Text('Nama Lengkap', style: TextStyle(fontFamily: 'FredokaOne', fontSize: 12))),
                                   DataColumn(label: Text('Nama Panggilan', style: TextStyle(fontFamily: 'FredokaOne', fontSize: 12))),
                                   DataColumn(label: Text('Username', style: TextStyle(fontFamily: 'FredokaOne', fontSize: 12))),
@@ -2422,6 +2448,17 @@ class _KelasDetailGuruScreenState extends State<KelasDetailGuruScreen> {
                                   return DataRow(
                                     cells: [
                                       DataCell(Text('${row['no']}', style: const TextStyle(fontFamily: 'Nunito', fontSize: 12))),
+                                      DataCell(
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFFFFFBEB),
+                                            borderRadius: BorderRadius.circular(6),
+                                            border: Border.all(color: const Color(0xFFFDE68A)),
+                                          ),
+                                          child: Text('#${row['rank']}', style: const TextStyle(fontFamily: 'FredokaOne', fontSize: 11, color: Color(0xFFB45309))),
+                                        ),
+                                      ),
                                       DataCell(Text('${row['namaLengkap']}', style: const TextStyle(fontFamily: 'Nunito', fontSize: 12, fontWeight: FontWeight.bold))),
                                       DataCell(Text('${row['namaPanggilan']}', style: const TextStyle(fontFamily: 'Nunito', fontSize: 12))),
                                       DataCell(Text(row['username'].toString().isNotEmpty ? '@${row['username']}' : '', style: const TextStyle(fontFamily: 'Nunito', fontSize: 12, color: Colors.grey))),

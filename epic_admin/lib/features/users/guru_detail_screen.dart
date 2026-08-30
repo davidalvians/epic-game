@@ -148,6 +148,9 @@ class GuruDetailScreen extends StatelessWidget {
           activeTime = 'Aktif: ${dt.day}/${dt.month}/${dt.year}';
         }
 
+        final screenWidth = MediaQuery.of(context).size.width;
+        final isMobile = screenWidth < 768;
+
         return Scaffold(
           backgroundColor: const Color(0xFFF8FAFC),
           appBar: AppBar(
@@ -209,7 +212,7 @@ class GuruDetailScreen extends StatelessWidget {
               // Main Scrollable Content
               SingleChildScrollView(
                 physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.all(32),
+                padding: EdgeInsets.symmetric(horizontal: isMobile ? 14 : 32, vertical: isMobile ? 16 : 32),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -218,7 +221,7 @@ class GuruDetailScreen extends StatelessWidget {
                       clipBehavior: Clip.antiAlias,
                       decoration: BoxDecoration(
                         color: Colors.white,
-                        borderRadius: BorderRadius.circular(24),
+                        borderRadius: BorderRadius.circular(isMobile ? 18 : 24),
                         border: Border.all(color: const Color(0xFFE2E8F0), width: 1.2),
                         boxShadow: [
                           BoxShadow(
@@ -240,216 +243,344 @@ class GuruDetailScreen extends StatelessWidget {
                           ),
                           
                           Padding(
-                            padding: const EdgeInsets.all(28),
-                            child: Row(
-                              children: [
-                                // Gradient Avatar with glowing ring and status dot
-                                Stack(
-                                  clipBehavior: Clip.none,
-                                  children: [
-                                    Container(
-                                      width: 84,
-                                      height: 84,
-                                      decoration: BoxDecoration(
-                                        gradient: const LinearGradient(
-                                          colors: [Color(0xFF2563EB), Color(0xFF4F46E5)],
-                                          begin: Alignment.topLeft,
-                                          end: Alignment.bottomRight,
-                                        ),
-                                        borderRadius: BorderRadius.circular(22),
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: const Color(0xFF2563EB).withOpacity(0.2),
-                                            blurRadius: 12,
-                                            offset: const Offset(0, 4),
-                                          ),
-                                        ],
-                                      ),
-                                      child: avatarUrl != null && avatarUrl.isNotEmpty
-                                          ? ClipRRect(
-                                              borderRadius: BorderRadius.circular(22),
-                                              child: Image.network(
-                                                _getProxiedImageUrl(avatarUrl),
-                                                fit: BoxFit.cover,
-                                                errorBuilder: (context, error, stackTrace) => const Center(
-                                                  child: Icon(
-                                                    Icons.person_rounded,
-                                                    size: 44,
-                                                    color: Colors.white,
-                                                  ),
-                                                ),
-                                                loadingBuilder: (context, child, loadingProgress) {
-                                                  if (loadingProgress == null) return child;
-                                                  return const Center(
-                                                    child: CircularProgressIndicator(
-                                                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white70),
-                                                    ),
-                                                  );
-                                                },
-                                              ),
-                                            )
-                                          : const Center(
-                                              child: Icon(
-                                                Icons.person_rounded,
-                                                size: 44,
-                                                color: Colors.white,
-                                              ),
-                                            ),
-                                    ),
-                                    Positioned(
-                                      bottom: -2,
-                                      right: -2,
-                                      child: Container(
-                                        width: 18,
-                                        height: 18,
-                                        decoration: BoxDecoration(
-                                          color: Colors.white,
-                                          shape: BoxShape.circle,
-                                          boxShadow: [
-                                            BoxShadow(
-                                              color: Colors.black.withOpacity(0.1),
-                                              blurRadius: 4,
-                                            ),
-                                          ],
-                                        ),
-                                        padding: const EdgeInsets.all(2.5),
-                                        child: Container(
-                                          decoration: BoxDecoration(
-                                            color: isSuspended ? const Color(0xFFEF4444) : const Color(0xFF10B981),
-                                            shape: BoxShape.circle,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(width: 24),
-                                Expanded(
-                                  child: Column(
+                            padding: EdgeInsets.all(isMobile ? 16 : 28),
+                            child: isMobile
+                                ? Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      Wrap(
-                                        crossAxisAlignment: WrapCrossAlignment.center,
-                                        spacing: 12,
-                                        runSpacing: 8,
-                                        children: [
-                                          Text(
-                                            teacherName,
-                                            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                                                  fontWeight: FontWeight.w800,
-                                                  color: const Color(0xFF0F172A),
-                                                  fontSize: 24,
-                                                  letterSpacing: -0.5,
-                                                ),
-                                          ),
-                                          
-                                          // Status Badge with Soft Glow Drop Shadow
-                                          GestureDetector(
-                                             onTap: (isPending && verifDocId.isNotEmpty)
-                                                 ? () => context.go('/verifikasi/$verifDocId')
-                                                 : null,
-                                             child: MouseRegion(
-                                               cursor: (isPending && verifDocId.isNotEmpty)
-                                                   ? SystemMouseCursors.click
-                                                   : SystemMouseCursors.basic,
-                                               child: Container(
-                                                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                                 decoration: BoxDecoration(
-                                                   color: (isPending ? const Color(0xFFF59E0B) : const Color(0xFF10B981)).withOpacity(0.08),
-                                                   borderRadius: BorderRadius.circular(20),
-                                                   border: Border.all(
-                                                     color: (isPending ? const Color(0xFFF59E0B) : const Color(0xFF10B981)).withOpacity(0.2),
-                                                   ),
-                                                   boxShadow: [
-                                                     BoxShadow(
-                                                       color: (isPending ? const Color(0xFFF59E0B) : const Color(0xFF10B981)).withOpacity(0.04),
-                                                       blurRadius: 6,
-                                                       offset: const Offset(0, 2),
-                                                     ),
-                                                   ],
-                                                 ),
-                                                 child: Row(
-                                                   mainAxisSize: MainAxisSize.min,
-                                                   children: [
-                                                     Container(
-                                                       width: 6,
-                                                       height: 6,
-                                                       decoration: BoxDecoration(
-                                                         color: isPending ? const Color(0xFFF59E0B) : const Color(0xFF10B981),
-                                                         shape: BoxShape.circle,
-                                                       ),
-                                                     ),
-                                                     const SizedBox(width: 6),
-                                                     Text(
-                                                       isPending ? 'Pending' : 'Approved',
-                                                       style: TextStyle(
-                                                         color: isPending ? const Color(0xFFB45309) : const Color(0xFF047857),
-                                                         fontSize: 11,
-                                                         fontWeight: FontWeight.bold,
-                                                       ),
-                                                     ),
-                                                   ],
-                                                 ),
-                                               ),
-                                             ),
-                                           ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        email,
-                                        style: const TextStyle(
-                                          color: Color(0xFF64748B),
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 8),
                                       Row(
                                         children: [
-                                          const Icon(Icons.school_rounded, size: 16, color: Color(0xFF64748B)),
-                                          const SizedBox(width: 8),
-                                          Text(
-                                            school,
-                                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                                  color: const Color(0xFF334155),
-                                                  fontWeight: FontWeight.w600,
+                                          Container(
+                                            width: 64,
+                                            height: 64,
+                                            decoration: BoxDecoration(
+                                              gradient: const LinearGradient(
+                                                colors: [Color(0xFF2563EB), Color(0xFF4F46E5)],
+                                                begin: Alignment.topLeft,
+                                                end: Alignment.bottomRight,
+                                              ),
+                                              borderRadius: BorderRadius.circular(18),
+                                            ),
+                                            child: avatarUrl != null && avatarUrl.isNotEmpty
+                                                ? ClipRRect(
+                                                    borderRadius: BorderRadius.circular(18),
+                                                    child: Image.network(
+                                                      _getProxiedImageUrl(avatarUrl),
+                                                      fit: BoxFit.cover,
+                                                      errorBuilder: (context, error, stackTrace) => const Center(
+                                                        child: Icon(Icons.person_rounded, size: 32, color: Colors.white),
+                                                      ),
+                                                    ),
+                                                  )
+                                                : const Center(child: Icon(Icons.person_rounded, size: 32, color: Colors.white)),
+                                          ),
+                                          const SizedBox(width: 14),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  teacherName,
+                                                  style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF0F172A), fontSize: 18),
+                                                  maxLines: 1,
+                                                  overflow: TextOverflow.ellipsis,
                                                 ),
+                                                const SizedBox(height: 4),
+                                                Container(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                                  decoration: BoxDecoration(
+                                                    color: (isPending ? const Color(0xFFF59E0B) : const Color(0xFF10B981)).withOpacity(0.08),
+                                                    borderRadius: BorderRadius.circular(12),
+                                                    border: Border.all(
+                                                      color: (isPending ? const Color(0xFFF59E0B) : const Color(0xFF10B981)).withOpacity(0.2),
+                                                    ),
+                                                  ),
+                                                  child: Row(
+                                                    mainAxisSize: MainAxisSize.min,
+                                                    children: [
+                                                      Container(
+                                                        width: 5,
+                                                        height: 5,
+                                                        decoration: BoxDecoration(
+                                                          color: isPending ? const Color(0xFFF59E0B) : const Color(0xFF10B981),
+                                                          shape: BoxShape.circle,
+                                                        ),
+                                                      ),
+                                                      const SizedBox(width: 5),
+                                                      Text(
+                                                        isPending ? 'Pending' : 'Approved',
+                                                        style: TextStyle(
+                                                          color: isPending ? const Color(0xFFB45309) : const Color(0xFF047857),
+                                                          fontSize: 10.5,
+                                                          fontWeight: FontWeight.bold,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 4),
+                                                Text(
+                                                  email,
+                                                  style: const TextStyle(color: Color(0xFF64748B), fontSize: 12),
+                                                  maxLines: 1,
+                                                  overflow: TextOverflow.ellipsis,
+                                                ),
+                                              ],
+                                            ),
                                           ),
                                         ],
                                       ),
-                                      const SizedBox(height: 14),
+                                      const SizedBox(height: 10),
+                                      Row(
+                                        children: [
+                                          const Icon(Icons.school_rounded, size: 14, color: Color(0xFF64748B)),
+                                          const SizedBox(width: 6),
+                                          Expanded(
+                                            child: Text(
+                                              school,
+                                              style: const TextStyle(color: Color(0xFF334155), fontWeight: FontWeight.w600, fontSize: 12),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 10),
                                       Wrap(
-                                        spacing: 12,
-                                        runSpacing: 8,
+                                        spacing: 8,
+                                        runSpacing: 6,
                                         children: [
                                           _buildInfoChip(context, Icons.verified_user_rounded, verifiedInfo),
                                           _buildInfoChip(context, Icons.access_time_rounded, activeTime),
                                         ],
                                       ),
+                                      const SizedBox(height: 14),
+                                      SizedBox(
+                                        width: double.infinity,
+                                        child: OutlinedButton.icon(
+                                          onPressed: () => _toggleSuspend(context, id, isSuspended, teacherName),
+                                          icon: Icon(isSuspended ? Icons.play_arrow_rounded : Icons.block_flipped, size: 15),
+                                          label: Text(isSuspended ? 'Aktifkan Akun' : 'Suspend Akun', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                                          style: OutlinedButton.styleFrom(
+                                            foregroundColor: isSuspended ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+                                            side: BorderSide(color: isSuspended ? const Color(0xFFD1FAE5) : const Color(0xFFFEE2E2), width: 1.5),
+                                            padding: const EdgeInsets.symmetric(vertical: 12),
+                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                            backgroundColor: isSuspended ? const Color(0xFFECFDF5) : const Color(0xFFFEF2F2),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  )
+                                : Row(
+                                    children: [
+                                      // Gradient Avatar with glowing ring and status dot
+                                      Stack(
+                                        clipBehavior: Clip.none,
+                                        children: [
+                                          Container(
+                                            width: 84,
+                                            height: 84,
+                                            decoration: BoxDecoration(
+                                              gradient: const LinearGradient(
+                                                colors: [Color(0xFF2563EB), Color(0xFF4F46E5)],
+                                                begin: Alignment.topLeft,
+                                                end: Alignment.bottomRight,
+                                              ),
+                                              borderRadius: BorderRadius.circular(22),
+                                              boxShadow: [
+                                                BoxShadow(
+                                                  color: const Color(0xFF2563EB).withOpacity(0.2),
+                                                  blurRadius: 12,
+                                                  offset: const Offset(0, 4),
+                                                ),
+                                              ],
+                                            ),
+                                            child: avatarUrl != null && avatarUrl.isNotEmpty
+                                                ? ClipRRect(
+                                                    borderRadius: BorderRadius.circular(22),
+                                                    child: Image.network(
+                                                      _getProxiedImageUrl(avatarUrl),
+                                                      fit: BoxFit.cover,
+                                                      errorBuilder: (context, error, stackTrace) => const Center(
+                                                        child: Icon(
+                                                          Icons.person_rounded,
+                                                          size: 44,
+                                                          color: Colors.white,
+                                                        ),
+                                                      ),
+                                                      loadingBuilder: (context, child, loadingProgress) {
+                                                        if (loadingProgress == null) return child;
+                                                        return const Center(
+                                                          child: CircularProgressIndicator(
+                                                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white70),
+                                                          ),
+                                                        );
+                                                      },
+                                                    ),
+                                                  )
+                                                : const Center(
+                                                    child: Icon(
+                                                      Icons.person_rounded,
+                                                      size: 44,
+                                                      color: Colors.white,
+                                                    ),
+                                                  ),
+                                          ),
+                                          Positioned(
+                                            bottom: -2,
+                                            right: -2,
+                                            child: Container(
+                                              width: 18,
+                                              height: 18,
+                                              decoration: BoxDecoration(
+                                                color: Colors.white,
+                                                shape: BoxShape.circle,
+                                                boxShadow: [
+                                                  BoxShadow(
+                                                    color: Colors.black.withOpacity(0.1),
+                                                    blurRadius: 4,
+                                                  ),
+                                                ],
+                                              ),
+                                              padding: const EdgeInsets.all(2.5),
+                                              child: Container(
+                                                decoration: BoxDecoration(
+                                                  color: isSuspended ? const Color(0xFFEF4444) : const Color(0xFF10B981),
+                                                  shape: BoxShape.circle,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(width: 24),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Wrap(
+                                              crossAxisAlignment: WrapCrossAlignment.center,
+                                              spacing: 12,
+                                              runSpacing: 8,
+                                              children: [
+                                                Text(
+                                                  teacherName,
+                                                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                                                        fontWeight: FontWeight.w800,
+                                                        color: const Color(0xFF0F172A),
+                                                        fontSize: 24,
+                                                        letterSpacing: -0.5,
+                                                      ),
+                                                ),
+                                                
+                                                // Status Badge with Soft Glow Drop Shadow
+                                                GestureDetector(
+                                                   onTap: (isPending && verifDocId.isNotEmpty)
+                                                       ? () => context.go('/verifikasi/$verifDocId')
+                                                       : null,
+                                                   child: MouseRegion(
+                                                     cursor: (isPending && verifDocId.isNotEmpty)
+                                                         ? SystemMouseCursors.click
+                                                         : SystemMouseCursors.basic,
+                                                     child: Container(
+                                                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                                       decoration: BoxDecoration(
+                                                         color: (isPending ? const Color(0xFFF59E0B) : const Color(0xFF10B981)).withOpacity(0.08),
+                                                         borderRadius: BorderRadius.circular(20),
+                                                         border: Border.all(
+                                                           color: (isPending ? const Color(0xFFF59E0B) : const Color(0xFF10B981)).withOpacity(0.2),
+                                                         ),
+                                                         boxShadow: [
+                                                           BoxShadow(
+                                                             color: (isPending ? const Color(0xFFF59E0B) : const Color(0xFF10B981)).withOpacity(0.04),
+                                                             blurRadius: 6,
+                                                             offset: const Offset(0, 2),
+                                                           ),
+                                                         ],
+                                                       ),
+                                                       child: Row(
+                                                         mainAxisSize: MainAxisSize.min,
+                                                         children: [
+                                                           Container(
+                                                             width: 6,
+                                                             height: 6,
+                                                             decoration: BoxDecoration(
+                                                               color: isPending ? const Color(0xFFF59E0B) : const Color(0xFF10B981),
+                                                               shape: BoxShape.circle,
+                                                             ),
+                                                           ),
+                                                           const SizedBox(width: 6),
+                                                           Text(
+                                                             isPending ? 'Pending' : 'Approved',
+                                                             style: TextStyle(
+                                                               color: isPending ? const Color(0xFFB45309) : const Color(0xFF047857),
+                                                               fontSize: 11,
+                                                               fontWeight: FontWeight.bold,
+                                                             ),
+                                                           ),
+                                                         ],
+                                                       ),
+                                                     ),
+                                                   ),
+                                                 ),
+                                              ],
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              email,
+                                              style: const TextStyle(
+                                                color: Color(0xFF64748B),
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.w500,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 8),
+                                            Row(
+                                              children: [
+                                                const Icon(Icons.school_rounded, size: 16, color: Color(0xFF64748B)),
+                                                const SizedBox(width: 8),
+                                                Text(
+                                                  school,
+                                                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                                        color: const Color(0xFF334155),
+                                                        fontWeight: FontWeight.w600,
+                                                      ),
+                                                ),
+                                              ],
+                                            ),
+                                            const SizedBox(height: 14),
+                                            Wrap(
+                                              spacing: 12,
+                                              runSpacing: 8,
+                                              children: [
+                                                _buildInfoChip(context, Icons.verified_user_rounded, verifiedInfo),
+                                                _buildInfoChip(context, Icons.access_time_rounded, activeTime),
+                                              ],
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      
+                                      OutlinedButton.icon(
+                                        onPressed: () => _toggleSuspend(context, id, isSuspended, teacherName),
+                                        icon: Icon(isSuspended ? Icons.play_arrow_rounded : Icons.block_flipped, size: 16),
+                                        label: Text(isSuspended ? 'Aktifkan Akun' : 'Suspend Akun', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                                        style: OutlinedButton.styleFrom(
+                                          foregroundColor: isSuspended ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+                                          side: BorderSide(color: isSuspended ? const Color(0xFFD1FAE5) : const Color(0xFFFEE2E2), width: 1.5),
+                                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                                          backgroundColor: isSuspended ? const Color(0xFFECFDF5) : const Color(0xFFFEF2F2),
+                                        ),
+                                      ),
                                     ],
                                   ),
-                                ),
-                                
-                                OutlinedButton.icon(
-                                  onPressed: () => _toggleSuspend(context, id, isSuspended, teacherName),
-                                  icon: Icon(isSuspended ? Icons.play_arrow_rounded : Icons.block_flipped, size: 16),
-                                  label: Text(isSuspended ? 'Aktifkan Akun' : 'Suspend Akun', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                                  style: OutlinedButton.styleFrom(
-                                    foregroundColor: isSuspended ? const Color(0xFF10B981) : const Color(0xFFEF4444),
-                                    side: BorderSide(color: isSuspended ? const Color(0xFFD1FAE5) : const Color(0xFFFEE2E2), width: 1.5),
-                                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                                    backgroundColor: isSuspended ? const Color(0xFFECFDF5) : const Color(0xFFFEF2F2),
-                                  ),
-                                ),
-                              ],
-                            ),
                           ),
                         ],
                       ),
                     ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.04, end: 0, curve: Curves.easeOutQuad),
-                    const SizedBox(height: 32),
+                    SizedBox(height: isMobile ? 16 : 32),
 
                     StreamBuilder<QuerySnapshot>(
                       stream: FirebaseFirestore.instance
@@ -475,367 +606,124 @@ class GuruDetailScreen extends StatelessWidget {
                           uploadDate = 'Diunggah pada: ${dt.day}/${dt.month}/${dt.year}';
                         }
 
-                        return Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                        final mainContent = Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
                               children: [
-                                // Left Column: Stats & Classes
                                 Expanded(
-                                  flex: 2,
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
-                                        children: [
-                                          Expanded(
-                                            child: _buildStatCard(
-                                              context,
-                                              'Kelas Aktif',
-                                              classCount.toString(),
-                                              Icons.school_rounded,
-                                              AdminColors.primary,
-                                              trendText: isPending ? 'Belum terverifikasi' : 'Aktif',
-                                            ),
-                                          ),
-                                          const SizedBox(width: 16),
-                                          Expanded(
-                                            child: _buildStatCard(
-                                              context,
-                                              'Total Murid',
-                                              totalStudents.toString(),
-                                              Icons.group_rounded,
-                                              const Color(0xFF10B981),
-                                              trendText: isPending ? '0 terdaftar' : 'Aktif',
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 36),
-                                      
-                                      Text(
-                                        'Kelas Yang Dimiliki',
-                                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                              fontWeight: FontWeight.bold,
-                                              color: const Color(0xFF0F172A),
-                                              letterSpacing: -0.5,
-                                            ),
-                                      ),
-                                      const SizedBox(height: 16),
-                                      classDocs.isEmpty
-                                          ? Container(
-                                              width: double.infinity,
-                                              padding: const EdgeInsets.symmetric(vertical: 32),
-                                              decoration: BoxDecoration(
-                                                color: Colors.white,
-                                                borderRadius: BorderRadius.circular(16),
-                                                border: Border.all(color: const Color(0xFFE2E8F0)),
-                                              ),
-                                              child: const Center(
-                                                child: Text(
-                                                  'Belum ada kelas yang dibuat',
-                                                  style: TextStyle(
-                                                    color: Color(0xFF64748B),
-                                                    fontSize: 14,
-                                                  ),
-                                                ),
-                                              ),
-                                            )
-                                          : ListView.builder(
-                                              shrinkWrap: true,
-                                              physics: const NeverScrollableScrollPhysics(),
-                                              itemCount: classDocs.length,
-                                              itemBuilder: (context, index) {
-                                                final classDoc = classDocs[index];
-                                                final classData = classDoc.data() as Map<String, dynamic>;
-                                                final String className = classData['namaKelas'] ?? 'Tanpa Nama';
-                                                final List<dynamic> muridIds = classData['muridIds'] is List ? classData['muridIds'] : [];
-                                                final bool isClassActive = classData['status'] == 'aktif';
-
-                                                return Padding(
-                                                  padding: const EdgeInsets.only(bottom: 12),
-                                                  child: _HoverableClassCard(
-                                                    className: className,
-                                                    students: '${muridIds.length} Murid',
-                                                    isActive: isClassActive,
-                                                    classId: classDoc.id,
-                                                  ),
-                                                );
-                                              },
-                                            ),
-                                    ],
-                                  ).animate().fadeIn(delay: 150.ms, duration: 400.ms).slideY(begin: 0.04, end: 0, curve: Curves.easeOutQuad),
+                                  child: _buildStatCard(
+                                    context,
+                                    'Kelas Aktif',
+                                    classCount.toString(),
+                                    Icons.school_rounded,
+                                    AdminColors.primary,
+                                    trendText: isPending ? 'Belum terverifikasi' : 'Aktif',
+                                  ),
                                 ),
-                                
-                                const SizedBox(width: 32),
-                                
-                                // Right Column: Document Proof (Teaching Proof Viewer)
+                                SizedBox(width: isMobile ? 12 : 16),
                                 Expanded(
-                                  flex: 1,
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        'Bukti Mengajar',
-                                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                              fontWeight: FontWeight.bold,
-                                              color: const Color(0xFF0F172A),
-                                              letterSpacing: -0.5,
-                                            ),
-                                      ),
-                                      const SizedBox(height: 16),
-                                      Container(
-                                        padding: const EdgeInsets.all(24),
-                                        decoration: BoxDecoration(
-                                          color: const Color(0xFF1E293B),
-                                          borderRadius: BorderRadius.circular(28),
-                                          border: Border.all(color: const Color(0xFF334155), width: 1.2),
-                                          boxShadow: [
-                                            BoxShadow(
-                                              color: Colors.black.withOpacity(0.08),
-                                              blurRadius: 24,
-                                              offset: const Offset(0, 12),
-                                            ),
-                                          ],
-                                        ),
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            // Floating white paper sheet document preview card
-                                            Container(
-                                              width: double.infinity,
-                                              height: 220,
-                                              decoration: BoxDecoration(
-                                                color: Colors.white,
-                                                borderRadius: BorderRadius.circular(16),
-                                                boxShadow: [
-                                                  BoxShadow(
-                                                    color: Colors.black.withOpacity(0.25),
-                                                    blurRadius: 20,
-                                                    offset: const Offset(0, 10),
-                                                  ),
-                                                ],
-                                              ),
-                                              child: _isImageFile(fileUrl, fileName)
-                                                  ? ClipRRect(
-                                                      borderRadius: BorderRadius.circular(16),
-                                                      child: Image.network(
-                                                        _getProxiedImageUrl(fileUrl),
-                                                        fit: BoxFit.contain,
-                                                        width: double.infinity,
-                                                        height: 220,
-                                                        errorBuilder: (context, error, stackTrace) => const Center(
-                                                          child: Icon(Icons.broken_image_rounded, size: 50, color: Colors.grey),
-                                                        ),
-                                                      ),
-                                                    )
-                                                  : Stack(
-                                                      children: [
-                                                        // Watermark background
-                                                        Positioned.fill(
-                                                          child: Opacity(
-                                                            opacity: 0.04,
-                                                            child: CustomPaint(
-                                                              painter: DotGridBackgroundPainter(dotColor: Colors.black),
-                                                            ),
-                                                          ),
-                                                        ),
-                                                        // Watermark Stamp
-                                                        Positioned(
-                                                          bottom: 16,
-                                                          right: 16,
-                                                          child: Transform.rotate(
-                                                            angle: -0.15,
-                                                            child: Container(
-                                                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                                              decoration: BoxDecoration(
-                                                                border: Border.all(
-                                                                  color: isPending ? const Color(0xFFF59E0B).withOpacity(0.5) : const Color(0xFF10B981).withOpacity(0.5),
-                                                                  width: 1.5,
-                                                                ),
-                                                                borderRadius: BorderRadius.circular(6),
-                                                              ),
-                                                              child: Text(
-                                                                isPending ? 'PENDING' : 'TERVERIFIKASI',
-                                                                style: TextStyle(
-                                                                  color: isPending ? const Color(0xFFD97706) : const Color(0xFF059669),
-                                                                  fontWeight: FontWeight.bold,
-                                                                  fontSize: 10,
-                                                                  letterSpacing: 1.2,
-                                                                ),
-                                                              ),
-                                                            ),
-                                                          ),
-                                                        ),
-                                                        // Document Content
-                                                        Padding(
-                                                          padding: const EdgeInsets.all(20),
-                                                          child: Column(
-                                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                                            children: [
-                                                              Row(
-                                                                children: [
-                                                                  const Icon(Icons.picture_as_pdf_rounded, color: Color(0xFFEF4444), size: 24),
-                                                                  const SizedBox(width: 8),
-                                                                  Expanded(
-                                                                    child: Text(
-                                                                      fileName,
-                                                                      style: const TextStyle(
-                                                                        fontWeight: FontWeight.bold,
-                                                                        color: Color(0xFF0F172A),
-                                                                        fontSize: 14,
-                                                                      ),
-                                                                      overflow: TextOverflow.ellipsis,
-                                                                    ),
-                                                                  ),
-                                                                ],
-                                                              ),
-                                                              const SizedBox(height: 16),
-                                                              // Mock lines representing text
-                                                              Container(
-                                                                height: 6,
-                                                                width: 140,
-                                                                decoration: BoxDecoration(
-                                                                  color: const Color(0xFFE2E8F0),
-                                                                  borderRadius: BorderRadius.circular(3),
-                                                                ),
-                                                              ),
-                                                              const SizedBox(height: 8),
-                                                              Container(
-                                                                height: 6,
-                                                                width: 200,
-                                                                decoration: BoxDecoration(
-                                                                  color: const Color(0xFFE2E8F0),
-                                                                  borderRadius: BorderRadius.circular(3),
-                                                                ),
-                                                              ),
-                                                              const SizedBox(height: 8),
-                                                              Container(
-                                                                height: 6,
-                                                                width: 170,
-                                                                decoration: BoxDecoration(
-                                                                  color: const Color(0xFFE2E8F0),
-                                                                  borderRadius: BorderRadius.circular(3),
-                                                                ),
-                                                              ),
-                                                              const SizedBox(height: 8),
-                                                              Container(
-                                                                height: 6,
-                                                                width: 110,
-                                                                decoration: BoxDecoration(
-                                                                  color: const Color(0xFFE2E8F0),
-                                                                  borderRadius: BorderRadius.circular(3),
-                                                                ),
-                                                              ),
-                                                              const Spacer(),
-                                                              // Bottom sign sections
-                                                              Row(
-                                                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                                                children: [
-                                                                  Container(
-                                                                    height: 6,
-                                                                    width: 50,
-                                                                    decoration: BoxDecoration(
-                                                                      color: const Color(0xFFE2E8F0),
-                                                                      borderRadius: BorderRadius.circular(3),
-                                                                    ),
-                                                                  ),
-                                                                  Container(
-                                                                    height: 24,
-                                                                    width: 60,
-                                                                    decoration: BoxDecoration(
-                                                                      border: Border(
-                                                                        bottom: BorderSide(
-                                                                          color: const Color(0xFF64748B).withOpacity(0.2),
-                                                                          width: 1,
-                                                                        ),
-                                                                      ),
-                                                                    ),
-                                                                    child: const Center(
-                                                                      child: Icon(Icons.gesture_rounded, size: 14, color: Color(0xFF94A3B8)),
-                                                                    ),
-                                                                  ),
-                                                                ],
-                                                              ),
-                                                            ],
-                                                          ),
-                                                        ),
-                                                      ],
-                                                    ),
-                                            ),
-                                            const SizedBox(height: 20),
-                                            Text(
-                                              fileName,
-                                              style: const TextStyle(
-                                                fontWeight: FontWeight.bold,
-                                                color: Colors.white,
-                                                fontSize: 14,
-                                              ),
-                                            ),
-                                            const SizedBox(height: 4),
-                                            Text(
-                                              uploadDate,
-                                              style: const TextStyle(
-                                                color: Color(0xFF94A3B8),
-                                                fontSize: 12,
-                                              ),
-                                            ),
-                                            const SizedBox(height: 20),
-                                            SizedBox(
-                                              width: double.infinity,
-                                              child: ElevatedButton.icon(
-                                                onPressed: fileUrl.isNotEmpty ? () => _openDocument(context, fileUrl) : null,
-                                                icon: const Icon(Icons.open_in_new_rounded, size: 16),
-                                                label: const Text('Buka Dokumen', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                                                style: ElevatedButton.styleFrom(
-                                                  backgroundColor: AdminColors.primary,
-                                                  foregroundColor: Colors.white,
-                                                  padding: const EdgeInsets.symmetric(vertical: 16),
-                                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                                                  elevation: 0,
-                                                ),
-                                              ),
-                                            ),
-                                            if (isPending) ...[
-                                              const SizedBox(height: 12),
-                                              SizedBox(
-                                                width: double.infinity,
-                                                child: OutlinedButton.icon(
-                                                  onPressed: verifDocId.isNotEmpty
-                                                      ? () => context.go('/verifikasi/$verifDocId')
-                                                      : null,
-                                                  icon: const Icon(Icons.assignment_turned_in_rounded, size: 16),
-                                                  label: Text(
-                                                    verifDocId.isNotEmpty
-                                                        ? 'Detail Verifikasi Pending'
-                                                        : 'Belum Ada Berkas Verifikasi',
-                                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                                                  ),
-                                                  style: OutlinedButton.styleFrom(
-                                                    foregroundColor: const Color(0xFFF59E0B),
-                                                    side: BorderSide(
-                                                      color: verifDocId.isNotEmpty
-                                                          ? const Color(0xFFF59E0B)
-                                                          : const Color(0xFFCBD5E1),
-                                                      width: 1.5,
-                                                    ),
-                                                    padding: const EdgeInsets.symmetric(vertical: 16),
-                                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                                                    backgroundColor: verifDocId.isNotEmpty
-                                                        ? const Color(0xFFF59E0B).withOpacity(0.08)
-                                                        : const Color(0xFFF1F5F9),
-                                                  ),
-                                                ),
-                                              ),
-                                            ],
-                                          ],
-                                        ),
-                                      ),
-                                    ],
-                                  ).animate().fadeIn(delay: 300.ms, duration: 400.ms).slideY(begin: 0.04, end: 0, curve: Curves.easeOutQuad),
+                                  child: _buildStatCard(
+                                    context,
+                                    'Total Murid',
+                                    totalStudents.toString(),
+                                    Icons.group_rounded,
+                                    const Color(0xFF10B981),
+                                    trendText: isPending ? '0 terdaftar' : 'Aktif',
+                                  ),
                                 ),
                               ],
-                            ).animate().fadeIn(delay: 150.ms, duration: 400.ms);
-                          },
-                        ),
+                            ),
+                            SizedBox(height: isMobile ? 24 : 36),
+                            
+                            Text(
+                              'Kelas Yang Dimiliki',
+                              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    color: const Color(0xFF0F172A),
+                                    letterSpacing: -0.5,
+                                  ),
+                            ),
+                            const SizedBox(height: 16),
+                            classDocs.isEmpty
+                                ? Container(
+                                    width: double.infinity,
+                                    padding: const EdgeInsets.symmetric(vertical: 32),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(16),
+                                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                                    ),
+                                    child: const Center(
+                                      child: Text(
+                                        'Belum ada kelas yang dibuat',
+                                        style: TextStyle(
+                                          color: Color(0xFF64748B),
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                    ),
+                                  )
+                                : ListView.builder(
+                                    shrinkWrap: true,
+                                    physics: const NeverScrollableScrollPhysics(),
+                                    itemCount: classDocs.length,
+                                    itemBuilder: (context, index) {
+                                      final classDoc = classDocs[index];
+                                      final classData = classDoc.data();
+                                      final String className = classData['namaKelas'] ?? 'Tanpa Nama';
+                                      final List<dynamic> muridIds = classData['muridIds'] is List ? classData['muridIds'] : [];
+                                      return Padding(
+                                        padding: const EdgeInsets.only(bottom: 12),
+                                        child: _HoverableClassCard(
+                                          className: className,
+                                          students: '${muridIds.length} Murid',
+                                          isActive: (classData['status'] ?? 'aktif') == 'aktif',
+                                          classId: classDoc.id,
+                                        ),
+                                      );
+                                    },
+                                  ),
+                          ],
+                        );
+
+                        final rightContent = Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Dokumen Verifikasi',
+                              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    color: const Color(0xFF0F172A),
+                                    letterSpacing: -0.5,
+                                  ),
+                            ),
+                            const SizedBox(height: 16),
+                            _buildDocumentPreviewCard(context, fileName, uploadDate, fileUrl, isPending, verifDocId),
+                          ],
+                        );
+
+                        if (isMobile) {
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              mainContent,
+                              const SizedBox(height: 28),
+                              rightContent,
+                            ],
+                          );
+                        }
+
+                        return Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(flex: 2, child: mainContent),
+                            const SizedBox(width: 24),
+                            Expanded(flex: 1, child: rightContent),
+                          ],
+                        );
+                      },
+                    ),
                   ],
                 ),
               ),
@@ -847,6 +735,117 @@ class GuruDetailScreen extends StatelessWidget {
   },
 );
 }
+
+  Widget _buildDocumentPreviewCard(
+    BuildContext context,
+    String fileName,
+    String uploadDate,
+    String fileUrl,
+    bool isPending,
+    String verifDocId,
+  ) {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E293B),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFF334155), width: 1.2),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 24,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: double.infinity,
+            height: 200,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: _isImageFile(fileUrl, fileName)
+                ? ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: Image.network(
+                      _getProxiedImageUrl(fileUrl),
+                      fit: BoxFit.contain,
+                      errorBuilder: (context, error, stackTrace) => const Center(
+                        child: Icon(Icons.broken_image_rounded, size: 40, color: Colors.grey),
+                      ),
+                    ),
+                  )
+                : Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.picture_as_pdf_rounded, color: Color(0xFFEF4444), size: 44),
+                        const SizedBox(height: 10),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: Text(
+                            fileName,
+                            style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0F172A), fontSize: 13),
+                            textAlign: TextAlign.center,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            fileName,
+            style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 13),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 4),
+          Text(uploadDate, style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 11)),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: fileUrl.isNotEmpty ? () => _openDocument(context, fileUrl) : null,
+              icon: const Icon(Icons.open_in_new_rounded, size: 15),
+              label: const Text('Buka Dokumen', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AdminColors.primary,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                elevation: 0,
+              ),
+            ),
+          ),
+          if (isPending && verifDocId.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () => context.go('/verifikasi/$verifDocId'),
+                icon: const Icon(Icons.assignment_turned_in_rounded, size: 15),
+                label: const Text('Detail Verifikasi Pending', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFFF59E0B),
+                  side: const BorderSide(color: Color(0xFFF59E0B), width: 1.5),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  backgroundColor: const Color(0xFFF59E0B).withOpacity(0.08),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
 
   void _openDocument(BuildContext context, String url) async {
     final uri = Uri.parse(url);

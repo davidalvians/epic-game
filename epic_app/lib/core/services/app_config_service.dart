@@ -12,8 +12,8 @@ class AppConfigService extends GetxService {
   // Nilai default dipakai jika Firestore tidak tersedia (offline/error).
   // Default diselaraskan dengan default admin panel.
 
-  /// Nyawa maksimal per hari. Default: 5 (sesuai default admin panel)
-  final RxInt maxNyawa = 5.obs;
+  /// Nyawa maksimal per hari. Default: 3 (sesuai default aplikasi)
+  final RxInt maxNyawa = 3.obs;
 
   /// Durasi pengerjaan game dalam detik. Default: 900 (15 menit)
   final RxInt timerDurasiDetik = 900.obs;
@@ -71,26 +71,23 @@ class AppConfigService extends GetxService {
 
           // maxNyawa
           final rawMaxNyawa = data['maxNyawa'];
-          if (rawMaxNyawa is int) {
-            maxNyawa.value = rawMaxNyawa;
-          } else if (rawMaxNyawa is double) {
-            maxNyawa.value = rawMaxNyawa.toInt();
+          if (rawMaxNyawa != null) {
+            final parsed = int.tryParse(rawMaxNyawa.toString());
+            if (parsed != null) maxNyawa.value = parsed;
           }
 
           // timerDurationSec → timerDurasiDetik
           final rawTimer = data['timerDurationSec'];
-          if (rawTimer is int && rawTimer > 0) {
-            timerDurasiDetik.value = rawTimer;
-          } else if (rawTimer is double && rawTimer > 0) {
-            timerDurasiDetik.value = rawTimer.toInt();
+          if (rawTimer != null) {
+            final parsed = int.tryParse(rawTimer.toString());
+            if (parsed != null && parsed > 0) timerDurasiDetik.value = parsed;
           }
 
           // recoveryTimeMin
           final rawRecovery = data['recoveryTimeMin'];
-          if (rawRecovery is int) {
-            recoveryTimeMin.value = rawRecovery;
-          } else if (rawRecovery is double) {
-            recoveryTimeMin.value = rawRecovery.toInt();
+          if (rawRecovery != null) {
+            final parsed = int.tryParse(rawRecovery.toString());
+            if (parsed != null) recoveryTimeMin.value = parsed;
           }
 
           // poinMultiplier global

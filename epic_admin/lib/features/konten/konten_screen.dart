@@ -30,6 +30,9 @@ class _KontenScreenState extends State<KontenScreen> with SingleTickerProviderSt
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isMobile = screenWidth < 768;
+
     return Scaffold(
       backgroundColor: AdminColors.background,
       body: SafeArea(
@@ -38,19 +41,27 @@ class _KontenScreenState extends State<KontenScreen> with SingleTickerProviderSt
           children: [
             // Custom Premium Header (Title & Subtitle) - Out of AppBar to prevent cutting off text
             Padding(
-              padding: const EdgeInsets.only(left: 32, right: 32, top: 32, bottom: 16),
+              padding: EdgeInsets.only(
+                left: isMobile ? 16 : 32,
+                right: isMobile ? 16 : 32,
+                top: isMobile ? 16 : 32,
+                bottom: isMobile ? 12 : 16,
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     'Manajemen Konten',
-                    style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                          fontWeight: FontWeight.w800,
-                          color: const Color(0xFF0F172A),
-                          letterSpacing: -0.5,
-                        ),
+                    style: (isMobile
+                            ? Theme.of(context).textTheme.headlineMedium
+                            : Theme.of(context).textTheme.headlineLarge)
+                        ?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: const Color(0xFF0F172A),
+                      letterSpacing: -0.5,
+                    ),
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 4),
                   const Text(
                     'Kelola instrumen penilaian AI, gambar template mewarnai, dan misi harian murid.',
                     style: TextStyle(fontSize: 13, color: Color(0xFF64748B), fontWeight: FontWeight.normal),
@@ -61,9 +72,9 @@ class _KontenScreenState extends State<KontenScreen> with SingleTickerProviderSt
 
             // TabBar Container - Styled pill-shape tabs
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 8),
+              padding: EdgeInsets.symmetric(horizontal: isMobile ? 16 : 32, vertical: 8),
               child: SizedBox(
-                width: 680,
+                width: isMobile ? double.infinity : 680,
                 child: Container(
                   padding: const EdgeInsets.all(2),
                   decoration: BoxDecoration(
@@ -72,15 +83,16 @@ class _KontenScreenState extends State<KontenScreen> with SingleTickerProviderSt
                   ),
                   child: TabBar(
                     controller: _tabController,
-                    isScrollable: false,
+                    isScrollable: isMobile,
+                    tabAlignment: isMobile ? TabAlignment.start : TabAlignment.fill,
                     dividerColor: Colors.transparent,
                     indicatorSize: TabBarIndicatorSize.tab,
                     labelColor: Colors.white,
                     unselectedLabelColor: const Color(0xFF64748B),
                     labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
                     unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
-                    overlayColor: WidgetStateProperty.all(Colors.transparent), // Removes the misaligned default hover circle
-                    splashFactory: NoSplash.splashFactory, // Removes default splash ripples
+                    overlayColor: WidgetStateProperty.all(Colors.transparent),
+                    splashFactory: NoSplash.splashFactory,
                     indicatorPadding: EdgeInsets.zero,
                     indicator: BoxDecoration(
                       gradient: const LinearGradient(
@@ -113,10 +125,10 @@ class _KontenScreenState extends State<KontenScreen> with SingleTickerProviderSt
               child: TabBarView(
                 controller: _tabController,
                 children: [
-                  _buildInstrumenTab(context),
-                  _buildOnboardingTab(context),
-                  _buildTemplateTab(context),
-                  _buildMisiHarianTab(context),
+                  _buildInstrumenTab(context, isMobile),
+                  _buildOnboardingTab(context, isMobile),
+                  _buildTemplateTab(context, isMobile),
+                  _buildMisiHarianTab(context, isMobile),
                 ],
               ),
             ),
@@ -126,7 +138,7 @@ class _KontenScreenState extends State<KontenScreen> with SingleTickerProviderSt
     );
   }
 
-  Widget _buildInstrumenTab(BuildContext context) {
+  Widget _buildInstrumenTab(BuildContext context, bool isMobile) {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection('app_config')
@@ -145,31 +157,33 @@ class _KontenScreenState extends State<KontenScreen> with SingleTickerProviderSt
 
         return ListView(
           physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.all(32),
+          padding: EdgeInsets.all(isMobile ? 14 : 32),
           children: [
             Row(
               children: const [
                 Icon(Icons.info_outline_rounded, color: Color(0xFF2563EB), size: 16),
                 SizedBox(width: 8),
-                Text(
-                  'KRITERIA & BOBOT PROMPT PENILAIAN AI BERDASARKAN KATEGORI & LEVEL',
-                  style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF64748B), letterSpacing: 0.5, fontSize: 11),
+                Expanded(
+                  child: Text(
+                    'KRITERIA & BOBOT PROMPT PENILAIAN AI BERDASARKAN KATEGORI & LEVEL',
+                    style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF64748B), letterSpacing: 0.5, fontSize: 11),
+                  ),
                 ),
               ],
             ).animate().fadeIn(duration: 300.ms),
-            const SizedBox(height: 24),
-            _buildCategorySection(context, 'Keris', Icons.architecture_rounded, const Color(0xFF8B5CF6), instrumentsMap),
-            const SizedBox(height: 32),
-            _buildCategorySection(context, 'Batik', Icons.brush_rounded, const Color(0xFFF97316), instrumentsMap),
-            const SizedBox(height: 32),
-            _buildCategorySection(context, 'Anyaman', Icons.grid_on_rounded, const Color(0xFF10B981), instrumentsMap),
+            SizedBox(height: isMobile ? 16 : 24),
+            _buildCategorySection(context, 'Keris', Icons.architecture_rounded, const Color(0xFF8B5CF6), instrumentsMap, isMobile),
+            SizedBox(height: isMobile ? 16 : 32),
+            _buildCategorySection(context, 'Batik', Icons.brush_rounded, const Color(0xFFF97316), instrumentsMap, isMobile),
+            SizedBox(height: isMobile ? 16 : 32),
+            _buildCategorySection(context, 'Anyaman', Icons.grid_on_rounded, const Color(0xFF10B981), instrumentsMap, isMobile),
           ],
         );
       }
     );
   }
 
-  Widget _buildCategorySection(BuildContext context, String category, IconData icon, Color color, Map<String, Map<String, dynamic>> instrumentsMap) {
+  Widget _buildCategorySection(BuildContext context, String category, IconData icon, Color color, Map<String, Map<String, dynamic>> instrumentsMap, bool isMobile) {
     final String catKey = category.toLowerCase();
     final instL1 = instrumentsMap['${catKey}_1'] ?? {};
     final instL2 = instrumentsMap['${catKey}_2'] ?? {};
@@ -177,10 +191,10 @@ class _KontenScreenState extends State<KontenScreen> with SingleTickerProviderSt
     final instL4 = instrumentsMap['${catKey}_4'] ?? {};
 
     return Container(
-      padding: const EdgeInsets.all(28),
+      padding: EdgeInsets.all(isMobile ? 16 : 28),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(isMobile ? 18 : 24),
         border: Border.all(color: const Color(0xFFE2E8F0), width: 1.2),
         boxShadow: [
           BoxShadow(
@@ -206,11 +220,11 @@ class _KontenScreenState extends State<KontenScreen> with SingleTickerProviderSt
               const SizedBox(width: 16),
               Text(
                 category,
-                style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF0F172A), fontSize: 20),
+                style: TextStyle(fontWeight: FontWeight.w800, color: const Color(0xFF0F172A), fontSize: isMobile ? 17 : 20),
               ),
             ],
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
           LayoutBuilder(
             builder: (context, constraints) {
               final isWide = constraints.maxWidth > 900;
@@ -229,11 +243,11 @@ class _KontenScreenState extends State<KontenScreen> with SingleTickerProviderSt
                   : Column(
                       children: [
                         _buildInstrumentCard(context, '$category Level 1', instL1, '${catKey}_1', color),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 14),
                         _buildInstrumentCard(context, '$category Level 2', instL2, '${catKey}_2', color),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 14),
                         _buildInstrumentCard(context, '$category Level 3', instL3, '${catKey}_3', color),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 14),
                         _buildInstrumentCard(context, '$category Level 4', instL4, '${catKey}_4', color),
                       ],
                     );
@@ -326,7 +340,7 @@ class _KontenScreenState extends State<KontenScreen> with SingleTickerProviderSt
     );
   }
 
-  Widget _buildTemplateTab(BuildContext context) {
+  Widget _buildTemplateTab(BuildContext context, bool isMobile) {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance.collection('drawing_templates').snapshots(),
       builder: (context, snapshot) {
@@ -343,37 +357,72 @@ class _KontenScreenState extends State<KontenScreen> with SingleTickerProviderSt
 
         return ListView(
           physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.all(32),
+          padding: EdgeInsets.all(isMobile ? 14 : 32),
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    _buildFilterChip('Semua', _selectedTemplateFilter == 'Semua'),
-                    const SizedBox(width: 10),
-                    _buildFilterChip('Keris', _selectedTemplateFilter == 'Keris'),
-                    const SizedBox(width: 10),
-                    _buildFilterChip('Batik', _selectedTemplateFilter == 'Batik'),
-                    const SizedBox(width: 10),
-                    _buildFilterChip('Anyaman', _selectedTemplateFilter == 'Anyaman'),
-                  ],
-                ),
-                ElevatedButton.icon(
-                  onPressed: () => context.go('/konten/template/upload'),
-                  icon: const Icon(Icons.cloud_upload_rounded, size: 18),
-                  label: const Text('Upload Template Baru', style: TextStyle(fontWeight: FontWeight.bold)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF2563EB),
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            if (isMobile)
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    physics: const BouncingScrollPhysics(),
+                    child: Row(
+                      children: [
+                        _buildFilterChip('Semua', _selectedTemplateFilter == 'Semua'),
+                        const SizedBox(width: 8),
+                        _buildFilterChip('Keris', _selectedTemplateFilter == 'Keris'),
+                        const SizedBox(width: 8),
+                        _buildFilterChip('Batik', _selectedTemplateFilter == 'Batik'),
+                        const SizedBox(width: 8),
+                        _buildFilterChip('Anyaman', _selectedTemplateFilter == 'Anyaman'),
+                      ],
+                    ),
                   ),
-                ),
-              ],
-            ).animate().fadeIn(duration: 300.ms),
-            const SizedBox(height: 32),
+                  const SizedBox(height: 12),
+                  ElevatedButton.icon(
+                    onPressed: () => context.go('/konten/template/upload'),
+                    icon: const Icon(Icons.cloud_upload_rounded, size: 16),
+                    label: const Text('Upload Template Baru', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF2563EB),
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    ),
+                  ),
+                ],
+              ).animate().fadeIn(duration: 300.ms)
+            else
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      _buildFilterChip('Semua', _selectedTemplateFilter == 'Semua'),
+                      const SizedBox(width: 10),
+                      _buildFilterChip('Keris', _selectedTemplateFilter == 'Keris'),
+                      const SizedBox(width: 10),
+                      _buildFilterChip('Batik', _selectedTemplateFilter == 'Batik'),
+                      const SizedBox(width: 10),
+                      _buildFilterChip('Anyaman', _selectedTemplateFilter == 'Anyaman'),
+                    ],
+                  ),
+                  ElevatedButton.icon(
+                    onPressed: () => context.go('/konten/template/upload'),
+                    icon: const Icon(Icons.cloud_upload_rounded, size: 18),
+                    label: const Text('Upload Template Baru', style: TextStyle(fontWeight: FontWeight.bold)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF2563EB),
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                    ),
+                  ),
+                ],
+              ).animate().fadeIn(duration: 300.ms),
+            SizedBox(height: isMobile ? 16 : 32),
             
             filteredTemplates.isEmpty
                 ? Center(
@@ -391,11 +440,11 @@ class _KontenScreenState extends State<KontenScreen> with SingleTickerProviderSt
                 : GridView.builder(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
-                    gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                      maxCrossAxisExtent: 260,
-                      mainAxisSpacing: 24,
-                      crossAxisSpacing: 24,
-                      childAspectRatio: 0.68,
+                    gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+                      maxCrossAxisExtent: isMobile ? 180 : 260,
+                      mainAxisSpacing: isMobile ? 14 : 24,
+                      crossAxisSpacing: isMobile ? 14 : 24,
+                      childAspectRatio: isMobile ? 0.65 : 0.68,
                     ),
                     itemCount: filteredTemplates.length,
                     itemBuilder: (context, index) {
@@ -973,7 +1022,7 @@ class _KontenScreenState extends State<KontenScreen> with SingleTickerProviderSt
     );
   }
 
-  Widget _buildMisiHarianTab(BuildContext context) {
+  Widget _buildMisiHarianTab(BuildContext context, bool isMobile) {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance.collection('misi_templates').snapshots(),
       builder: (context, snapshot) {
@@ -984,40 +1033,74 @@ class _KontenScreenState extends State<KontenScreen> with SingleTickerProviderSt
 
         return ListView(
           physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+          padding: EdgeInsets.symmetric(horizontal: isMobile ? 14 : 32, vertical: isMobile ? 16 : 24),
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: const [
-                    Text(
-                      'Template Misi Harian',
-                      style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0F172A), fontSize: 16),
-                    ),
-                    SizedBox(height: 4),
-                    Text(
-                      '(3 misi aktif per hari akan di-render acak pada dashboard mobile murid)',
-                      style: TextStyle(color: Color(0xFF64748B), fontSize: 12),
-                    ),
-                  ],
-                ),
-                ElevatedButton.icon(
-                  onPressed: () => context.go('/konten/misi/tambah'),
-                  icon: const Icon(Icons.add_rounded, size: 18),
-                  label: const Text('Tambah Misi Baru', style: TextStyle(fontWeight: FontWeight.bold)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF2563EB),
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            if (isMobile)
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: const [
+                      Text(
+                        'Template Misi Harian',
+                        style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0F172A), fontSize: 16),
+                      ),
+                      SizedBox(height: 2),
+                      Text(
+                        '(3 misi aktif per hari akan di-render acak pada dashboard murid)',
+                        style: TextStyle(color: Color(0xFF64748B), fontSize: 11),
+                      ),
+                    ],
                   ),
-                ),
-              ],
-            ).animate().fadeIn(duration: 300.ms),
-            const SizedBox(height: 24),
+                  const SizedBox(height: 12),
+                  ElevatedButton.icon(
+                    onPressed: () => context.go('/konten/misi/tambah'),
+                    icon: const Icon(Icons.add_rounded, size: 16),
+                    label: const Text('Tambah Misi Baru', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF2563EB),
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    ),
+                  ),
+                ],
+              ).animate().fadeIn(duration: 300.ms)
+            else
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: const [
+                      Text(
+                        'Template Misi Harian',
+                        style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0F172A), fontSize: 16),
+                      ),
+                      SizedBox(height: 4),
+                      Text(
+                        '(3 misi aktif per hari akan di-render acak pada dashboard mobile murid)',
+                        style: TextStyle(color: Color(0xFF64748B), fontSize: 12),
+                      ),
+                    ],
+                  ),
+                  ElevatedButton.icon(
+                    onPressed: () => context.go('/konten/misi/tambah'),
+                    icon: const Icon(Icons.add_rounded, size: 18),
+                    label: const Text('Tambah Misi Baru', style: TextStyle(fontWeight: FontWeight.bold)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF2563EB),
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                    ),
+                  ),
+                ],
+              ).animate().fadeIn(duration: 300.ms),
+            SizedBox(height: isMobile ? 16 : 24),
             
             docs.isEmpty
                 ? const Center(
@@ -1046,7 +1129,7 @@ class _KontenScreenState extends State<KontenScreen> with SingleTickerProviderSt
                       final String type = data['tipe'] ?? 'unknown';
                       final bool isActive = data['isActive'] ?? false;
 
-                      return _buildMissionCard(context, id, title, '$target', '$reward', type, isActive, index);
+                      return _buildMissionCard(context, id, title, '$target', '$reward', type, isActive, index, isMobile);
                     }),
                   ),
           ],
@@ -1055,7 +1138,136 @@ class _KontenScreenState extends State<KontenScreen> with SingleTickerProviderSt
     );
   }
 
-  Widget _buildMissionCard(BuildContext context, String docId, String title, String target, String reward, String type, bool isActive, int index) {
+  Widget _buildMissionCard(BuildContext context, String docId, String title, String target, String reward, String type, bool isActive, int index, bool isMobile) {
+    if (isMobile) {
+      return Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: const Color(0xFFE2E8F0), width: 1.2),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.015),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEFF6FF),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.emoji_events_rounded, color: Color(0xFF2563EB), size: 20),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: Color(0xFF0F172A)),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: isActive ? const Color(0xFFD1FAE5) : const Color(0xFFF1F5F9),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    isActive ? 'Aktif' : 'Nonaktif',
+                    style: TextStyle(
+                      color: isActive ? const Color(0xFF065F46) : const Color(0xFF64748B),
+                      fontWeight: FontWeight.bold,
+                      fontSize: 10,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              children: [
+                _buildMissionTag(Icons.radar_rounded, 'Target: $target'),
+                _buildMissionTag(Icons.monetization_on_rounded, '+$reward Poin', textColor: const Color(0xFFB45309), bgColor: const Color(0xFFFEF3C7)),
+                _buildMissionTag(Icons.category_rounded, type),
+              ],
+            ),
+            const SizedBox(height: 12),
+            const Divider(color: Color(0xFFF1F5F9), height: 1),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => context.go('/konten/misi/edit/$docId'),
+                    icon: const Icon(Icons.edit_rounded, size: 13),
+                    label: const Text('Edit', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFF2563EB),
+                      side: const BorderSide(color: Color(0xFFCBD5E1)),
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () async {
+                      try {
+                        await FirebaseFirestore.instance
+                            .collection('misi_templates')
+                            .doc(docId)
+                            .update({'isActive': !isActive});
+                      } catch (e) {
+                        debugPrint('Error toggling mission status: $e');
+                      }
+                    },
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: isActive ? AdminColors.error : const Color(0xFF10B981),
+                      side: BorderSide(color: isActive ? const Color(0xFFFECACA) : const Color(0xFFA7F3D0)),
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    child: Text(
+                      isActive ? 'Nonaktifkan' : 'Aktifkan',
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                IconButton(
+                  onPressed: () => _showDeleteMissionDialog(context, docId, title),
+                  icon: const Icon(Icons.delete_outline_rounded, color: AdminColors.error, size: 18),
+                  tooltip: 'Hapus Misi',
+                  style: IconButton.styleFrom(
+                    backgroundColor: const Color(0xFFFEF2F2),
+                    padding: const EdgeInsets.all(8),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      side: const BorderSide(color: Color(0xFFFEE2E8)),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ).animate().fadeIn(delay: (index * 40).ms, duration: 300.ms).slideY(begin: 0.03, end: 0, curve: Curves.easeOutQuad);
+    }
+
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(24),
@@ -1072,7 +1284,7 @@ class _KontenScreenState extends State<KontenScreen> with SingleTickerProviderSt
         ],
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center, // Vertically center icon, text, and buttons
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           // Icon decoration
           Container(
@@ -1126,7 +1338,7 @@ class _KontenScreenState extends State<KontenScreen> with SingleTickerProviderSt
           ),
           const SizedBox(width: 24),
           
-          // Action Buttons - wrapped in clean Row with fixedSizes to guarantee alignment
+          // Action Buttons
           Row(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.center,
@@ -1138,7 +1350,7 @@ class _KontenScreenState extends State<KontenScreen> with SingleTickerProviderSt
                 style: OutlinedButton.styleFrom(
                   foregroundColor: const Color(0xFF2563EB),
                   side: const BorderSide(color: Color(0xFFCBD5E1)),
-                  fixedSize: const Size(100, 40), // Guaranteed exact width and height for alignment
+                  fixedSize: const Size(100, 40),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
               ),
@@ -1157,7 +1369,7 @@ class _KontenScreenState extends State<KontenScreen> with SingleTickerProviderSt
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AdminColors.error,
                   side: const BorderSide(color: Color(0xFFFECACA)),
-                  fixedSize: const Size(120, 40), // Guaranteed exact width and height for alignment
+                  fixedSize: const Size(120, 40),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
                  child: Text(
@@ -1235,7 +1447,7 @@ class _KontenScreenState extends State<KontenScreen> with SingleTickerProviderSt
             const SizedBox(width: 8),
             ElevatedButton(
               onPressed: () async {
-                Navigator.pop(context); // Close dialog
+                Navigator.pop(context);
                 try {
                   await FirebaseFirestore.instance
                       .collection('misi_templates')
@@ -1275,7 +1487,7 @@ class _KontenScreenState extends State<KontenScreen> with SingleTickerProviderSt
     );
   }
 
-  Widget _buildOnboardingTab(BuildContext context) {
+  Widget _buildOnboardingTab(BuildContext context, bool isMobile) {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection('app_config')
@@ -1294,31 +1506,33 @@ class _KontenScreenState extends State<KontenScreen> with SingleTickerProviderSt
 
         return ListView(
           physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.all(32),
+          padding: EdgeInsets.all(isMobile ? 14 : 32),
           children: [
             Row(
               children: const [
                 Icon(Icons.info_outline_rounded, color: Color(0xFF2563EB), size: 16),
                 SizedBox(width: 8),
-                Text(
-                  'KONFIGURASI PANDUAN BUDAYA & MATEMATIKA ONBOARDING TAMPILAN KLIEN',
-                  style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF64748B), letterSpacing: 0.5, fontSize: 11),
+                Expanded(
+                  child: Text(
+                    'KONFIGURASI PANDUAN BUDAYA & MATEMATIKA ONBOARDING TAMPILAN KLIEN',
+                    style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF64748B), letterSpacing: 0.5, fontSize: 11),
+                  ),
                 ),
               ],
             ).animate().fadeIn(duration: 300.ms),
-            const SizedBox(height: 24),
-            _buildOnboardingCategorySection(context, 'Keris', Icons.architecture_rounded, const Color(0xFF8B5CF6), onboardingsMap),
-            const SizedBox(height: 32),
-            _buildOnboardingCategorySection(context, 'Batik', Icons.brush_rounded, const Color(0xFFF97316), onboardingsMap),
-            const SizedBox(height: 32),
-            _buildOnboardingCategorySection(context, 'Anyaman', Icons.grid_on_rounded, const Color(0xFF10B981), onboardingsMap),
+            SizedBox(height: isMobile ? 16 : 24),
+            _buildOnboardingCategorySection(context, 'Keris', Icons.architecture_rounded, const Color(0xFF8B5CF6), onboardingsMap, isMobile),
+            SizedBox(height: isMobile ? 16 : 32),
+            _buildOnboardingCategorySection(context, 'Batik', Icons.brush_rounded, const Color(0xFFF97316), onboardingsMap, isMobile),
+            SizedBox(height: isMobile ? 16 : 32),
+            _buildOnboardingCategorySection(context, 'Anyaman', Icons.grid_on_rounded, const Color(0xFF10B981), onboardingsMap, isMobile),
           ],
         );
       }
     );
   }
 
-  Widget _buildOnboardingCategorySection(BuildContext context, String category, IconData icon, Color color, Map<String, Map<String, dynamic>> onboardingsMap) {
+  Widget _buildOnboardingCategorySection(BuildContext context, String category, IconData icon, Color color, Map<String, Map<String, dynamic>> onboardingsMap, bool isMobile) {
     final String catKey = category.toLowerCase();
     final instL1 = onboardingsMap['${catKey}_1'] ?? {};
     final instL2 = onboardingsMap['${catKey}_2'] ?? {};
@@ -1326,10 +1540,10 @@ class _KontenScreenState extends State<KontenScreen> with SingleTickerProviderSt
     final instL4 = onboardingsMap['${catKey}_4'] ?? {};
 
     return Container(
-      padding: const EdgeInsets.all(28),
+      padding: EdgeInsets.all(isMobile ? 16 : 28),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(isMobile ? 18 : 24),
         border: Border.all(color: const Color(0xFFE2E8F0), width: 1.2),
         boxShadow: [
           BoxShadow(
@@ -1355,11 +1569,11 @@ class _KontenScreenState extends State<KontenScreen> with SingleTickerProviderSt
               const SizedBox(width: 16),
               Text(
                 category,
-                style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF0F172A), fontSize: 20),
+                style: TextStyle(fontWeight: FontWeight.w800, color: const Color(0xFF0F172A), fontSize: isMobile ? 17 : 20),
               ),
             ],
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
           LayoutBuilder(
             builder: (context, constraints) {
               final isWide = constraints.maxWidth > 900;
@@ -1378,11 +1592,11 @@ class _KontenScreenState extends State<KontenScreen> with SingleTickerProviderSt
                   : Column(
                       children: [
                         _buildOnboardingCard(context, '$category Level 1', instL1, '${catKey}_1', color),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 14),
                         _buildOnboardingCard(context, '$category Level 2', instL2, '${catKey}_2', color),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 14),
                         _buildOnboardingCard(context, '$category Level 3', instL3, '${catKey}_3', color),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 14),
                         _buildOnboardingCard(context, '$category Level 4', instL4, '${catKey}_4', color),
                       ],
                     );

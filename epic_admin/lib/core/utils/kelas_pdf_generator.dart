@@ -153,18 +153,19 @@ class KelasPdfGenerator {
             pw.Table(
               border: pw.TableBorder.all(color: PdfColor.fromHex('#E2E8F0'), width: 0.5),
               columnWidths: const {
-                0: pw.FixedColumnWidth(25),  // No
-                1: pw.FlexColumnWidth(3),    // Nama Lengkap
-                2: pw.FlexColumnWidth(2),    // Nama Panggilan
-                3: pw.FlexColumnWidth(2),    // Username
-                4: pw.FixedColumnWidth(35),  // Poin
-                5: pw.FixedColumnWidth(30),  // Karya
-                6: pw.FixedColumnWidth(42),  // Lvl Keris
-                7: pw.FixedColumnWidth(42),  // Lvl Batik
-                8: pw.FixedColumnWidth(42),  // Lvl Anyaman
-                9: pw.FixedColumnWidth(42),  // Rata AI
-                10: pw.FixedColumnWidth(35), // Grade
-                11: pw.FixedColumnWidth(55), // Aktif
+                0: pw.FixedColumnWidth(22),  // No
+                1: pw.FixedColumnWidth(28),  // Rank
+                2: pw.FlexColumnWidth(3),    // Nama Lengkap
+                3: pw.FlexColumnWidth(2),    // Nama Panggilan
+                4: pw.FlexColumnWidth(2),    // Username
+                5: pw.FixedColumnWidth(35),  // Poin
+                6: pw.FixedColumnWidth(30),  // Karya
+                7: pw.FixedColumnWidth(40),  // Lvl Keris
+                8: pw.FixedColumnWidth(40),  // Lvl Batik
+                9: pw.FixedColumnWidth(40),  // Lvl Anyaman
+                10: pw.FixedColumnWidth(40), // Rata AI
+                11: pw.FixedColumnWidth(35), // Grade
+                12: pw.FixedColumnWidth(50), // Aktif
               },
               children: [
                 // Header row
@@ -174,6 +175,7 @@ class KelasPdfGenerator {
                   ),
                   children: [
                     'No',
+                    'Rank',
                     'Nama Lengkap',
                     'Nama Panggil',
                     'Username',
@@ -205,6 +207,7 @@ class KelasPdfGenerator {
                 ...List.generate(studentRows.length, (index) {
                   final student = studentRows[index];
                   final uid = student['uid'] ?? '';
+                  final rank = student['rank'] != null ? '#${student['rank']}' : '#${index + 1}';
                   final name = student['name'] ?? '';
                   final nickname = student['namaPanggilan'] ?? '-';
                   final username = student['username'] ?? '-';
@@ -240,6 +243,7 @@ class KelasPdfGenerator {
                     ),
                     children: [
                       (index + 1).toString(),
+                      rank,
                       name,
                       nickname,
                       username,

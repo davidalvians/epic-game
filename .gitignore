@@ -10,3 +10,12 @@ functions/node_modules/
 .idea/
 .vscode/
 *.log
+
+# Build Files
+*.apk
+build/
+**/build/
+.dart_tool/
+**/.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies

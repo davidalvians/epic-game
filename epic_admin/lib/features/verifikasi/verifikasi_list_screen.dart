@@ -1,9 +1,9 @@
-import 'package:epic_admin/core/theme/admin_colors.dart';
-import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:epic_admin/core/theme/admin_colors.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+import 'package:go_router/go_router.dart';
 
 class VerifikasiListScreen extends StatefulWidget {
   const VerifikasiListScreen({super.key});
@@ -37,11 +37,14 @@ class _VerifikasiListScreenState extends State<VerifikasiListScreen> with Single
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isMobile = screenWidth < 768;
+
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance.collection('guru_verifikasi').snapshots(),
       builder: (context, overallSnapshot) {
         final verifDocs = overallSnapshot.data?.docs ?? [];
-        
+
         // Count documents locally based on status
         int pendingCount = 0;
         int approvedCount = 0;
@@ -97,70 +100,120 @@ class _VerifikasiListScreenState extends State<VerifikasiListScreen> with Single
                 ),
               ),
             ),
-            
+
             Positioned.fill(
               child: SizedBox.expand(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // Manual Header Row
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Text('Dashboard', style: Theme.of(context).textTheme.labelSmall?.copyWith(color: const Color(0xFF64748B))),
-                                const Icon(Icons.chevron_right, size: 14, color: Color(0xFF64748B)),
-                                Text('Verifikasi Guru', style: Theme.of(context).textTheme.labelSmall?.copyWith(color: AdminColors.primary, fontWeight: FontWeight.bold)),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Verifikasi Guru',
-                              style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                                    fontWeight: FontWeight.w800,
-                                    color: const Color(0xFF0F172A),
-                                    letterSpacing: -0.5,
-                                  ),
-                            ),
-                          ],
-                        ),
-                        
-                        // Status Badge
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF59E0B).withOpacity(0.08),
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: const Color(0xFFF59E0B).withOpacity(0.2)),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
+                    if (isMobile)
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
                             children: [
-                              const Icon(Icons.pending_actions_rounded, color: Color(0xFFD97706), size: 16),
-                              const SizedBox(width: 8),
+                              Text('Dashboard', style: Theme.of(context).textTheme.labelSmall?.copyWith(color: const Color(0xFF64748B))),
+                              const Icon(Icons.chevron_right, size: 14, color: Color(0xFF64748B)),
+                              Text('Verifikasi Guru', style: Theme.of(context).textTheme.labelSmall?.copyWith(color: AdminColors.primary, fontWeight: FontWeight.bold)),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
                               Text(
-                                '$pendingCount Permohonan Menunggu',
-                                style: const TextStyle(
-                                  color: Color(0xFFB45309),
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 12,
+                                'Verifikasi Guru',
+                                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                                      fontWeight: FontWeight.w800,
+                                      color: const Color(0xFF0F172A),
+                                      letterSpacing: -0.5,
+                                    ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF59E0B).withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(color: const Color(0xFFF59E0B).withOpacity(0.2)),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(Icons.pending_actions_rounded, color: Color(0xFFD97706), size: 14),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      '$pendingCount Menunggu',
+                                      style: const TextStyle(
+                                        color: Color(0xFFB45309),
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 11,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ],
                           ),
-                        ),
-                      ],
-                    ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.04, end: 0, curve: Curves.easeOutQuad),
-                    const SizedBox(height: 28),
-                    
+                        ],
+                      ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.04, end: 0, curve: Curves.easeOutQuad)
+                    else
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Text('Dashboard', style: Theme.of(context).textTheme.labelSmall?.copyWith(color: const Color(0xFF64748B))),
+                                  const Icon(Icons.chevron_right, size: 14, color: Color(0xFF64748B)),
+                                  Text('Verifikasi Guru', style: Theme.of(context).textTheme.labelSmall?.copyWith(color: AdminColors.primary, fontWeight: FontWeight.bold)),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Verifikasi Guru',
+                                style: Theme.of(context).textTheme.headlineLarge?.copyWith(
+                                      fontWeight: FontWeight.w800,
+                                      color: const Color(0xFF0F172A),
+                                      letterSpacing: -0.5,
+                                    ),
+                              ),
+                            ],
+                          ),
+                          // Status Badge
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF59E0B).withOpacity(0.08),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(color: const Color(0xFFF59E0B).withOpacity(0.2)),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.pending_actions_rounded, color: Color(0xFFD97706), size: 16),
+                                const SizedBox(width: 8),
+                                Text(
+                                  '$pendingCount Permohonan Menunggu',
+                                  style: const TextStyle(
+                                    color: Color(0xFFB45309),
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.04, end: 0, curve: Curves.easeOutQuad),
+                    SizedBox(height: isMobile ? 16 : 24),
+
                     // Capsule TabBar Container
                     Container(
-                      width: 500,
+                      width: isMobile ? double.infinity : 500,
                       decoration: BoxDecoration(
                         color: const Color(0xFFF1F5F9),
                         borderRadius: BorderRadius.circular(20),
@@ -184,14 +237,14 @@ class _VerifikasiListScreenState extends State<VerifikasiListScreen> with Single
                         indicatorPadding: const EdgeInsets.all(4),
                         labelColor: AdminColors.primary,
                         unselectedLabelColor: const Color(0xFF64748B),
-                        labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                        labelStyle: TextStyle(fontWeight: FontWeight.bold, fontSize: isMobile ? 11 : 13),
                         tabs: [
                           Tab(
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                const Icon(Icons.hourglass_top_rounded, size: 14),
-                                const SizedBox(width: 6),
+                                const Icon(Icons.hourglass_top_rounded, size: 13),
+                                const SizedBox(width: 4),
                                 Text('Pending ($pendingCount)'),
                               ],
                             ),
@@ -200,8 +253,8 @@ class _VerifikasiListScreenState extends State<VerifikasiListScreen> with Single
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                const Icon(Icons.check_circle_rounded, size: 14),
-                                const SizedBox(width: 6),
+                                const Icon(Icons.check_circle_rounded, size: 13),
+                                const SizedBox(width: 4),
                                 Text('Approved ($approvedCount)'),
                               ],
                             ),
@@ -210,8 +263,8 @@ class _VerifikasiListScreenState extends State<VerifikasiListScreen> with Single
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                const Icon(Icons.cancel_rounded, size: 14),
-                                const SizedBox(width: 6),
+                                const Icon(Icons.cancel_rounded, size: 13),
+                                const SizedBox(width: 4),
                                 Text('Rejected ($rejectedCount)'),
                               ],
                             ),
@@ -219,16 +272,16 @@ class _VerifikasiListScreenState extends State<VerifikasiListScreen> with Single
                         ],
                       ),
                     ).animate().fadeIn(delay: 100.ms, duration: 400.ms).slideY(begin: 0.04, end: 0, curve: Curves.easeOutQuad),
-                    const SizedBox(height: 28),
-                    
+                    SizedBox(height: isMobile ? 16 : 24),
+
                     // TabBarView Content Area
                     Expanded(
                       child: TabBarView(
                         controller: _tabController,
                         children: [
-                          _buildFilteredList(context, 'pending', verifDocs),
-                          _buildFilteredList(context, 'approved', verifDocs),
-                          _buildFilteredList(context, 'rejected', verifDocs),
+                          _buildFilteredList(context, 'pending', verifDocs, isMobile),
+                          _buildFilteredList(context, 'approved', verifDocs, isMobile),
+                          _buildFilteredList(context, 'rejected', verifDocs, isMobile),
                         ],
                       ),
                     ).animate().fadeIn(delay: 200.ms, duration: 400.ms).slideY(begin: 0.04, end: 0, curve: Curves.easeOutQuad),
@@ -242,7 +295,7 @@ class _VerifikasiListScreenState extends State<VerifikasiListScreen> with Single
     );
   }
 
-  Widget _buildFilteredList(BuildContext context, String filterStatus, List<QueryDocumentSnapshot> allDocs) {
+  Widget _buildFilteredList(BuildContext context, String filterStatus, List<QueryDocumentSnapshot> allDocs, bool isMobile) {
     final filtered = allDocs.where((doc) {
       final data = doc.data() as Map<String, dynamic>;
       final status = data['status'] ?? 'pending';
@@ -263,11 +316,11 @@ class _VerifikasiListScreenState extends State<VerifikasiListScreen> with Single
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (filterStatus == 'rejected') 
+        if (filterStatus == 'rejected')
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+            padding: EdgeInsets.symmetric(horizontal: isMobile ? 4 : 24, vertical: 8),
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              padding: EdgeInsets.symmetric(horizontal: isMobile ? 12 : 16, vertical: 10),
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(16),
@@ -296,10 +349,10 @@ class _VerifikasiListScreenState extends State<VerifikasiListScreen> with Single
                       });
                     },
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 6),
                   Text(
-                    'Pilih Semua (${currentTabSelectedIds.length}/${filtered.length})',
-                    style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF475569), fontSize: 13),
+                    'Pilih (${currentTabSelectedIds.length}/${filtered.length})',
+                    style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF475569), fontSize: 12),
                   ),
                   const Spacer(),
                   if (currentTabSelectedIds.isNotEmpty) ...[
@@ -309,33 +362,33 @@ class _VerifikasiListScreenState extends State<VerifikasiListScreen> with Single
                         foregroundColor: const Color(0xFFEF4444),
                         elevation: 0,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                       ),
                       onPressed: () {
                         final selectedDocs = filtered.where((d) => _selectedIds.contains(d.id)).toList();
                         _showDeleteConfirmationDialog(context, selectedDocs);
                       },
-                      icon: const Icon(Icons.delete_outline_rounded, size: 16),
-                      label: const Text('Hapus Terpilih', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                      icon: const Icon(Icons.delete_outline_rounded, size: 15),
+                      label: const Text('Hapus Terpilih', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 8),
                   ],
                   OutlinedButton.icon(
                     style: OutlinedButton.styleFrom(
                       foregroundColor: const Color(0xFFEF4444),
                       side: const BorderSide(color: Color(0xFFFCA5A5)),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                     ),
                     onPressed: () => _showDeleteConfirmationDialog(context, filtered),
-                    icon: const Icon(Icons.delete_forever_rounded, size: 16),
-                    label: const Text('Hapus Semua', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                    icon: const Icon(Icons.delete_forever_rounded, size: 15),
+                    label: const Text('Hapus Semua', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
                   ),
                 ],
               ),
             ),
           ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 8),
         Expanded(
           child: ListView.builder(
             physics: const BouncingScrollPhysics(),
@@ -359,8 +412,9 @@ class _VerifikasiListScreenState extends State<VerifikasiListScreen> with Single
                 name: name,
                 school: school,
                 time: dateStr,
-                delay: Duration(milliseconds: index * 50),
+                delay: Duration(milliseconds: index * 40),
                 status: status,
+                isMobile: isMobile,
                 showCheckbox: filterStatus == 'rejected',
                 isSelected: _selectedIds.contains(doc.id),
                 onSelectedChanged: (val) {
@@ -388,8 +442,7 @@ class _VerifikasiListScreenState extends State<VerifikasiListScreen> with Single
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           title: Text('Konfirmasi Hapus (${docsToDelete.length} Permohonan)', style: const TextStyle(fontWeight: FontWeight.bold)),
           content: Text(
-            'Apakah Anda yakin ingin menghapus ${docsToDelete.length} permohonan verifikasi ini beserta akun guru dan file bukti mengajarnya?\n\nTindakan ini permanen dan tidak dapat dibatalkan.'
-          ),
+              'Apakah Anda yakin ingin menghapus ${docsToDelete.length} permohonan verifikasi ini beserta akun guru dan file bukti mengajarnya?\n\nTindakan ini permanen dan tidak dapat dibatalkan.'),
           actions: [
             TextButton(
               child: const Text('Batal'),
@@ -418,7 +471,6 @@ class _VerifikasiListScreenState extends State<VerifikasiListScreen> with Single
     final rootNavigator = Navigator.of(context, rootNavigator: true);
     final scaffoldMessenger = ScaffoldMessenger.of(context);
 
-    // Show loading spinner on rootNavigator
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -438,7 +490,6 @@ class _VerifikasiListScreenState extends State<VerifikasiListScreen> with Single
         final String uid = data['uid'] ?? '';
         final String requestId = doc.id;
 
-        // 1. If uid is provided, clean up and delete user document completely
         if (uid.isNotEmpty) {
           try {
             final userSnap = await FirebaseFirestore.instance.collection('users').doc(uid).get();
@@ -450,7 +501,6 @@ class _VerifikasiListScreenState extends State<VerifikasiListScreen> with Single
               avatarUrl = userData?['avatarUrl'] as String?;
             }
 
-            // Delete avatar image from Storage
             if (avatarUrl != null && avatarUrl.isNotEmpty && avatarUrl.contains('firebasestorage.googleapis.com')) {
               try {
                 final ref = FirebaseStorage.instance.refFromURL(avatarUrl);
@@ -460,12 +510,10 @@ class _VerifikasiListScreenState extends State<VerifikasiListScreen> with Single
               }
             }
 
-            // Delete username reservation
             if (username != null && username.isNotEmpty) {
               await FirebaseFirestore.instance.collection('usernames').doc(username.toLowerCase()).delete();
             }
 
-            // Remove/delete classes associated with this teacher (if any)
             final classesSnap = await FirebaseFirestore.instance
                 .collection('kelas')
                 .where('guruUid', isEqualTo: uid)
@@ -476,14 +524,12 @@ class _VerifikasiListScreenState extends State<VerifikasiListScreen> with Single
               }
             }
 
-            // Delete user document
             await FirebaseFirestore.instance.collection('users').doc(uid).delete();
           } catch (e) {
             debugPrint('Error deleting teacher user: $e');
           }
         }
 
-        // 2. Delete proof file from Firebase Storage
         if (fileUrl.isNotEmpty && fileUrl.contains('firebasestorage.googleapis.com')) {
           try {
             final ref = FirebaseStorage.instance.refFromURL(fileUrl);
@@ -493,13 +539,12 @@ class _VerifikasiListScreenState extends State<VerifikasiListScreen> with Single
           }
         }
 
-        // 3. Delete verifikasi doc
         await FirebaseFirestore.instance.collection('guru_verifikasi').doc(requestId).delete();
         successCount++;
       }
 
       try {
-        rootNavigator.pop(); // Dismiss loading spinner
+        rootNavigator.pop();
       } catch (_) {}
 
       setState(() {
@@ -514,7 +559,7 @@ class _VerifikasiListScreenState extends State<VerifikasiListScreen> with Single
       );
     } catch (e) {
       try {
-        rootNavigator.pop(); // Dismiss loading spinner
+        rootNavigator.pop();
       } catch (_) {}
       scaffoldMessenger.showSnackBar(
         SnackBar(
@@ -560,6 +605,7 @@ class _HoverableVerificationCard extends StatefulWidget {
   final String time;
   final Duration delay;
   final String status;
+  final bool isMobile;
   final bool showCheckbox;
   final bool isSelected;
   final ValueChanged<bool?>? onSelectedChanged;
@@ -571,6 +617,7 @@ class _HoverableVerificationCard extends StatefulWidget {
     required this.time,
     required this.delay,
     required this.status,
+    required this.isMobile,
     this.showCheckbox = false,
     this.isSelected = false,
     this.onSelectedChanged,
@@ -619,6 +666,193 @@ class _HoverableVerificationCardState extends State<_HoverableVerificationCard> 
       statusTextColor = const Color(0xFFB45309);
     }
 
+    if (widget.isMobile) {
+      // Mobile Card Layout
+      return Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: const Color(0xFFE2E8F0),
+            width: 1.2,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.015),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Top: Checkbox (if rejected), Avatar, Name, Status Badge
+            Row(
+              children: [
+                if (widget.showCheckbox) ...[
+                  Checkbox(
+                    value: widget.isSelected,
+                    activeColor: AdminColors.primary,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                    onChanged: widget.onSelectedChanged,
+                  ),
+                  const SizedBox(width: 4),
+                ],
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [statusColor.withOpacity(0.8), statusColor],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Center(
+                    child: Text(
+                      initials,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.name,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF0F172A),
+                          fontSize: 14,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'ID: ${widget.id}',
+                        style: const TextStyle(
+                          color: Color(0xFF64748B),
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: statusBgColor,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: statusTextColor.withOpacity(0.2)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(statusIcon, size: 11, color: statusTextColor),
+                      const SizedBox(width: 4),
+                      Text(
+                        statusText,
+                        style: TextStyle(
+                          color: statusTextColor,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            const Divider(color: Color(0xFFF1F5F9), height: 1),
+            const SizedBox(height: 8),
+
+            // Middle & Action: School, Date, and Review Button
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.school_rounded, size: 13, color: Color(0xFF64748B)),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              widget.school,
+                              style: const TextStyle(color: Color(0xFF334155), fontSize: 12, fontWeight: FontWeight.w500),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Row(
+                        children: [
+                          const Icon(Icons.calendar_today_rounded, size: 12, color: Color(0xFF94A3B8)),
+                          const SizedBox(width: 4),
+                          Text(
+                            widget.time,
+                            style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 11),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                InkWell(
+                  onTap: () => context.go('/verifikasi/${widget.id}'),
+                  borderRadius: BorderRadius.circular(10),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF2563EB), Color(0xFF4F46E5)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: const [
+                        Icon(Icons.assignment_turned_in_rounded, size: 13, color: Colors.white),
+                        SizedBox(width: 4),
+                        Text(
+                          'Review',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ).animate().fadeIn(delay: widget.delay, duration: 250.ms).slideY(begin: 0.04, end: 0, curve: Curves.easeOutQuad);
+    }
+
+    // Desktop Row Layout
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
@@ -670,7 +904,7 @@ class _HoverableVerificationCardState extends State<_HoverableVerificationCard> 
               ),
             ),
             const SizedBox(width: 20),
-            
+
             // Col 1: Avatar + Name
             Expanded(
               flex: 4,
@@ -734,7 +968,7 @@ class _HoverableVerificationCardState extends State<_HoverableVerificationCard> 
                 ],
               ),
             ),
-            
+
             // Col 2: School
             Expanded(
               flex: 3,
@@ -756,7 +990,7 @@ class _HoverableVerificationCardState extends State<_HoverableVerificationCard> 
                 ],
               ),
             ),
-            
+
             // Col 3: Registered Date
             Expanded(
               flex: 3,
@@ -778,7 +1012,7 @@ class _HoverableVerificationCardState extends State<_HoverableVerificationCard> 
                 ],
               ),
             ),
-            
+
             // Col 4: Status Badge
             Expanded(
               flex: 3,
@@ -810,7 +1044,7 @@ class _HoverableVerificationCardState extends State<_HoverableVerificationCard> 
                 ],
               ),
             ),
-            
+
             // Col 5: Action Button
             AnimatedScale(
               scale: _isHovered ? 1.03 : 1.0,

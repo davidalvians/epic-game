@@ -181,6 +181,15 @@ class _LaporanScreenState extends State<LaporanScreen> {
             'karya': count,
           });
         }
+
+        // 1. Calculate ranks based on total points descending
+        results.sort((a, b) => ((b['poin'] as num?) ?? 0).compareTo((a['poin'] as num?) ?? 0));
+        for (int i = 0; i < results.length; i++) {
+          results[i]['rank'] = i + 1;
+        }
+
+        // 2. Sort students alphabetically A - Z by student name
+        results.sort((a, b) => (a['nama'] as String).toLowerCase().compareTo((b['nama'] as String).toLowerCase()));
       } else if (_selectedReportType == 'Aktivitas Guru') {
         // Guru report
         final guruList = usersSnap.docs.where((d) {
@@ -256,6 +265,9 @@ class _LaporanScreenState extends State<LaporanScreen> {
             'aktif': activeStr,
           });
         }
+
+        // Sort teachers alphabetically A - Z by teacher name
+        results.sort((a, b) => (a['nama'] as String).toLowerCase().compareTo((b['nama'] as String).toLowerCase()));
       } else {
         // App usage report (Statistik Penggunaan App)
         final now = DateTime.now();
@@ -480,14 +492,15 @@ class _LaporanScreenState extends State<LaporanScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDesktop = MediaQuery.of(context).size.width > 1000;
+    final isDesktop = MediaQuery.of(context).size.width >= 1024;
+    final isMobile = MediaQuery.of(context).size.width < 768;
 
     return Scaffold(
       backgroundColor: AdminColors.background,
       body: SafeArea(
         child: SingleChildScrollView(
           physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+          padding: EdgeInsets.symmetric(horizontal: isMobile ? 14 : 32, vertical: isMobile ? 16 : 24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -497,20 +510,23 @@ class _LaporanScreenState extends State<LaporanScreen> {
                 children: [
                   Text(
                     'Laporan & Ekspor Data',
-                    style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                          fontWeight: FontWeight.w800,
-                          color: const Color(0xFF0F172A),
-                          letterSpacing: -0.5,
-                        ),
+                    style: (isMobile
+                            ? Theme.of(context).textTheme.headlineMedium
+                            : Theme.of(context).textTheme.headlineLarge)
+                        ?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: const Color(0xFF0F172A),
+                      letterSpacing: -0.5,
+                    ),
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 4),
                   const Text(
                     'Analisis metrik murid, aktivitas verifikasi guru, serta rekap data penggunaan platform EPIC.',
                     style: TextStyle(fontSize: 13, color: Color(0xFF64748B), fontWeight: FontWeight.normal),
                   ),
                 ],
               ).animate().fadeIn(duration: 350.ms),
-              const SizedBox(height: 28),
+              SizedBox(height: isMobile ? 16 : 28),
 
               // Responsive split screen
               isDesktop
@@ -519,20 +535,20 @@ class _LaporanScreenState extends State<LaporanScreen> {
                       children: [
                         SizedBox(
                           width: 340,
-                          child: _buildFilterCard(context),
+                          child: _buildFilterCard(context, isMobile),
                         ),
                         const SizedBox(width: 28),
                         Expanded(
-                          child: _buildPreviewCard(context),
+                          child: _buildPreviewCard(context, isMobile),
                         ),
                       ],
                     )
                   : Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _buildFilterCard(context),
-                        const SizedBox(height: 24),
-                        _buildPreviewCard(context),
+                        _buildFilterCard(context, isMobile),
+                        const SizedBox(height: 20),
+                        _buildPreviewCard(context, isMobile),
                       ],
                     ),
             ],
@@ -542,12 +558,12 @@ class _LaporanScreenState extends State<LaporanScreen> {
     );
   }
 
-  Widget _buildFilterCard(BuildContext context) {
+  Widget _buildFilterCard(BuildContext context, bool isMobile) {
     return Container(
-      padding: const EdgeInsets.all(28),
+      padding: EdgeInsets.all(isMobile ? 16 : 28),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(isMobile ? 18 : 24),
         border: Border.all(color: const Color(0xFFE2E8F0), width: 1.2),
         boxShadow: [
           BoxShadow(
@@ -570,7 +586,7 @@ class _LaporanScreenState extends State<LaporanScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
 
           // Jenis Laporan
           _buildDropdownLabel('Jenis Laporan'),
@@ -597,7 +613,7 @@ class _LaporanScreenState extends State<LaporanScreen> {
               },
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
 
           // Rentang Waktu
           _buildDropdownLabel('Rentang Waktu'),
@@ -667,7 +683,7 @@ class _LaporanScreenState extends State<LaporanScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
 
           // Filter Kelas
           _buildDropdownLabel('Filter Kelas'),
@@ -690,7 +706,7 @@ class _LaporanScreenState extends State<LaporanScreen> {
               },
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
 
           // Filter Sekolah
           _buildDropdownLabel('Filter Sekolah'),
@@ -713,7 +729,7 @@ class _LaporanScreenState extends State<LaporanScreen> {
               },
             ),
           ),
-          const SizedBox(height: 28),
+          const SizedBox(height: 24),
 
           // Submit Action Button
           SizedBox(
@@ -729,7 +745,7 @@ class _LaporanScreenState extends State<LaporanScreen> {
                 foregroundColor: Colors.white,
                 elevation: 0,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                padding: const EdgeInsets.symmetric(vertical: 16),
+                padding: const EdgeInsets.symmetric(vertical: 14),
               ),
             ),
           ),
@@ -738,12 +754,12 @@ class _LaporanScreenState extends State<LaporanScreen> {
     ).animate().fadeIn(duration: 350.ms);
   }
 
-  Widget _buildPreviewCard(BuildContext context) {
+  Widget _buildPreviewCard(BuildContext context, bool isMobile) {
     return Container(
-      padding: const EdgeInsets.all(28),
+      padding: EdgeInsets.all(isMobile ? 16 : 28),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(isMobile ? 18 : 24),
         border: Border.all(color: const Color(0xFFE2E8F0), width: 1.2),
         boxShadow: [
           BoxShadow(
@@ -757,14 +773,9 @@ class _LaporanScreenState extends State<LaporanScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Row 1: Header Title & Subtitle
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: const [
-              Text(
-                'PREVIEW DATA LAPORAN',
-                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: Color(0xFF0F172A), letterSpacing: 0.5),
-              ),
-            ],
+          const Text(
+            'PREVIEW DATA LAPORAN',
+            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: Color(0xFF0F172A), letterSpacing: 0.5),
           ),
           const SizedBox(height: 4),
           const Text(
@@ -775,70 +786,126 @@ class _LaporanScreenState extends State<LaporanScreen> {
 
           // Row 2: Active filter status badge & export actions toolbar
           Container(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
               color: const Color(0xFFF8FAFC),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(color: const Color(0xFFE2E8F0)),
             ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                // Active filter chips
-                Expanded(
-                  child: Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    crossAxisAlignment: WrapCrossAlignment.center,
+            child: isMobile
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      _buildStatusBadge(Icons.analytics_outlined, _selectedReportType),
-                      _buildStatusBadge(Icons.class_outlined, _selectedClassFilter),
-                      _buildStatusBadge(Icons.calendar_month_outlined, '${_formatDate(_fromDate)} - ${_formatDate(_toDate)}'),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          _buildStatusBadge(Icons.analytics_outlined, _selectedReportType),
+                          _buildStatusBadge(Icons.class_outlined, _selectedClassFilter),
+                          _buildStatusBadge(Icons.calendar_month_outlined, '${_formatDate(_fromDate)} - ${_formatDate(_toDate)}'),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () => _startExportProcess('PDF'),
+                              icon: const Icon(Icons.picture_as_pdf_rounded, size: 14),
+                              label: const Text('Export PDF', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: const Color(0xFFEF4444),
+                                side: const BorderSide(color: Color(0xFFFCA5A5)),
+                                padding: const EdgeInsets.symmetric(vertical: 10),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: () => _startExportProcess('Excel'),
+                              icon: const Icon(Icons.table_chart_rounded, size: 14),
+                              label: const Text('Excel (.xlsx)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF10B981),
+                                foregroundColor: Colors.white,
+                                elevation: 0,
+                                padding: const EdgeInsets.symmetric(vertical: 10),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  )
+                : Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      // Active filter chips
+                      Expanded(
+                        child: Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            _buildStatusBadge(Icons.analytics_outlined, _selectedReportType),
+                            _buildStatusBadge(Icons.class_outlined, _selectedClassFilter),
+                            _buildStatusBadge(Icons.calendar_month_outlined, '${_formatDate(_fromDate)} - ${_formatDate(_toDate)}'),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      // Export Buttons
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          OutlinedButton.icon(
+                            onPressed: () => _startExportProcess('PDF'),
+                            icon: const Icon(Icons.picture_as_pdf_rounded, size: 14),
+                            label: const Text('Export PDF', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: const Color(0xFFEF4444),
+                              side: const BorderSide(color: Color(0xFFFCA5A5)),
+                              fixedSize: const Size(125, 38),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          ElevatedButton.icon(
+                            onPressed: () => _startExportProcess('Excel'),
+                            icon: const Icon(Icons.table_chart_rounded, size: 14),
+                            label: const Text('Excel (.xlsx)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF10B981),
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              fixedSize: const Size(135, 38),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            ),
+                          ),
+                        ],
+                      ),
                     ],
                   ),
-                ),
-                const SizedBox(width: 16),
-                // Export Buttons
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    OutlinedButton.icon(
-                      onPressed: () => _startExportProcess('PDF'),
-                      icon: const Icon(Icons.picture_as_pdf_rounded, size: 14),
-                      label: const Text('Export PDF', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: const Color(0xFFEF4444),
-                        side: const BorderSide(color: Color(0xFFFCA5A5)),
-                        fixedSize: const Size(125, 38),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    ElevatedButton.icon(
-                      onPressed: () => _startExportProcess('Excel'),
-                      icon: const Icon(Icons.table_chart_rounded, size: 14),
-                      label: const Text('Excel (.xlsx)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF10B981),
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        fixedSize: const Size(135, 38),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
 
-          // Custom responsive data grid (takes full horizontal width)
+          // Custom responsive data grid (wrapped in horizontal scroll on mobile)
           _isLoading
               ? _buildShimmerTable()
-              : _buildCustomTable().animate().fadeIn(duration: 250.ms),
+              : SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  physics: const BouncingScrollPhysics(),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(minWidth: isMobile ? 550 : 0),
+                    child: _buildCustomTable().animate().fadeIn(duration: 250.ms),
+                  ),
+                ),
 
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
           Center(
             child: Text(
               'Menampilkan ${_previewData.length} baris rekaman...',
@@ -906,8 +973,8 @@ class _LaporanScreenState extends State<LaporanScreen> {
     List<int> flexes;
 
     if (_selectedReportType == 'Nilai Semua User') {
-      headers = ['Nama', 'Username', 'Total Poin', 'Rata-rata', 'Karya'];
-      flexes = [3, 2, 2, 2, 2];
+      headers = ['Rank', 'Nama', 'Username', 'Total Poin', 'Rata-rata', 'Karya'];
+      flexes = [1, 3, 2, 2, 2, 2];
     } else if (_selectedReportType == 'Aktivitas Guru') {
       headers = ['Nama Guru', 'NIP', 'Kelas Diampu', 'Karya Diverifikasi', 'Terakhir Aktif'];
       flexes = [3, 2, 2, 2, 2];
@@ -1002,6 +1069,21 @@ class _LaporanScreenState extends State<LaporanScreen> {
     final row = _previewData[index];
     if (_selectedReportType == 'Nilai Semua User') {
       return [
+        Align(
+          alignment: Alignment.centerLeft,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFFBEB),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: const Color(0xFFFDE68A)),
+            ),
+            child: Text(
+              '#${row['rank'] ?? (index + 1)}',
+              style: const TextStyle(color: Color(0xFFB45309), fontWeight: FontWeight.w800, fontSize: 11),
+            ),
+          ),
+        ),
         Text(row['nama']?.toString() ?? '-', style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0F172A), fontSize: 13)),
         Text(row['username']?.toString() ?? '-', style: const TextStyle(color: Color(0xFF64748B), fontSize: 13)),
         Text('${row['poin'] ?? 0} Poin', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
@@ -1193,12 +1275,13 @@ class _ExportProgressDialogState extends State<_ExportProgressDialog> {
       List<String> headers;
 
       if (widget.reportType == 'Nilai Semua User') {
-        headers = ['No', 'Nama', 'Username', 'Total Poin', 'Rata-rata', 'Karya'];
+        headers = ['No', 'Peringkat', 'Nama', 'Username', 'Total Poin', 'Rata-rata', 'Karya'];
         buffer.writeln(headers.map((h) => '"$h"').join(','));
         for (int i = 0; i < widget.previewData.length; i++) {
           final row = widget.previewData[i];
           buffer.writeln([
             '"${i + 1}"',
+            '"#${row['rank'] ?? (i + 1)}"',
             '"${row['nama'].toString().replaceAll('"', '""')}"',
             '"${row['username'].toString().replaceAll('"', '""')}"',
             '"${row['poin']}"',
@@ -1243,12 +1326,13 @@ class _ExportProgressDialogState extends State<_ExportProgressDialog> {
       List<List<String>> rows = [];
 
       if (widget.reportType == 'Nilai Semua User') {
-        headers = ['No', 'Nama', 'Username', 'Total Poin', 'Rata-rata', 'Karya'];
-        widths = [1.0, 3.0, 2.5, 2.0, 2.0, 1.5];
+        headers = ['No', 'Rank', 'Nama', 'Username', 'Total Poin', 'Rata-rata', 'Karya'];
+        widths = [0.8, 1.0, 3.0, 2.5, 2.0, 2.0, 1.5];
         for (int i = 0; i < widget.previewData.length; i++) {
           final row = widget.previewData[i];
           rows.add([
             (i + 1).toString(),
+            '#${row['rank'] ?? (i + 1)}',
             row['nama'].toString(),
             row['username'].toString(),
             '${row['poin']} Poin',

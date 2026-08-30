@@ -57,7 +57,7 @@ class _DrawingCanvas extends StatelessWidget {
               fit: StackFit.expand,
               children: [
                 // ── Template overlay (di belakang drawing/kertas bawah) ──
-                if (controller.activeTemplate.value != null)
+                if (controller.activeTemplate.value != null && !controller.isCapturing.value)
                   Positioned.fill(
                     child: Opacity(
                       opacity: controller.templateOpacity.value,
@@ -89,6 +89,7 @@ class _DrawingCanvas extends StatelessWidget {
                                        ? controller.currentStroke.value : null,
                         activeLayerIndex: 0,
                         zoomScale: controller.canvasMatrix.value.getMaxScaleOnAxis(),
+                        renderStempels: false,
                       ),
                       child: Container(),
                     ),
@@ -105,7 +106,7 @@ class _DrawingCanvas extends StatelessWidget {
                 // End of Layers & Stempels
 
                 // ── Garis Panduan Sumbu Simetri (Hanya untuk Batik Level 2) ──
-                if (controller.kategori.toLowerCase() == 'batik' && controller.level == 2)
+                if (controller.kategori.toLowerCase() == 'batik' && controller.level == 2 && !controller.isCapturing.value)
                   Positioned.fill(
                     child: IgnorePointer(
                       child: CustomPaint(
@@ -116,7 +117,8 @@ class _DrawingCanvas extends StatelessWidget {
 
                 // ── Preview Pipet Warna Melayang ──
                 if (controller.activeTool.value == DrawingTool.eyedropper &&
-                    controller.eyedropperPosition.value != null)
+                    controller.eyedropperPosition.value != null &&
+                    !controller.isCapturing.value)
                   Positioned(
                     left: controller.eyedropperPosition.value!.dx - 30,
                     top: controller.eyedropperPosition.value!.dy - 90, // Tampil di atas jari agar tidak tertutup

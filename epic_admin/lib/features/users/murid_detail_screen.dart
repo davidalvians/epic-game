@@ -84,6 +84,8 @@ class MuridDetailScreen extends StatelessWidget {
         }
 
         final int points = userData['poin'] is int ? userData['poin'] : 0;
+        final screenWidth = MediaQuery.of(context).size.width;
+        final isMobile = screenWidth < 768;
 
         return Scaffold(
           backgroundColor: const Color(0xFFF8FAFC),
@@ -146,7 +148,7 @@ class MuridDetailScreen extends StatelessWidget {
               // Main Scrollable Content
               SingleChildScrollView(
                 physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.all(32),
+                padding: EdgeInsets.symmetric(horizontal: isMobile ? 14 : 32, vertical: isMobile ? 16 : 32),
                 child: StreamBuilder<QuerySnapshot>(
                   stream: FirebaseFirestore.instance.collection('kelas').where('muridIds', arrayContains: id).snapshots(),
                   builder: (context, classSnapshot) {
@@ -189,7 +191,7 @@ class MuridDetailScreen extends StatelessWidget {
                               clipBehavior: Clip.antiAlias,
                               decoration: BoxDecoration(
                                 color: Colors.white,
-                                borderRadius: BorderRadius.circular(24),
+                                borderRadius: BorderRadius.circular(isMobile ? 18 : 24),
                                 border: Border.all(color: const Color(0xFFE2E8F0), width: 1.2),
                                 boxShadow: [
                                   BoxShadow(
@@ -210,211 +212,367 @@ class MuridDetailScreen extends StatelessWidget {
                                   ),
                                   
                                   Padding(
-                                    padding: const EdgeInsets.all(28),
-                                    child: Row(
-                                      children: [
-                                        Stack(
-                                          clipBehavior: Clip.none,
-                                          children: [
-                                            Container(
-                                              width: 84,
-                                              height: 84,
-                                              decoration: BoxDecoration(
-                                                gradient: const LinearGradient(
-                                                  colors: [Color(0xFF2563EB), Color(0xFF4F46E5)],
-                                                  begin: Alignment.topLeft,
-                                                  end: Alignment.bottomRight,
-                                                ),
-                                                borderRadius: BorderRadius.circular(22),
-                                                boxShadow: [
-                                                  BoxShadow(
-                                                    color: const Color(0xFF2563EB).withOpacity(0.2),
-                                                    blurRadius: 12,
-                                                    offset: const Offset(0, 4),
-                                                  ),
-                                                ],
-                                              ),
-                                              child: avatarUrl != null && avatarUrl.isNotEmpty
-                                                  ? ClipRRect(
-                                                      borderRadius: BorderRadius.circular(22),
-                                                      child: Image.network(
-                                                        _getProxiedImageUrl(avatarUrl),
-                                                        fit: BoxFit.cover,
-                                                        errorBuilder: (context, error, stackTrace) => const Center(
-                                                          child: Icon(
-                                                            Icons.person_rounded,
-                                                            size: 44,
-                                                            color: Colors.white,
-                                                          ),
-                                                        ),
-                                                        loadingBuilder: (context, child, loadingProgress) {
-                                                          if (loadingProgress == null) return child;
-                                                          return const Center(
-                                                            child: CircularProgressIndicator(
-                                                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white70),
-                                                            ),
-                                                          );
-                                                        },
-                                                      ),
-                                                    )
-                                                  : const Center(
-                                                      child: Icon(
-                                                        Icons.person_rounded,
-                                                        size: 44,
-                                                        color: Colors.white,
-                                                      ),
-                                                    ),
-                                            ),
-                                            Positioned(
-                                              bottom: -2,
-                                              right: -2,
-                                              child: Container(
-                                                width: 18,
-                                                height: 18,
-                                                decoration: BoxDecoration(
-                                                  color: Colors.white,
-                                                  shape: BoxShape.circle,
-                                                  boxShadow: [
-                                                    BoxShadow(
-                                                      color: Colors.black.withOpacity(0.1),
-                                                      blurRadius: 4,
-                                                    ),
-                                                  ],
-                                                ),
-                                                padding: const EdgeInsets.all(2.5),
-                                                child: Container(
-                                                  decoration: BoxDecoration(
-                                                    color: isSuspended ? const Color(0xFFEF4444) : const Color(0xFF10B981),
-                                                    shape: BoxShape.circle,
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                        const SizedBox(width: 24),
-                                        Expanded(
-                                          child: Column(
+                                    padding: EdgeInsets.all(isMobile ? 16 : 28),
+                                    child: isMobile
+                                        ? Column(
                                             crossAxisAlignment: CrossAxisAlignment.start,
                                             children: [
-                                              Text(
-                                                studentName,
-                                                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                                                      fontWeight: FontWeight.w800,
-                                                      color: const Color(0xFF0F172A),
-                                                      fontSize: 24,
-                                                      letterSpacing: -0.5,
-                                                    ),
-                                              ),
-                                              const SizedBox(height: 4),
-                                              Text(
-                                                email,
-                                                style: const TextStyle(
-                                                  color: Color(0xFF64748B),
-                                                  fontSize: 13,
-                                                  fontWeight: FontWeight.w500,
-                                                ),
-                                              ),
-                                              const SizedBox(height: 8),
                                               Row(
                                                 children: [
-                                                  const Icon(Icons.school_rounded, size: 16, color: Color(0xFF64748B)),
-                                                  const SizedBox(width: 8),
-                                                  Text(
-                                                    schoolInfo,
-                                                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                                          color: const Color(0xFF334155),
-                                                          fontWeight: FontWeight.w600,
+                                                  Container(
+                                                    width: 64,
+                                                    height: 64,
+                                                    decoration: BoxDecoration(
+                                                      gradient: const LinearGradient(
+                                                        colors: [Color(0xFF2563EB), Color(0xFF4F46E5)],
+                                                        begin: Alignment.topLeft,
+                                                        end: Alignment.bottomRight,
+                                                      ),
+                                                      borderRadius: BorderRadius.circular(18),
+                                                    ),
+                                                    child: avatarUrl != null && avatarUrl.isNotEmpty
+                                                        ? ClipRRect(
+                                                            borderRadius: BorderRadius.circular(18),
+                                                            child: Image.network(
+                                                              _getProxiedImageUrl(avatarUrl),
+                                                              fit: BoxFit.cover,
+                                                              errorBuilder: (context, error, stackTrace) => const Center(
+                                                                child: Icon(Icons.person_rounded, size: 32, color: Colors.white),
+                                                              ),
+                                                            ),
+                                                          )
+                                                        : const Center(child: Icon(Icons.person_rounded, size: 32, color: Colors.white)),
+                                                  ),
+                                                  const SizedBox(width: 14),
+                                                  Expanded(
+                                                    child: Column(
+                                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                                      children: [
+                                                        Text(
+                                                          studentName,
+                                                          style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF0F172A), fontSize: 18),
+                                                          maxLines: 1,
+                                                          overflow: TextOverflow.ellipsis,
                                                         ),
+                                                        const SizedBox(height: 2),
+                                                        Text(
+                                                          email,
+                                                          style: const TextStyle(color: Color(0xFF64748B), fontSize: 12),
+                                                          maxLines: 1,
+                                                          overflow: TextOverflow.ellipsis,
+                                                        ),
+                                                        const SizedBox(height: 4),
+                                                        Row(
+                                                          children: [
+                                                            const Icon(Icons.school_rounded, size: 14, color: Color(0xFF64748B)),
+                                                            const SizedBox(width: 4),
+                                                            Expanded(
+                                                              child: Text(
+                                                                schoolInfo,
+                                                                style: const TextStyle(color: Color(0xFF334155), fontWeight: FontWeight.w600, fontSize: 12),
+                                                                maxLines: 1,
+                                                                overflow: TextOverflow.ellipsis,
+                                                              ),
+                                                            ),
+                                                          ],
+                                                        ),
+                                                      ],
+                                                    ),
                                                   ),
                                                 ],
                                               ),
-                                              const SizedBox(height: 14),
+                                              const SizedBox(height: 12),
                                               Wrap(
-                                                spacing: 12,
-                                                runSpacing: 8,
+                                                spacing: 8,
+                                                runSpacing: 6,
                                                 children: [
                                                   _buildInfoChip(context, Icons.calendar_today_rounded, joinDate),
                                                   _buildInfoChip(context, Icons.access_time_rounded, activeTime),
                                                 ],
                                               ),
+                                              const SizedBox(height: 14),
+                                              SizedBox(
+                                                width: double.infinity,
+                                                child: OutlinedButton.icon(
+                                                  onPressed: () => _toggleSuspend(context, id, isSuspended, studentName),
+                                                  icon: Icon(isSuspended ? Icons.play_arrow_rounded : Icons.block_flipped, size: 15),
+                                                  label: Text(isSuspended ? 'Aktifkan Akun' : 'Suspend Akun', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                                                  style: OutlinedButton.styleFrom(
+                                                    foregroundColor: isSuspended ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+                                                    side: BorderSide(color: isSuspended ? const Color(0xFFD1FAE5) : const Color(0xFFFEE2E2), width: 1.5),
+                                                    padding: const EdgeInsets.symmetric(vertical: 12),
+                                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                                    backgroundColor: isSuspended ? const Color(0xFFECFDF5) : const Color(0xFFFEF2F2),
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          )
+                                        : Row(
+                                            children: [
+                                              Stack(
+                                                clipBehavior: Clip.none,
+                                                children: [
+                                                  Container(
+                                                    width: 84,
+                                                    height: 84,
+                                                    decoration: BoxDecoration(
+                                                      gradient: const LinearGradient(
+                                                        colors: [Color(0xFF2563EB), Color(0xFF4F46E5)],
+                                                        begin: Alignment.topLeft,
+                                                        end: Alignment.bottomRight,
+                                                      ),
+                                                      borderRadius: BorderRadius.circular(22),
+                                                      boxShadow: [
+                                                        BoxShadow(
+                                                          color: const Color(0xFF2563EB).withOpacity(0.2),
+                                                          blurRadius: 12,
+                                                          offset: const Offset(0, 4),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                    child: avatarUrl != null && avatarUrl.isNotEmpty
+                                                        ? ClipRRect(
+                                                            borderRadius: BorderRadius.circular(22),
+                                                            child: Image.network(
+                                                              _getProxiedImageUrl(avatarUrl),
+                                                              fit: BoxFit.cover,
+                                                              errorBuilder: (context, error, stackTrace) => const Center(
+                                                                child: Icon(
+                                                                  Icons.person_rounded,
+                                                                  size: 44,
+                                                                  color: Colors.white,
+                                                                ),
+                                                              ),
+                                                              loadingBuilder: (context, child, loadingProgress) {
+                                                                if (loadingProgress == null) return child;
+                                                                return const Center(
+                                                                  child: CircularProgressIndicator(
+                                                                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white70),
+                                                                  ),
+                                                                );
+                                                              },
+                                                            ),
+                                                          )
+                                                        : const Center(
+                                                            child: Icon(
+                                                              Icons.person_rounded,
+                                                              size: 44,
+                                                              color: Colors.white,
+                                                            ),
+                                                          ),
+                                                  ),
+                                                  Positioned(
+                                                    bottom: -2,
+                                                    right: -2,
+                                                    child: Container(
+                                                      width: 18,
+                                                      height: 18,
+                                                      decoration: BoxDecoration(
+                                                        color: Colors.white,
+                                                        shape: BoxShape.circle,
+                                                        boxShadow: [
+                                                          BoxShadow(
+                                                            color: Colors.black.withOpacity(0.1),
+                                                            blurRadius: 4,
+                                                          ),
+                                                        ],
+                                                      ),
+                                                      padding: const EdgeInsets.all(2.5),
+                                                      child: Container(
+                                                        decoration: BoxDecoration(
+                                                          color: isSuspended ? const Color(0xFFEF4444) : const Color(0xFF10B981),
+                                                          shape: BoxShape.circle,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                              const SizedBox(width: 24),
+                                              Expanded(
+                                                child: Column(
+                                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                                  children: [
+                                                    Text(
+                                                      studentName,
+                                                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                                                            fontWeight: FontWeight.w800,
+                                                            color: const Color(0xFF0F172A),
+                                                            fontSize: 24,
+                                                            letterSpacing: -0.5,
+                                                          ),
+                                                    ),
+                                                    const SizedBox(height: 4),
+                                                    Text(
+                                                      email,
+                                                      style: const TextStyle(
+                                                        color: Color(0xFF64748B),
+                                                        fontSize: 13,
+                                                        fontWeight: FontWeight.w500,
+                                                      ),
+                                                    ),
+                                                    const SizedBox(height: 8),
+                                                    Row(
+                                                      children: [
+                                                        const Icon(Icons.school_rounded, size: 16, color: Color(0xFF64748B)),
+                                                        const SizedBox(width: 8),
+                                                        Text(
+                                                          schoolInfo,
+                                                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                                                color: const Color(0xFF334155),
+                                                                fontWeight: FontWeight.w600,
+                                                              ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                    const SizedBox(height: 14),
+                                                    Wrap(
+                                                      spacing: 12,
+                                                      runSpacing: 8,
+                                                      children: [
+                                                        _buildInfoChip(context, Icons.calendar_today_rounded, joinDate),
+                                                        _buildInfoChip(context, Icons.access_time_rounded, activeTime),
+                                                      ],
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                              
+                                              OutlinedButton.icon(
+                                                onPressed: () => _toggleSuspend(context, id, isSuspended, studentName),
+                                                icon: Icon(isSuspended ? Icons.play_arrow_rounded : Icons.block_flipped, size: 16),
+                                                label: Text(isSuspended ? 'Aktifkan Akun' : 'Suspend Akun', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                                                style: OutlinedButton.styleFrom(
+                                                  foregroundColor: isSuspended ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+                                                  side: BorderSide(color: isSuspended ? const Color(0xFFD1FAE5) : const Color(0xFFFEE2E2), width: 1.5),
+                                                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                                                  backgroundColor: isSuspended ? const Color(0xFFECFDF5) : const Color(0xFFFEF2F2),
+                                                ),
+                                              ),
                                             ],
                                           ),
-                                        ),
-                                        
-                                        OutlinedButton.icon(
-                                          onPressed: () => _toggleSuspend(context, id, isSuspended, studentName),
-                                          icon: Icon(isSuspended ? Icons.play_arrow_rounded : Icons.block_flipped, size: 16),
-                                          label: Text(isSuspended ? 'Aktifkan Akun' : 'Suspend Akun', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                                          style: OutlinedButton.styleFrom(
-                                            foregroundColor: isSuspended ? const Color(0xFF10B981) : const Color(0xFFEF4444),
-                                            side: BorderSide(color: isSuspended ? const Color(0xFFD1FAE5) : const Color(0xFFFEE2E2), width: 1.5),
-                                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                                            backgroundColor: isSuspended ? const Color(0xFFECFDF5) : const Color(0xFFFEF2F2),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
                                   ),
                                 ],
                               ),
                             ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.04, end: 0, curve: Curves.easeOutQuad),
-                            const SizedBox(height: 28),
+                            SizedBox(height: isMobile ? 16 : 28),
 
-                            // Stats Cards Row
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: _buildStatCard(
-                                    context,
-                                    'Total Poin',
-                                    points.toString(),
-                                    Icons.stars_rounded,
-                                    AdminColors.primary,
-                                    trendText: 'Aktif',
-                                    trendPositive: true,
+                            // Stats Cards Grid/Row
+                            if (isMobile)
+                              Column(
+                                children: [
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: _buildStatCard(
+                                          context,
+                                          'Total Poin',
+                                          points.toString(),
+                                          Icons.stars_rounded,
+                                          AdminColors.primary,
+                                          trendText: 'Aktif',
+                                          trendPositive: true,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: _buildStatCard(
+                                          context,
+                                          'Rata-rata Nilai',
+                                          averageScore,
+                                          Icons.analytics_rounded,
+                                          const Color(0xFF10B981),
+                                          trendText: '$artworkCount karya',
+                                          trendPositive: true,
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                ),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  child: _buildStatCard(
-                                    context,
-                                    'Rata-rata Nilai',
-                                    averageScore,
-                                    Icons.analytics_rounded,
-                                    const Color(0xFF10B981),
-                                    trendText: '$artworkCount karya',
-                                    trendPositive: true,
+                                  const SizedBox(height: 12),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: _buildStatCard(
+                                          context,
+                                          'Grade Terbanyak',
+                                          mainGrade,
+                                          Icons.military_tech_rounded,
+                                          const Color(0xFF38BDF8),
+                                          trendText: 'Dominan',
+                                          trendPositive: true,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: _buildStatCard(
+                                          context,
+                                          'Kelas Diikuti',
+                                          classCount,
+                                          Icons.school_rounded,
+                                          const Color(0xFFF59E0B),
+                                          trendText: 'Terdaftar',
+                                          trendPositive: true,
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                ),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  child: _buildStatCard(
-                                    context,
-                                    'Grade Terbanyak',
-                                    mainGrade,
-                                    Icons.military_tech_rounded,
-                                    const Color(0xFF38BDF8),
-                                    trendText: 'Dominan',
-                                    trendPositive: true,
+                                ],
+                              ).animate().fadeIn(delay: 100.ms, duration: 400.ms).slideY(begin: 0.04, end: 0, curve: Curves.easeOutQuad)
+                            else
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: _buildStatCard(
+                                      context,
+                                      'Total Poin',
+                                      points.toString(),
+                                      Icons.stars_rounded,
+                                      AdminColors.primary,
+                                      trendText: 'Aktif',
+                                      trendPositive: true,
+                                    ),
                                   ),
-                                ),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  child: _buildStatCard(
-                                    context,
-                                    'Kelas Diikuti',
-                                    classCount,
-                                    Icons.school_rounded,
-                                    const Color(0xFFF59E0B),
-                                    trendText: 'Terdaftar',
-                                    trendPositive: true,
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    child: _buildStatCard(
+                                      context,
+                                      'Rata-rata Nilai',
+                                      averageScore,
+                                      Icons.analytics_rounded,
+                                      const Color(0xFF10B981),
+                                      trendText: '$artworkCount karya',
+                                      trendPositive: true,
+                                    ),
                                   ),
-                                ),
-                              ],
-                            ).animate().fadeIn(delay: 100.ms, duration: 400.ms).slideY(begin: 0.04, end: 0, curve: Curves.easeOutQuad),
-                            const SizedBox(height: 40),
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    child: _buildStatCard(
+                                      context,
+                                      'Grade Terbanyak',
+                                      mainGrade,
+                                      Icons.military_tech_rounded,
+                                      const Color(0xFF38BDF8),
+                                      trendText: 'Dominan',
+                                      trendPositive: true,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    child: _buildStatCard(
+                                      context,
+                                      'Kelas Diikuti',
+                                      classCount,
+                                      Icons.school_rounded,
+                                      const Color(0xFFF59E0B),
+                                      trendText: 'Terdaftar',
+                                      trendPositive: true,
+                                    ),
+                                  ),
+                                ],
+                              ).animate().fadeIn(delay: 100.ms, duration: 400.ms).slideY(begin: 0.04, end: 0, curve: Curves.easeOutQuad),
+                            SizedBox(height: isMobile ? 24 : 40),
 
                             // Gallery Section Title
                             Row(
@@ -430,7 +588,7 @@ class MuridDetailScreen extends StatelessWidget {
                                 ),
                               ],
                             ).animate().fadeIn(delay: 200.ms, duration: 400.ms).slideY(begin: 0.04, end: 0, curve: Curves.easeOutQuad),
-                            const SizedBox(height: 20),
+                            const SizedBox(height: 16),
                             
                             artworkDocs.isEmpty
                                 ? Container(

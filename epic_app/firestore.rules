@@ -40,6 +40,12 @@ service cloud.firestore {
       return val is int && val >= 0;
     }
 
+    // ─── APP CONFIG Collection (konfigurasi sistem, bisa dibaca publik) ───
+    match /app_config/{docId} {
+      allow read: if true; // Konfigurasi sistem boleh dibaca siapapun
+      allow write: if isAdmin();
+    }
+
     // ─── USERS Collection ─────────────────────────────────────────────────
     match /users/{uid} {
       // Siapapun yang login bisa baca profil user (untuk ranking, dll)
