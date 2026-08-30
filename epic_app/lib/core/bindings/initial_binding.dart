@@ -5,6 +5,7 @@ import 'package:epic_app/core/services/audio_service.dart';
 import 'package:epic_app/core/services/draft_service.dart';
 import 'package:epic_app/core/services/ai_scoring_service.dart';
 import 'package:epic_app/core/services/app_config_service.dart';
+import 'package:epic_app/core/services/version_check_service.dart';
 
 /// Binding awal yang meng-inject semua controller dan service.
 class InitialBinding extends Bindings {
@@ -13,6 +14,7 @@ class InitialBinding extends Bindings {
     // Konfigurasi sistem dari admin panel — HARUS didaftarkan pertama
     // agar nilai maxNyawa, timer, dll sudah tersedia sebelum dipakai
     Get.put<AppConfigService>(AppConfigService(), permanent: true);
+    Get.put<VersionCheckService>(VersionCheckService(), permanent: true);
 
     // Global repositories
     Get.put<AuthRepository>(AuthRepository(), permanent: true);

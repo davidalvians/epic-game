@@ -14,6 +14,7 @@ import 'package:epic_app/features/kelas/guru_inactive_classes_screen.dart' as ep
 import 'package:epic_app/data/repositories/kelas_repository.dart';
 import 'package:epic_app/data/models/kelas_model.dart';
 import 'package:epic_app/features/profile/settings/keamanan_akun_screen.dart' as epic_security;
+import 'package:epic_app/core/services/version_check_service.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -520,13 +521,30 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                           const SizedBox(height: 8),
                           Container(
                             decoration: _buildMenuContainerDecoration(),
-                            child: _buildMenuItem(
-                              icon: Icons.info_outline_rounded,
-                              title: 'Tentang EPIC',
-                              subtitle: 'Informasi aplikasi dan misi pelestarian',
-                              iconColor: const Color(0xFF475569),
-                              iconBgColor: const Color(0xFFF8FAFC),
-                              onTap: () => _showAboutEpicDialog(context),
+                            child: Column(
+                              children: [
+                                _buildMenuItem(
+                                  icon: Icons.system_update_rounded,
+                                  title: 'Periksa Pembaruan',
+                                  subtitle: 'Cek rilis versi terbaru aplikasi',
+                                  iconColor: const Color(0xFF2563EB),
+                                  iconBgColor: const Color(0xFFEFF6FF),
+                                  onTap: () {
+                                    if (Get.isRegistered<VersionCheckService>()) {
+                                      Get.find<VersionCheckService>().checkUpdate(isManualCheck: true);
+                                    }
+                                  },
+                                ),
+                                const Divider(height: 1, color: Color(0xFFF1F5F9), indent: 76, endIndent: 20),
+                                _buildMenuItem(
+                                  icon: Icons.info_outline_rounded,
+                                  title: 'Tentang EPIC',
+                                  subtitle: 'Informasi aplikasi dan misi pelestarian',
+                                  iconColor: const Color(0xFF475569),
+                                  iconBgColor: const Color(0xFFF8FAFC),
+                                  onTap: () => _showAboutEpicDialog(context),
+                                ),
+                              ],
                             ),
                           ),
                         ] else ...[
@@ -587,13 +605,30 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                           const SizedBox(height: 8),
                           Container(
                             decoration: _buildMenuContainerDecoration(),
-                            child: _buildMenuItem(
-                              icon: Icons.info_outline_rounded,
-                              title: 'Tentang EPIC',
-                              subtitle: 'Informasi aplikasi dan misi pelestarian',
-                              iconColor: const Color(0xFF475569),
-                              iconBgColor: const Color(0xFFF8FAFC),
-                              onTap: () => _showAboutEpicDialog(context),
+                            child: Column(
+                              children: [
+                                _buildMenuItem(
+                                  icon: Icons.system_update_rounded,
+                                  title: 'Periksa Pembaruan',
+                                  subtitle: 'Cek rilis versi terbaru aplikasi',
+                                  iconColor: const Color(0xFF2563EB),
+                                  iconBgColor: const Color(0xFFEFF6FF),
+                                  onTap: () {
+                                    if (Get.isRegistered<VersionCheckService>()) {
+                                      Get.find<VersionCheckService>().checkUpdate(isManualCheck: true);
+                                    }
+                                  },
+                                ),
+                                const Divider(height: 1, color: Color(0xFFF1F5F9), indent: 76, endIndent: 20),
+                                _buildMenuItem(
+                                  icon: Icons.info_outline_rounded,
+                                  title: 'Tentang EPIC',
+                                  subtitle: 'Informasi aplikasi dan misi pelestarian',
+                                  iconColor: const Color(0xFF475569),
+                                  iconBgColor: const Color(0xFFF8FAFC),
+                                  onTap: () => _showAboutEpicDialog(context),
+                                ),
+                              ],
                             ),
                           ),
                         ],
@@ -882,17 +917,22 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(color: const Color(0xFFE2E8F0)),
                 ),
-                child: const Row(
+                child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
+                    const Text(
                       'Versi Aplikasi: ',
                       style: TextStyle(fontFamily: 'Nunito', fontSize: 12, color: Colors.grey),
                     ),
-                    Text(
-                      'v1.0.0',
-                      style: TextStyle(fontFamily: 'FredokaOne', fontSize: 12, color: AppColors.primary),
-                    ),
+                    Obx(() {
+                      final ver = Get.isRegistered<VersionCheckService>()
+                          ? Get.find<VersionCheckService>().currentAppVersion.value
+                          : '1.0.0';
+                      return Text(
+                        'v${ver.isNotEmpty ? ver : '1.0.0'}',
+                        style: const TextStyle(fontFamily: 'FredokaOne', fontSize: 12, color: AppColors.primary),
+                      );
+                    }),
                   ],
                 ),
               ),

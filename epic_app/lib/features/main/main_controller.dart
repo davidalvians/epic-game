@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:epic_app/core/services/version_check_service.dart';
 
 /// Controller untuk shell utama - mengontrol tab yang aktif dan transisi PageView.
 class MainController extends GetxController {
@@ -10,6 +11,15 @@ class MainController extends GetxController {
   void onInit() {
     super.onInit();
     pageController = PageController(initialPage: currentIndex.value);
+
+    // Cek pembaruan otomatis saat pengguna masuk ke halaman utama
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Future.delayed(const Duration(milliseconds: 1500), () {
+        if (Get.isRegistered<VersionCheckService>()) {
+          Get.find<VersionCheckService>().checkUpdate();
+        }
+      });
+    });
   }
 
   void changeTab(int index) {

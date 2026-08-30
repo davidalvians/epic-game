@@ -18,6 +18,13 @@ class _SettingsScreenState extends State<SettingsScreen> with SingleTickerProvid
   late TextEditingController _recoveryCtrl;
   late TextEditingController _durationCtrl;
 
+  // Version Control Controllers
+  late TextEditingController _latestVerCtrl;
+  late TextEditingController _minReqVerCtrl;
+  late TextEditingController _updateUrlCtrl;
+  late TextEditingController _releaseNotesCtrl;
+  bool _forceUpdate = false;
+
   // Game config state
   final Map<String, Map<int, Map<String, dynamic>>> _gameConfigs = {
     'Batik': {
@@ -56,6 +63,11 @@ class _SettingsScreenState extends State<SettingsScreen> with SingleTickerProvid
     _heartsCtrl = TextEditingController(text: '5');
     _recoveryCtrl = TextEditingController(text: '15');
     _durationCtrl = TextEditingController(text: '60');
+
+    _latestVerCtrl = TextEditingController(text: '1.0.0');
+    _minReqVerCtrl = TextEditingController(text: '1.0.0');
+    _updateUrlCtrl = TextEditingController(text: 'https://github.com/davidalvians/epic-game/releases/latest/download/epic.apk');
+    _releaseNotesCtrl = TextEditingController(text: 'Pembaruan fitur terbaru dan peningkatan performa.');
 
     _gameConfigs.forEach((game, levels) {
       _multiplierControllers[game] = {};
@@ -119,6 +131,12 @@ class _SettingsScreenState extends State<SettingsScreen> with SingleTickerProvid
             _recoveryCtrl.text = recoveryTimeMin.toString();
             _durationCtrl.text = (timerDurationSec / 60).round().toString();
 
+            _latestVerCtrl.text = data['latestVersion']?.toString() ?? '1.0.0';
+            _minReqVerCtrl.text = data['minRequiredVersion']?.toString() ?? '1.0.0';
+            _updateUrlCtrl.text = data['downloadUrl']?.toString() ?? 'https://github.com/davidalvians/epic-game/releases/latest/download/epic.apk';
+            _releaseNotesCtrl.text = data['releaseNotes']?.toString() ?? 'Pembaruan fitur terbaru dan peningkatan performa.';
+            _forceUpdate = data['forceUpdate'] == true;
+
             // Re-populate controller texts
             _gameConfigs.forEach((game, levels) {
               levels.forEach((level, config) {
@@ -151,6 +169,10 @@ class _SettingsScreenState extends State<SettingsScreen> with SingleTickerProvid
     _heartsCtrl.dispose();
     _recoveryCtrl.dispose();
     _durationCtrl.dispose();
+    _latestVerCtrl.dispose();
+    _minReqVerCtrl.dispose();
+    _updateUrlCtrl.dispose();
+    _releaseNotesCtrl.dispose();
     _multiplierControllers.forEach((game, levels) {
       levels.forEach((level, ctrl) {
         ctrl.dispose();
@@ -229,6 +251,11 @@ class _SettingsScreenState extends State<SettingsScreen> with SingleTickerProvid
         'timerDurationSec': timerDurationSec,
         'levelConfigs': levelConfigsToSave,
         'poinMultiplier': 1.0,
+        'latestVersion': _latestVerCtrl.text.trim(),
+        'minRequiredVersion': _minReqVerCtrl.text.trim(),
+        'forceUpdate': _forceUpdate,
+        'downloadUrl': _updateUrlCtrl.text.trim(),
+        'releaseNotes': _releaseNotesCtrl.text.trim(),
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 
@@ -326,12 +353,14 @@ class _SettingsScreenState extends State<SettingsScreen> with SingleTickerProvid
                   ? Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Left Column (Global settings & status cards) - 340px
+                        // Left Column (Global settings & version cards) - 360px
                         SizedBox(
-                          width: 340,
+                          width: 360,
                           child: Column(
                             children: [
                               _buildGlobalSettingsCard(isMobile),
+                              const SizedBox(height: 24),
+                              _buildVersionControlCard(isMobile),
                               const SizedBox(height: 24),
                               _buildStatusCard(isMobile),
                             ],
@@ -354,6 +383,8 @@ class _SettingsScreenState extends State<SettingsScreen> with SingleTickerProvid
                   : Column(
                       children: [
                         _buildGlobalSettingsCard(isMobile),
+                        const SizedBox(height: 20),
+                        _buildVersionControlCard(isMobile),
                         const SizedBox(height: 20),
                         _buildGameConfigurationsCard(isMobile),
                         const SizedBox(height: 20),
@@ -423,6 +454,132 @@ class _SettingsScreenState extends State<SettingsScreen> with SingleTickerProvid
             icon: Icons.timer_rounded,
             iconColor: const Color(0xFF10B981),
             controller: _durationCtrl,
+          ),
+        ],
+      ),
+    ).animate().fadeIn(duration: 350.ms);
+  }
+
+  Widget _buildVersionControlCard(bool isMobile) {
+    return Container(
+      padding: EdgeInsets.all(isMobile ? 16 : 28),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(isMobile ? 18 : 24),
+        border: Border.all(color: const Color(0xFFE2E8F0), width: 1.2),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.015),
+            blurRadius: 16,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: const [
+              Icon(Icons.system_update_rounded, color: Color(0xFF8B5CF6), size: 18),
+              SizedBox(width: 8),
+              Text(
+                'PEMBARUAN APLIKASI',
+                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: Color(0xFF0F172A), letterSpacing: 0.5),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // Versi Terbaru
+          _buildSettingInput(
+            label: 'Versi Terbaru (e.g. 1.0.0)',
+            icon: Icons.rocket_launch_rounded,
+            iconColor: const Color(0xFF8B5CF6),
+            controller: _latestVerCtrl,
+          ),
+          const SizedBox(height: 14),
+
+          // Versi Minimal Wajib
+          _buildSettingInput(
+            label: 'Versi Minimal Wajib',
+            icon: Icons.shield_rounded,
+            iconColor: const Color(0xFF3B82F6),
+            controller: _minReqVerCtrl,
+          ),
+          const SizedBox(height: 14),
+
+          // Switch Force Update
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: const [
+                    Text(
+                      'Wajibkan Update (Force)',
+                      style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+                    ),
+                    SizedBox(height: 2),
+                    Text(
+                      'Pengguna wajib update sebelum main',
+                      style: TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                    ),
+                  ],
+                ),
+                Switch(
+                  value: _forceUpdate,
+                  activeThumbColor: const Color(0xFF8B5CF6),
+                  onChanged: (val) {
+                    setState(() {
+                      _forceUpdate = val;
+                    });
+                  },
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+
+          // Catatan Rilis
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Catatan Rilis (Changelog)',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF64748B)),
+              ),
+              const SizedBox(height: 6),
+              TextField(
+                controller: _releaseNotesCtrl,
+                maxLines: 3,
+                style: const TextStyle(fontSize: 12.5, color: Color(0xFF0F172A)),
+                decoration: InputDecoration(
+                  hintText: 'Tuliskan fitur baru...',
+                  filled: true,
+                  fillColor: const Color(0xFFF8FAFC),
+                  contentPadding: const EdgeInsets.all(12),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Color(0xFF8B5CF6), width: 1.5),
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
