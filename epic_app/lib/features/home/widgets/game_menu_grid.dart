@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
 import 'package:epic_app/core/constants/app_colors.dart';
+import 'package:epic_app/core/utils/epic_notification.dart';
 import 'package:epic_app/data/models/game_model.dart';
 import 'package:epic_app/data/repositories/game_repository.dart';
 
@@ -79,7 +79,7 @@ class _GameMenuGridState extends State<GameMenuGrid> {
     return GestureDetector(
       onTap: () {
         if (game.isLocked) {
-          Get.snackbar('Terkunci', 'Game ini belum tersedia.');
+          EpicNotification.warning('Terkunci 🔒', 'Game ini belum tersedia.');
         }
       },
       child: Container(

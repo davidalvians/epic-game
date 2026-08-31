@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:epic_app/core/constants/app_colors.dart';
 import 'package:epic_app/core/constants/app_fonts.dart';
+import 'package:epic_app/core/utils/epic_notification.dart';
 import 'package:epic_app/data/models/kelas_model.dart';
 import 'package:epic_app/features/kelas/kelas_controller.dart';
 import 'package:epic_app/shared/controllers/session_controller.dart';
@@ -37,7 +38,7 @@ class _GuruInactiveClassesScreenState extends State<GuruInactiveClassesScreen> {
         _inactiveClasses = allClasses.where((k) => k.status == 'nonaktif').toList();
       });
     } catch (e) {
-      Get.snackbar('Error', 'Gagal memuat kelas nonaktif');
+      EpicNotification.error('Error', 'Gagal memuat kelas nonaktif');
     } finally {
       setState(() => _isLoading = false);
     }

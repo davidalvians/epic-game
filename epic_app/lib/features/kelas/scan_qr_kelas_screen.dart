@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:epic_app/core/constants/app_fonts.dart';
+import 'package:epic_app/core/utils/epic_notification.dart';
 
 class ScanQRKelasScreen extends StatefulWidget {
   const ScanQRKelasScreen({super.key});
@@ -57,15 +58,9 @@ class _ScanQRKelasScreenState extends State<ScanQRKelasScreen> with SingleTicker
     } else {
       // Invalid code scanned
       setState(() => _hasScanned = false);
-      Get.snackbar(
+      EpicNotification.error(
         'QR Tidak Valid ❌',
         'Kode QR ini tidak sesuai dengan kelas EPIC.',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: const Color(0xFFEF4444),
-        colorText: Colors.white,
-        margin: const EdgeInsets.all(16),
-        borderRadius: 16,
-        duration: const Duration(seconds: 3),
       );
     }
   }

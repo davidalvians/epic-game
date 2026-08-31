@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import 'package:epic_app/core/constants/app_assets.dart';
+import 'package:epic_app/core/utils/epic_notification.dart';
 import 'package:epic_app/shared/controllers/session_controller.dart';
 import 'package:epic_app/data/models/misi_harian_model.dart';
 import 'package:epic_app/data/repositories/misi_harian_repository.dart';
@@ -48,13 +49,9 @@ class DailyMissionController extends GetxController {
         // Force refresh user profile
         await _session.refreshUser();
         
-        Get.snackbar(
+        EpicNotification.reward(
           'Selamat! 🎉',
           'Kamu berhasil mengklaim reward +$reward Poin!',
-          backgroundColor: const Color(0xFFD1FAE5),
-          colorText: const Color(0xFF065F46),
-          snackPosition: SnackPosition.BOTTOM,
-          duration: const Duration(seconds: 3),
         );
       }
     } catch (e) {

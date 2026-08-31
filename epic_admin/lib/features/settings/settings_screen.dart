@@ -66,7 +66,7 @@ class _SettingsScreenState extends State<SettingsScreen> with SingleTickerProvid
 
     _latestVerCtrl = TextEditingController(text: '1.0.0');
     _minReqVerCtrl = TextEditingController(text: '1.0.0');
-    _updateUrlCtrl = TextEditingController(text: 'https://github.com/davidalvians/epic-game/releases/latest/download/epic.apk');
+    _updateUrlCtrl = TextEditingController(text: 'https://epic-app1.web.app/download.html');
     _releaseNotesCtrl = TextEditingController(text: 'Pembaruan fitur terbaru dan peningkatan performa.');
 
     _gameConfigs.forEach((game, levels) {
@@ -133,7 +133,7 @@ class _SettingsScreenState extends State<SettingsScreen> with SingleTickerProvid
 
             _latestVerCtrl.text = data['latestVersion']?.toString() ?? '1.0.0';
             _minReqVerCtrl.text = data['minRequiredVersion']?.toString() ?? '1.0.0';
-            _updateUrlCtrl.text = data['downloadUrl']?.toString() ?? 'https://github.com/davidalvians/epic-game/releases/latest/download/epic.apk';
+            _updateUrlCtrl.text = data['downloadUrl']?.toString() ?? 'https://epic-app1.web.app/download.html';
             _releaseNotesCtrl.text = data['releaseNotes']?.toString() ?? 'Pembaruan fitur terbaru dan peningkatan performa.';
             _forceUpdate = data['forceUpdate'] == true;
 

@@ -7,6 +7,7 @@ import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:epic_app/core/constants/app_colors.dart';
+import 'package:epic_app/core/utils/epic_notification.dart';
 import 'package:epic_app/core/utils/helpers.dart';
 import 'package:epic_app/data/models/artwork_model.dart';
 import 'package:epic_app/data/repositories/artwork_repository.dart';
@@ -86,13 +87,9 @@ class _ArtworkDetailScreenState extends State<ArtworkDetailScreen>
       final granted = await Gal.requestAccess(toAlbum: true);
       if (!granted) {
         if (mounted) {
-          Get.snackbar(
+          EpicNotification.warning(
             'Izin Diperlukan',
             'Izin penyimpanan diperlukan untuk mengunduh gambar.',
-            snackPosition: SnackPosition.TOP,
-            backgroundColor: const Color(0xFFFEF2F2),
-            colorText: const Color(0xFFDC2626),
-            icon: const Icon(Icons.warning_rounded, color: Color(0xFFDC2626)),
           );
         }
         return;
@@ -116,23 +113,17 @@ class _ArtworkDetailScreenState extends State<ArtworkDetailScreen>
       );
 
       if (mounted) {
-        Get.snackbar(
+        EpicNotification.success(
           'Berhasil Diunduh! 🎉',
           'Gambar tersimpan di galeri foto HP kamu!',
-          snackPosition: SnackPosition.TOP,
-          backgroundColor: const Color(0xFFECFDF5),
-          colorText: const Color(0xFF059669),
-          icon: const Icon(Icons.download_done_rounded, color: Color(0xFF059669)),
+          icon: Icons.download_done_rounded,
         );
       }
     } catch (e) {
       if (mounted) {
-        Get.snackbar(
+        EpicNotification.error(
           'Gagal Mengunduh',
           'Periksa koneksi internet dan coba lagi.',
-          snackPosition: SnackPosition.TOP,
-          backgroundColor: const Color(0xFFFEF2F2),
-          colorText: const Color(0xFFDC2626),
         );
       }
     } finally {
@@ -152,14 +143,10 @@ class _ArtworkDetailScreenState extends State<ArtworkDetailScreen>
         final kelasRepo = KelasRepository();
         final kelas = await kelasRepo.getKelasDetail(widget.artwork.kelasId!);
         if (kelas != null && kelas.status == 'arsip') {
-          Get.snackbar(
+          EpicNotification.warning(
             'Kelas Terarsip 📁',
             'Karya ini telah terkunci di kelas terarsip dan tidak dapat dihapus.',
-            snackPosition: SnackPosition.TOP,
-            backgroundColor: const Color(0xFFFEF2F2),
-            colorText: const Color(0xFFDC2626),
-            icon: const Icon(Icons.lock_rounded, color: Color(0xFFDC2626)),
-            duration: const Duration(seconds: 4),
+            icon: Icons.lock_rounded,
           );
           return;
         }
@@ -215,23 +202,17 @@ class _ArtworkDetailScreenState extends State<ArtworkDetailScreen>
       await _artworkRepo.deleteArtwork(widget.artwork, isGuru: isGuru);
       Get.back(); // Tutup loading
       Get.back(result: true); // Kembali ke galeri dengan sinyal refresh
-      Get.snackbar(
+      EpicNotification.success(
         'Dihapus',
         isGuru ? 'Karya berhasil dihapus secara permanen.' : 'Karya berhasil dihapus dari galeri.',
-        snackPosition: SnackPosition.TOP,
-        backgroundColor: const Color(0xFFECFDF5),
-        colorText: const Color(0xFF059669),
       );
     } catch (e) {
       Get.back(); // Tutup loading
       if (mounted) {
         setState(() => _isDeleting = false);
-        Get.snackbar(
+        EpicNotification.error(
           'Gagal Menghapus',
           'Terjadi kesalahan. Coba lagi.',
-          snackPosition: SnackPosition.TOP,
-          backgroundColor: const Color(0xFFFEF2F2),
-          colorText: const Color(0xFFDC2626),
         );
       }
     }

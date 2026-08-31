@@ -9,6 +9,7 @@ import 'package:get/get.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:epic_app/core/services/draft_service.dart';
 import 'package:epic_app/core/services/app_config_service.dart';
+import 'package:epic_app/core/utils/epic_notification.dart';
 import 'package:epic_app/data/models/drawing_session_model.dart';
 import 'package:epic_app/data/models/scoring_instrument_model.dart';
 import 'package:epic_app/shared/controllers/session_controller.dart';
@@ -655,8 +656,7 @@ class AnyamanController extends GetxController with WidgetsBindingObserver {
       isTimeUp.value = false;
       startTimer();
     } catch (e) {
-      Get.snackbar('Ups!', e.toString().replaceAll('Exception: ', ''),
-          snackPosition: SnackPosition.TOP);
+      EpicNotification.error('Ups!', e.toString().replaceAll('Exception: ', ''));
     }
   }
 
@@ -671,22 +671,17 @@ class AnyamanController extends GetxController with WidgetsBindingObserver {
       if (cellColor != null) {
         activeColor.value = cellColor;
         isEraser.value = false;
-        Get.snackbar(
+        EpicNotification.custom(
           'Warna Disalin',
           'Berhasil mengambil warna dari anyaman!',
-          snackPosition: SnackPosition.TOP,
-          backgroundColor: const Color(0xFF10B981),
-          colorText: Colors.white,
+          color: cellColor,
+          icon: Icons.colorize_rounded,
           duration: const Duration(seconds: 2),
         );
       } else {
-        Get.snackbar(
+        EpicNotification.warning(
           'Sel Kosong',
           'Kotak yang disentuh tidak memiliki warna!',
-          snackPosition: SnackPosition.TOP,
-          backgroundColor: const Color(0xFFEF4444),
-          colorText: Colors.white,
-          duration: const Duration(seconds: 2),
         );
       }
       isEyedropper.value = false;

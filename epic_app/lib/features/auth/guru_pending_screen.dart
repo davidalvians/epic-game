@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:epic_app/core/constants/app_colors.dart';
 import 'package:epic_app/core/constants/app_fonts.dart';
+import 'package:epic_app/core/utils/epic_notification.dart';
 import 'package:epic_app/shared/controllers/session_controller.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -57,11 +58,9 @@ class _GuruPendingScreenState extends State<GuruPendingScreen> with SingleTicker
       } else if (_session.user?.isGuruRejected == true) {
         Get.offAllNamed('/auth/guru-rejected');
       } else {
-        Get.snackbar(
+        EpicNotification.info(
           'Informasi', 
           'Status verifikasi masih dalam proses.',
-          backgroundColor: Colors.blue.shade100,
-          colorText: Colors.blue.shade900,
         );
       }
     } finally {

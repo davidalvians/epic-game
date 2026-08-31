@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:epic_app/core/constants/app_colors.dart';
+import 'package:epic_app/core/utils/epic_notification.dart';
 import 'package:epic_app/data/repositories/user_repository.dart';
 import 'package:epic_app/data/services/storage_service.dart';
 import 'package:epic_app/shared/controllers/session_controller.dart';
@@ -114,19 +115,15 @@ class AvatarPickerController extends GetxController {
       _session.updateUser(updatedUser);
 
       Get.back(); // Tutup dialog loading
-      Get.snackbar(
+      EpicNotification.success(
         'Berhasil', 
         'Foto profil berhasil diperbarui!',
-        backgroundColor: Colors.green,
-        colorText: Colors.white,
       );
     } catch (e) {
       Get.back(); // Tutup dialog loading
-      Get.snackbar(
+      EpicNotification.error(
         'Error', 
         'Gagal mengunggah foto profil: $e',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
       );
     } finally {
       isUploading.value = false;
@@ -171,10 +168,10 @@ class AvatarPickerController extends GetxController {
                 _session.updateUser(updatedUser);
 
                 Get.back(); // Tutup dialog loading
-                Get.snackbar('Berhasil', 'Foto profil dihapus.', backgroundColor: Colors.green, colorText: Colors.white);
+                EpicNotification.success('Berhasil', 'Foto profil dihapus.');
               } catch (e) {
                 Get.back();
-                Get.snackbar('Error', 'Gagal menghapus foto profil.', backgroundColor: Colors.red, colorText: Colors.white);
+                EpicNotification.error('Error', 'Gagal menghapus foto profil.');
               } finally {
                 isUploading.value = false;
               }

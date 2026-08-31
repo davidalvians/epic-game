@@ -1,104 +1,112 @@
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
-import 'package:epic_app/core/constants/app_colors.dart';
-import 'package:epic_app/core/constants/app_fonts.dart';
+import 'package:epic_app/core/utils/epic_notification.dart';
 
-/// Notifikasi modern dengan gaya Glassmorphism
+/// Notifikasi modern dengan gaya Glassmorphism Pop-Up.
+/// Diarahkan langsung ke sistem [EpicNotification] untuk performa optimal dan stabilitas tinggi.
 class EpicSnackbar {
-  static void success(String title, String message) {
-    _show(
-      title: title,
-      message: message,
-      color: AppColors.success,
-      icon: Icons.check_circle_rounded,
+  EpicSnackbar._();
+
+  /// Notifikasi Berhasil (Pop-Up Hijau Emerald)
+  static void success(
+    String title,
+    String message, {
+    Duration duration = const Duration(seconds: 3),
+    IconData icon = Icons.check_circle_rounded,
+    VoidCallback? onTap,
+  }) {
+    EpicNotification.success(
+      title,
+      message,
+      duration: duration,
+      icon: icon,
+      onTap: onTap,
     );
   }
 
-  static void error(String title, String message) {
-    _show(
-      title: title,
-      message: message,
-      color: AppColors.error,
-      icon: Icons.error_rounded,
+  /// Notifikasi Gagal / Error (Pop-Up Merah Crimson)
+  static void error(
+    String title,
+    String message, {
+    Duration duration = const Duration(seconds: 4),
+    IconData icon = Icons.error_rounded,
+    VoidCallback? onTap,
+  }) {
+    EpicNotification.error(
+      title,
+      message,
+      duration: duration,
+      icon: icon,
+      onTap: onTap,
     );
   }
 
-  static void info(String title, String message) {
-    _show(
-      title: title,
-      message: message,
-      color: AppColors.secondary,
-      icon: Icons.info_rounded,
+  /// Notifikasi Informasi (Pop-Up Biru Elektrik)
+  static void info(
+    String title,
+    String message, {
+    Duration duration = const Duration(seconds: 3),
+    IconData icon = Icons.info_outline_rounded,
+    VoidCallback? onTap,
+  }) {
+    EpicNotification.info(
+      title,
+      message,
+      duration: duration,
+      icon: icon,
+      onTap: onTap,
     );
   }
 
-  static void _show({
-    required String title,
-    required String message,
+  /// Notifikasi Peringatan / Warning (Pop-Up Kuning Amber)
+  static void warning(
+    String title,
+    String message, {
+    Duration duration = const Duration(seconds: 3),
+    IconData icon = Icons.warning_amber_rounded,
+    VoidCallback? onTap,
+  }) {
+    EpicNotification.warning(
+      title,
+      message,
+      duration: duration,
+      icon: icon,
+      onTap: onTap,
+    );
+  }
+
+  /// Notifikasi Hadiah / Reward Misi / Koin Emas
+  static void reward(
+    String title,
+    String message, {
+    Duration duration = const Duration(seconds: 4),
+    IconData icon = Icons.stars_rounded,
+    VoidCallback? onTap,
+  }) {
+    EpicNotification.reward(
+      title,
+      message,
+      duration: duration,
+      icon: icon,
+      onTap: onTap,
+    );
+  }
+
+  /// Notifikasi Kustom
+  static void custom(
+    String title,
+    String message, {
     required Color color,
     required IconData icon,
+    Duration duration = const Duration(seconds: 3),
+    VoidCallback? onTap,
   }) {
-    // Tutup snackbar yang sedang aktif jika ada
-    if (Get.isSnackbarOpen) {
-      Get.closeCurrentSnackbar();
-    }
-
-    Get.snackbar(
-      '',
-      '',
-      titleText: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.15),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(icon, color: color, size: 28),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: AppFonts.heading3(color: AppColors.textOnDark).copyWith(fontSize: 16),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  message,
-                  style: AppFonts.bodyText(color: Colors.white70).copyWith(fontSize: 13),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-      messageText: const SizedBox.shrink(),
-      backgroundColor: AppColors.dark.withValues(alpha: 0.85),
-      snackPosition: SnackPosition.TOP,
-      margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      borderRadius: 20,
-      barBlur: 10, // Efek Glassmorphism
-      isDismissible: true,
-      forwardAnimationCurve: Curves.easeOutCirc,
-      reverseAnimationCurve: Curves.easeInCirc,
-      duration: const Duration(seconds: 3),
-      boxShadows: [
-        BoxShadow(
-          color: color.withValues(alpha: 0.2),
-          blurRadius: 15,
-          spreadRadius: 2,
-          offset: const Offset(0, 5),
-        ),
-      ],
-      borderWidth: 1,
-      borderColor: color.withValues(alpha: 0.3),
+    EpicNotification.custom(
+      title,
+      message,
+      color: color,
+      icon: icon,
+      duration: duration,
+      onTap: onTap,
     );
   }
 }

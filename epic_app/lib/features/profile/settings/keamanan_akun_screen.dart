@@ -146,6 +146,9 @@ class _KeamananAkunScreenState extends State<KeamananAkunScreen> {
 
   // Step 1: Confirmatory Dialog
   void _showDeleteAccountDialogStep1() {
+    final session = Get.find<SessionController>();
+    final isGuru = session.isGuru;
+
     Get.dialog(
       AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
@@ -157,21 +160,33 @@ class _KeamananAkunScreenState extends State<KeamananAkunScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Tindakan ini sangat sensitif dan tidak dapat dibatalkan. Apakah Anda yakin ingin menghapus akun guru Anda?',
-              style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.bold),
+            Text(
+              isGuru
+                  ? 'Tindakan ini sangat sensitif dan tidak dapat dibatalkan. Apakah Anda yakin ingin menghapus akun guru Anda?'
+                  : 'Tindakan ini sangat sensitif dan tidak dapat dibatalkan. Apakah kamu yakin ingin menghapus akun murid kamu?',
+              style: const TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
             const Text('Yang terhapus permanen:', style: TextStyle(fontFamily: 'FredokaOne', fontSize: 12, color: Color(0xFFEF4444))),
             const SizedBox(height: 6),
-            _buildBullet('❌ Profil guru Anda'),
-            _buildBullet('❌ Semua kelas yang Anda miliki'),
-            _buildBullet('❌ Hubungan/data murid di kelas Anda'),
-            const SizedBox(height: 12),
-            const Text('Yang TIDAK terhapus:', style: TextStyle(fontFamily: 'FredokaOne', fontSize: 12, color: Color(0xFF10B981))),
-            const SizedBox(height: 6),
-            _buildBullet('✅ Akun & profil murid tetap ada'),
-            _buildBullet('✅ Karya gambaran & nilai murid tetap tersimpan'),
+            if (isGuru) ...[
+              _buildBullet('❌ Profil guru Anda'),
+              _buildBullet('❌ Semua kelas yang Anda miliki'),
+              _buildBullet('❌ Hubungan/data murid di kelas Anda'),
+              const SizedBox(height: 12),
+              const Text('Yang TIDAK terhapus:', style: TextStyle(fontFamily: 'FredokaOne', fontSize: 12, color: Color(0xFF10B981))),
+              const SizedBox(height: 6),
+              _buildBullet('✅ Akun & profil murid tetap ada'),
+              _buildBullet('✅ Karya gambaran & nilai murid tetap tersimpan'),
+            ] else ...[
+              _buildBullet('❌ Profil & identitas akun murid kamu'),
+              _buildBullet('❌ Riwayat karya gambaran & anyaman di galeri'),
+              _buildBullet('❌ Seluruh perolehan skor, poin, dan peringkat'),
+              const SizedBox(height: 12),
+              const Text('Yang TIDAK terhapus:', style: TextStyle(fontFamily: 'FredokaOne', fontSize: 12, color: Color(0xFF10B981))),
+              const SizedBox(height: 6),
+              _buildBullet('✅ Kelas guru tempat kamu pernah bergabung'),
+            ],
           ],
         ),
         actions: [
@@ -345,39 +360,67 @@ class _KeamananAkunScreenState extends State<KeamananAkunScreen> {
       await userAuth.reauthenticateWithCredential(credential);
 
       // 2. Perform Firestore Purging
-      final String guruUid = userAuth.uid;
+      final String uid = userAuth.uid;
       final FirebaseFirestore db = FirebaseFirestore.instance;
+      final session = Get.find<SessionController>();
+      final isGuru = session.isGuru;
 
-      // Query classes owned by this guru
-      final query = await db
-          .collection('kelas')
-          .where('guruUid', isEqualTo: guruUid)
-          .get();
+      if (isGuru) {
+        // Query classes owned by this guru
+        final query = await db
+            .collection('kelas')
+            .where('guruUid', isEqualTo: uid)
+            .get();
 
-      // Clean up class references from enrolled students
-      for (final doc in query.docs) {
-        final List<dynamic> muridIds = doc.data()['muridIds'] ?? [];
-        final batch = db.batch();
-        for (final muridUid in muridIds) {
-          if (muridUid is String) {
-            final userRef = db.collection('users').doc(muridUid);
-            batch.update(userRef, {
-              'kelasIds': FieldValue.arrayRemove([doc.id]),
-            });
+        // Clean up class references from enrolled students
+        for (final doc in query.docs) {
+          final List<dynamic> muridIds = doc.data()['muridIds'] ?? [];
+          final batch = db.batch();
+          for (final muridUid in muridIds) {
+            if (muridUid is String) {
+              final userRef = db.collection('users').doc(muridUid);
+              batch.update(userRef, {
+                'kelasIds': FieldValue.arrayRemove([doc.id]),
+              });
+            }
           }
+          await batch.commit();
         }
-        await batch.commit();
-      }
 
-      // Delete all owned classes
-      final batchDeleteKelas = db.batch();
-      for (final doc in query.docs) {
-        batchDeleteKelas.delete(doc.reference);
+        // Delete all owned classes
+        final batchDeleteKelas = db.batch();
+        for (final doc in query.docs) {
+          batchDeleteKelas.delete(doc.reference);
+        }
+        await batchDeleteKelas.commit();
+      } else {
+        // Murid: remove muridUid from any enrolled classes
+        final userDoc = await db.collection('users').doc(uid).get();
+        if (userDoc.exists && userDoc.data() != null) {
+          final List<dynamic> kelasIds = userDoc.data()!['kelasIds'] ?? [];
+          final batch = db.batch();
+          for (final kelasId in kelasIds) {
+            if (kelasId is String) {
+              final kelasRef = db.collection('kelas').doc(kelasId);
+              batch.update(kelasRef, {
+                'muridIds': FieldValue.arrayRemove([uid]),
+              });
+            }
+          }
+          await batch.commit();
+        }
+
+        // Delete murid's artworks from Firestore
+        final artworksQuery = await db.collection('artworks').where('uid', isEqualTo: uid).get();
+        final batchArtworks = db.batch();
+        for (final doc in artworksQuery.docs) {
+          batchArtworks.delete(doc.reference);
+        }
+        await batchArtworks.commit();
       }
-      await batchDeleteKelas.commit();
 
       // Get user document to delete reserved username
-      final userDoc = await db.collection('users').doc(guruUid).get();
+      final userDoc = await db.collection('users').doc(uid).get();
       if (userDoc.exists && userDoc.data() != null) {
         final username = userDoc.data()!['username']?.toString() ?? '';
         if (username.isNotEmpty) {
@@ -385,8 +428,8 @@ class _KeamananAkunScreenState extends State<KeamananAkunScreen> {
         }
       }
 
-      // Delete the guru's user profile document
-      await db.collection('users').doc(guruUid).delete();
+      // Delete the user profile document
+      await db.collection('users').doc(uid).delete();
 
       // Delete the Firebase Auth user
       await userAuth.delete();
@@ -394,14 +437,15 @@ class _KeamananAkunScreenState extends State<KeamananAkunScreen> {
       Get.back(); // Dismiss spinner
 
       // Logout local GetX Session
-      final session = Get.find<SessionController>();
       session.currentUser.value = null;
       
       Get.offAllNamed(Routes.auth);
 
       EpicSnackbar.success(
         'Akun Terhapus 🗑️',
-        'Akun guru EPIC Anda dan seluruh kelas yang Anda miliki telah dihapus permanen.',
+        isGuru
+            ? 'Akun guru EPIC Anda dan seluruh kelas yang Anda miliki telah dihapus permanen.'
+            : 'Akun murid EPIC kamu telah berhasil dihapus permanen.',
       );
     } catch (e) {
       Get.back(); // Dismiss spinner

@@ -7,12 +7,13 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:epic_app/core/constants/app_colors.dart';
 import 'package:epic_app/core/constants/app_fonts.dart';
+import 'package:epic_app/core/utils/epic_notification.dart';
 
 class VersionCheckService extends GetxService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
   static const String _defaultDownloadUrl =
-      'https://github.com/davidalvians/epic-game/releases/latest/download/epic.apk';
+      'https://epic-app1.web.app/download.html';
 
   final RxString currentAppVersion = ''.obs;
   final RxString latestAppVersion = ''.obs;
@@ -87,13 +88,9 @@ class VersionCheckService extends GetxService {
     } catch (e) {
       debugPrint('⚠️ Gagal memeriksa pembaruan: $e');
       if (isManualCheck) {
-        Get.snackbar(
+        EpicNotification.error(
           'Pemeriksaan Gagal',
           'Tidak dapat terhubung ke server pembaruan.',
-          backgroundColor: AppColors.error,
-          colorText: Colors.white,
-          snackPosition: SnackPosition.BOTTOM,
-          margin: const EdgeInsets.all(16),
         );
       }
     }
@@ -125,14 +122,9 @@ class VersionCheckService extends GetxService {
   }
 
   void _showUpToDateSnackbar() {
-    Get.snackbar(
+    EpicNotification.success(
       'Aplikasi Terkini',
       'Kamu sudah menggunakan versi terbaru (${currentAppVersion.value}).',
-      backgroundColor: AppColors.success,
-      colorText: Colors.white,
-      snackPosition: SnackPosition.BOTTOM,
-      margin: const EdgeInsets.all(16),
-      icon: const Icon(Icons.check_circle_rounded, color: Colors.white),
     );
   }
 
@@ -303,16 +295,33 @@ class VersionCheckService extends GetxService {
                           ),
                         ),
                         onPressed: () async {
-                          final uri = Uri.parse(url);
-                          if (await canLaunchUrl(uri)) {
-                            await launchUrl(uri, mode: LaunchMode.externalApplication);
-                          } else {
-                            Get.snackbar(
-                              'Gagal Membuka Link',
-                              'Silakan buka browser dan kunjungi link unduhan secara manual.',
-                              backgroundColor: AppColors.error,
-                              colorText: Colors.white,
+                          final targetUrl = url.isNotEmpty ? url : _defaultDownloadUrl;
+                          final uri = Uri.parse(targetUrl);
+                          try {
+                            final launched = await launchUrl(
+                              uri,
+                              mode: LaunchMode.externalApplication,
                             );
+                            if (!launched) {
+                              await launchUrl(
+                                uri,
+                                mode: LaunchMode.platformDefault,
+                              );
+                            }
+                          } catch (e) {
+                            debugPrint('⚠️ Error launching update url: $e');
+                            try {
+                              await launchUrl(
+                                uri,
+                                mode: LaunchMode.platformDefault,
+                              );
+                            } catch (e2) {
+                              debugPrint('⚠️ Fallback launch error: $e2');
+                              EpicNotification.error(
+                                'Gagal Membuka Link',
+                                'Silakan buka browser dan kunjungi https://epic-app1.web.app/download.html secara manual.',
+                              );
+                            }
                           }
                         },
                         icon: const Icon(Icons.download_rounded, size: 20),

@@ -517,6 +517,21 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                           ),
                           const SizedBox(height: 20),
 
+                          _buildSectionHeader('🔑  AKUN'),
+                          const SizedBox(height: 8),
+                          Container(
+                            decoration: _buildMenuContainerDecoration(),
+                            child: _buildMenuItem(
+                              icon: Icons.security_rounded,
+                              title: 'Keamanan Akun',
+                              subtitle: 'Lihat HP login, riwayat, dan hapus akun',
+                              iconColor: const Color(0xFF0284C7),
+                              iconBgColor: const Color(0xFFF0F9FF),
+                              onTap: () => Get.to(() => const epic_security.KeamananAkunScreen()),
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+
                           _buildSectionHeader('ℹ️  INFO LAINNYA'),
                           const SizedBox(height: 8),
                           Container(

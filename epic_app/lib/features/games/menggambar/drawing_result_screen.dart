@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:confetti/confetti.dart';
+import 'package:epic_app/core/utils/epic_notification.dart';
 import 'package:epic_app/core/utils/helpers.dart';
 import 'package:epic_app/data/repositories/user_repository.dart';
 import 'package:epic_app/data/repositories/artwork_repository.dart';
@@ -369,10 +370,9 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
       });
       _animCtrl.forward();
 
-      Get.snackbar(
+      EpicNotification.warning(
         'AI Sedang Padat',
         'Juri AI lagi sibuk. Karyamu akan diproses nanti saat AI siap.',
-        snackPosition: SnackPosition.BOTTOM,
         duration: const Duration(seconds: 4),
       );
     } catch (e) {
@@ -402,10 +402,9 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
       });
       _animCtrl.forward();
 
-      Get.snackbar(
+      EpicNotification.info(
         'Penilaian Tertunda',
         userMessage,
-        snackPosition: SnackPosition.BOTTOM,
         duration: const Duration(seconds: 4),
       );
     }

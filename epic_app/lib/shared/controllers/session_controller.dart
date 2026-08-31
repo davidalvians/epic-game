@@ -10,11 +10,11 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:epic_app/core/services/draft_service.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
 import 'package:epic_app/data/models/user_model.dart';
 import 'package:epic_app/data/repositories/auth_repository.dart';
 import 'package:epic_app/data/repositories/user_repository.dart';
 import 'package:epic_app/core/routes/app_routes.dart';
+import 'package:epic_app/core/utils/epic_notification.dart';
 import 'package:epic_app/features/kelas/kelas_controller.dart' as epic_app_kelas_controller;
 import 'package:epic_app/data/repositories/misi_harian_repository.dart';
 
@@ -139,12 +139,10 @@ class SessionController extends GetxController {
       if (!doc.exists) {
         debugPrint('⚠️ Akun ini telah dihapus dari database!');
         await logout();
-        Get.snackbar(
+        EpicNotification.error(
           'Sesi Berakhir 🔒',
           'Akun Anda tidak lagi terdaftar atau telah dihapus.',
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: const Color(0xFFFEF2F2),
-          colorText: const Color(0xFFEF4444),
+          duration: const Duration(seconds: 5),
         );
         return;
       }
@@ -175,12 +173,9 @@ class SessionController extends GetxController {
     }, onError: (e) async {
       debugPrint('⚠️ Error pada user sub stream listener: $e');
       await logout();
-      Get.snackbar(
+      EpicNotification.error(
         'Akun Ditangguhkan 🔒',
         'Akun Anda telah ditangguhkan oleh Administrator.',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: const Color(0xFFFEF2F2),
-        colorText: const Color(0xFFEF4444),
         duration: const Duration(seconds: 8),
       );
     });
@@ -370,21 +365,11 @@ class SessionController extends GetxController {
         // Hentikan sesi dan logout instan
         await logout();
 
-        // Tampilkan Snackbar pemberitahuan sesi berakhir
-        Get.snackbar(
+        // Tampilkan notifikasi pop-up pemberitahuan sesi berakhir
+        EpicNotification.warning(
           'Sesi Berakhir 🔒',
           'Akun Anda telah dikeluarkan dari perangkat ini dari jauh.',
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: const Color(0xFFFEF2F2),
-          colorText: const Color(0xFFEF4444),
           duration: const Duration(seconds: 5),
-          boxShadows: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.1),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            )
-          ],
         );
         _isKickedChecking = false;
       }

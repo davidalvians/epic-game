@@ -15,6 +15,7 @@ import 'package:epic_app/features/games/menggambar/drawing_result_screen.dart';
 import 'package:epic_app/core/services/gemini_token_service.dart';
 import 'package:epic_app/core/services/draft_service.dart';
 import 'package:epic_app/core/services/app_config_service.dart';
+import 'package:epic_app/core/utils/epic_notification.dart';
 import 'package:epic_app/shared/controllers/session_controller.dart';
 import 'package:epic_app/features/games/menggambar/template_selector_sheet.dart';
 import 'package:epic_app/features/games/menggambar/stempel_painter.dart';
@@ -1295,7 +1296,7 @@ class DrawingController extends GetxController with WidgetsBindingObserver {
     } else {
       // Jika dari layar awal ingin lanjut tapi gak ada draft, paksa mulai baru.
       if (isLanjutkan) {
-        Get.snackbar('Draft Tidak Ditemukan', 'Memulai canvas baru.');
+        EpicNotification.info('Draft Tidak Ditemukan', 'Memulai canvas baru.');
       }
       
       sisaWaktu.value = _timerDurasi;
@@ -1651,8 +1652,7 @@ class DrawingController extends GetxController with WidgetsBindingObserver {
       isTimeUp.value = false;
       startTimer();
     } catch (e) {
-      Get.snackbar('Ups!', e.toString().replaceAll('Exception: ', ''),
-          snackPosition: SnackPosition.TOP);
+      EpicNotification.error('Ups!', e.toString().replaceAll('Exception: ', ''));
     } finally {
       _isUsingNyawa = false;
     }
@@ -1672,11 +1672,11 @@ class DrawingController extends GetxController with WidgetsBindingObserver {
     if (_session == null) return;
 
     // Selalu serialize semua stroke agar tidak ada gambar yang hilang
-    String? strokesData = _strokesToJson();
+    final String strokesData = _strokesToJson();
 
     // ✅ SELALU serialisasi stempelsData dengan list kosong untuk kompatibilitas ke belakang
     // Stempel yang sebenarnya sekarang disimpan di dalam strokesData sebagai bagian dari layer.
-    final stempelsData = "[]";
+    const stempelsData = '[]';
 
     String? templateData;
     if (activeTemplate.value != null) {
@@ -1695,7 +1695,7 @@ class DrawingController extends GetxController with WidgetsBindingObserver {
       status: _session!.status,
       createdAt: _session!.createdAt,
       updatedAt: DateTime.now(),
-      strokesData: strokesData ?? _session!.strokesData,
+      strokesData: strokesData,
       stempelsData: stempelsData, // ← selalu ditulis, tidak pernah null
       anyamanData: _session!.anyamanData,
       waktuTerpakai: waktuTerpakai.value,
@@ -1844,15 +1844,12 @@ class DrawingController extends GetxController with WidgetsBindingObserver {
       _eyedropperBytes = null;
       
       final color = activeColor.value;
-      Get.snackbar(
+      EpicNotification.custom(
         'Warna Disalin',
         'Berhasil mengambil warna dari kanvas.',
-        backgroundColor: color.withValues(alpha: 0.9),
-        colorText: color.computeLuminance() > 0.5 ? Colors.black : Colors.white,
-        snackPosition: SnackPosition.TOP,
-        duration: const Duration(seconds: 1),
-        margin: const EdgeInsets.all(12),
-        borderRadius: 12,
+        color: color,
+        icon: Icons.colorize_rounded,
+        duration: const Duration(seconds: 2),
       );
       
       activeTool.value = _toolBeforeEyedropper;
@@ -2281,11 +2278,9 @@ class DrawingController extends GetxController with WidgetsBindingObserver {
     final totalElements = totalStrokeCount + totalStempelCount;
 
     if (totalElements == 0) {
-      Get.snackbar(
+      EpicNotification.warning(
         'Kanvas Kosong',
         'Kamu belum menggambar apa pun! Gambarlah sesuatu sebelum mengumpulkan.',
-        backgroundColor: Colors.red.withValues(alpha: 0.8),
-        colorText: Colors.white,
       );
       resumeTimer();
       return;
@@ -2293,14 +2288,9 @@ class DrawingController extends GetxController with WidgetsBindingObserver {
 
     // 🛡️ Pengaman: Minimal harus ada 5 goresan/elemen agar tidak dinilai hanya dari coretan asal-asalan
     if (totalElements < 5) {
-      Get.snackbar(
+      EpicNotification.warning(
         'Perlu Lebih Banyak Goresan',
         'Goresanmu masih terlalu sedikit. Lanjutkan Menggambar',
-        backgroundColor: const Color(0xFFF59E0B).withValues(alpha: 0.9),
-        colorText: Colors.white,
-        duration: const Duration(seconds: 3),
-        snackPosition: SnackPosition.TOP,
-        margin: const EdgeInsets.all(16),
       );
       resumeTimer();
       return;
@@ -2314,11 +2304,9 @@ class DrawingController extends GetxController with WidgetsBindingObserver {
       hasPermission = await tokenService.requestGeminiPermission();
       if (!hasPermission) {
         debugPrint('❌ Izin ditolak! Kembali ke kanvas.');
-        Get.snackbar(
+        EpicNotification.error(
           'Izin Diperlukan',
           'Kamu harus memberikan izin akses untuk mengumpulkan karya ini.',
-          backgroundColor: Colors.red.withValues(alpha: 0.8),
-          colorText: Colors.white,
         );
         resumeTimer();
         return;
@@ -2351,11 +2339,9 @@ class DrawingController extends GetxController with WidgetsBindingObserver {
     final imageBytes = await captureCanvas();
     if (imageBytes == null) {
       debugPrint('🚀 [submitDrawing] GAGAL: imageBytes null, submit dibatalkan!');
-      Get.snackbar(
+      EpicNotification.error(
         'Gagal Menyimpan',
         'Terjadi masalah saat mengambil gambar kanvas.',
-        backgroundColor: Colors.red.withValues(alpha: 0.8),
-        colorText: Colors.white,
       );
       return;
     }
