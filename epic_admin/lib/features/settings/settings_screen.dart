@@ -133,7 +133,10 @@ class _SettingsScreenState extends State<SettingsScreen> with SingleTickerProvid
 
             _latestVerCtrl.text = data['latestVersion']?.toString() ?? '1.0.0';
             _minReqVerCtrl.text = data['minRequiredVersion']?.toString() ?? '1.0.0';
-            _updateUrlCtrl.text = data['downloadUrl']?.toString() ?? 'https://epic-app1.web.app/download.html';
+            final loadedUrl = data['downloadUrl']?.toString().trim() ?? '';
+            _updateUrlCtrl.text = (loadedUrl.isEmpty || loadedUrl.endsWith('.apk'))
+                ? 'https://epic-app1.web.app/download.html'
+                : loadedUrl;
             _releaseNotesCtrl.text = data['releaseNotes']?.toString() ?? 'Pembaruan fitur terbaru dan peningkatan performa.';
             _forceUpdate = data['forceUpdate'] == true;
 

@@ -63,13 +63,17 @@ class VersionCheckService extends GetxService {
       final force = data['forceUpdate'] == true;
       final notes = data['releaseNotes']?.toString() ??
           'Pembaruan fitur terbaru dan peningkatan performa aplikasi.';
-      final url = data['downloadUrl']?.toString() ?? _defaultDownloadUrl;
+      String rawUrl = data['downloadUrl']?.toString().trim() ?? '';
+      // Jika URL di database kosong atau masih mengarah langsung ke file .apk, otomatis alihkan ke halaman web download.html
+      if (rawUrl.isEmpty || rawUrl.endsWith('.apk')) {
+        rawUrl = _defaultDownloadUrl;
+      }
 
       latestAppVersion.value = latest;
       minRequiredVersion.value = minReq;
       isForceUpdate.value = force;
       releaseNotes.value = notes;
-      downloadUrl.value = url.isNotEmpty ? url : _defaultDownloadUrl;
+      downloadUrl.value = rawUrl;
 
       final bool hasNewUpdate = isVersionLower(currentAppVersion.value, latest);
       final bool mustForceUpdate = force || isVersionLower(currentAppVersion.value, minReq);
