@@ -1,9 +1,11 @@
 // AppConfigService — Memuat konfigurasi sistem dari Firestore (app_config/system_settings)
 // dan menyediakannya secara global ke seluruh mobile app.
 // Konfigurasi diatur oleh Admin melalui admin panel (Settings > Konfigurasi Sistem).
+import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
+import 'package:epic_app/data/services/local_storage_service.dart';
 
 class AppConfigService extends GetxService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -32,9 +34,22 @@ class AppConfigService extends GetxService {
   bool _isLoaded = false;
   bool get isLoaded => _isLoaded;
 
+  final Completer<void> _readyCompleter = Completer<void>();
+
+  /// Future yang selesai saat snapshot konfigurasi pertama dari Firestore telah dimuat.
+  Future<void> get whenReady => _readyCompleter.future;
+
   @override
   void onInit() {
     super.onInit();
+    // Muat nilai maxNyawa terakhir dari cache lokal agar saat cold start
+    // nilainya instan (0ms) sesuai pengaturan admin terakhir, tanpa menunggu jaringan.
+    if (Get.isRegistered<LocalStorageService>()) {
+      final cached = Get.find<LocalStorageService>().cachedMaxNyawa;
+      if (cached > 0) {
+        maxNyawa.value = cached;
+      }
+    }
     _loadConfig();
   }
 
@@ -73,7 +88,12 @@ class AppConfigService extends GetxService {
           final rawMaxNyawa = data['maxNyawa'];
           if (rawMaxNyawa != null) {
             final parsed = int.tryParse(rawMaxNyawa.toString());
-            if (parsed != null) maxNyawa.value = parsed;
+            if (parsed != null && parsed > 0) {
+              maxNyawa.value = parsed;
+              if (Get.isRegistered<LocalStorageService>()) {
+                Get.find<LocalStorageService>().setCachedMaxNyawa(parsed);
+              }
+            }
           }
 
           // timerDurationSec → timerDurasiDetik
@@ -123,18 +143,30 @@ class AppConfigService extends GetxService {
           }
 
           _isLoaded = true;
+          if (!_readyCompleter.isCompleted) {
+            _readyCompleter.complete();
+          }
           debugPrint('✅ AppConfigService: Konfigurasi sistem di-update secara real-time dari Firestore.');
           debugPrint('   maxNyawa=${maxNyawa.value}, timer=${timerDurasiDetik.value}s, recovery=${recoveryTimeMin.value}min');
         } else {
           _isLoaded = true;
+          if (!_readyCompleter.isCompleted) {
+            _readyCompleter.complete();
+          }
           debugPrint('⚠️ AppConfigService: Dokumen system_settings tidak ditemukan. Menggunakan nilai default.');
         }
       }, onError: (error) {
         _isLoaded = true;
+        if (!_readyCompleter.isCompleted) {
+          _readyCompleter.complete();
+        }
         debugPrint('⚠️ AppConfigService: Gagal memuat konfigurasi (stream error): $error. Menggunakan nilai default.');
       });
     } catch (e) {
       _isLoaded = true;
+      if (!_readyCompleter.isCompleted) {
+        _readyCompleter.complete();
+      }
       debugPrint('⚠️ AppConfigService: Exception saat subscribe konfigurasi: $e. Menggunakan nilai default.');
     }
   }

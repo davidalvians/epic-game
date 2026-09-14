@@ -53,7 +53,8 @@ class _DrawingCanvas extends StatelessWidget {
                           )
                         ],
                       ),
-                      child: Stack(
+                      child: ClipRect(
+                        child: Stack(
               fit: StackFit.expand,
               children: [
                 // ── Template overlay (di belakang drawing/kertas bawah) ──
@@ -157,9 +158,10 @@ class _DrawingCanvas extends StatelessWidget {
                   ),
               ],
             ),
-            ),
+          ),
           ),
         ),
+      ),
       ),
     );
   }),

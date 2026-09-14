@@ -489,7 +489,10 @@ class DrawingController extends GetxController with WidgetsBindingObserver {
   // Canvas Transform State
   final Rx<Matrix4> canvasMatrix = Matrix4.identity().obs;
   Matrix4 _initialMatrix = Matrix4.identity();
-  bool _isCanvasInitialized = false;  final RxDouble canvasZoomScale = 1.0.obs;
+  bool _isCanvasInitialized = false;
+  final RxDouble canvasZoomScale = 1.0.obs;
+  double paperWidth = 0.0;
+  double paperHeight = 0.0;
 
   Offset? _prevFocalPoint;
   double? _prevDistance;
@@ -519,6 +522,8 @@ class DrawingController extends GetxController with WidgetsBindingObserver {
   }
 
   void setDefaultCanvasSize(double screenW, double screenH, double paperW, double paperH) {
+    paperWidth = paperW;
+    paperHeight = paperH;
     if (!_isCanvasInitialized) {
       final dx = (screenW - paperW) / 2;
       // Posisi di tengah layar (sudah tidak dikurangi -40 karena padding canvas sudah aman)
@@ -1706,7 +1711,7 @@ class DrawingController extends GetxController with WidgetsBindingObserver {
 
   // ─── Eyedropper Logic ─────────────────────────────────────────────────────
 
-  Future<void> _initEyedropper(Offset localPosition) async {
+  Future<void> _initEyedropper(Offset canvasPosition) async {
     try {
       final context = canvasKey.currentContext;
       if (context == null) return;
@@ -1728,17 +1733,17 @@ class DrawingController extends GetxController with WidgetsBindingObserver {
       _eyedropperScaleX = _eyedropperWidth / size.width;
       _eyedropperScaleY = _eyedropperHeight / size.height;
 
-      _sampleColorAt(localPosition);
+      _sampleColorAt(canvasPosition);
     } catch (e) {
       debugPrint('Error initiating eyedropper: $e');
     }
   }
 
-  void _sampleColorAt(Offset localPosition) {
+  void _sampleColorAt(Offset canvasPosition) {
     if (_eyedropperBytes == null) return;
 
-    final int x = (localPosition.dx * _eyedropperScaleX).clamp(0, _eyedropperWidth - 1).toInt();
-    final int y = (localPosition.dy * _eyedropperScaleY).clamp(0, _eyedropperHeight - 1).toInt();
+    final int x = (canvasPosition.dx * _eyedropperScaleX).clamp(0, _eyedropperWidth - 1).toInt();
+    final int y = (canvasPosition.dy * _eyedropperScaleY).clamp(0, _eyedropperHeight - 1).toInt();
 
     final int pixelIndex = (y * _eyedropperWidth + x) * 4;
     if (pixelIndex >= _eyedropperBytes!.lengthInBytes - 4) return;
@@ -1755,12 +1760,14 @@ class DrawingController extends GetxController with WidgetsBindingObserver {
   // ─── Drawing Gestures ─────────────────────────────────────────────────────
 
   void onPointerDown(PointerDownEvent event) {
+    final globalPos = event.position;
     final position = event.localPosition;
     
     // Eyedropper logic
     if (activeTool.value == DrawingTool.eyedropper) {
-      eyedropperPosition.value = position;
-      _initEyedropper(position);
+      final canvasPos = _screenToCanvas(globalPos);
+      eyedropperPosition.value = canvasPos;
+      _initEyedropper(canvasPos);
       return;
     }
     
@@ -1768,7 +1775,7 @@ class DrawingController extends GetxController with WidgetsBindingObserver {
     
     // Stempel cursor logic
     if (activeTool.value == DrawingTool.cursor && activePointersMap.length == 1) {
-      final canvasPos = _screenToCanvas(position);
+      final canvasPos = _screenToCanvas(globalPos);
       final onStempel = _isPositionOnAnyStempel(canvasPos);
       final active = activeStempelId.value.isNotEmpty ? _findStempel(activeStempelId.value) : null;
       
@@ -1798,7 +1805,7 @@ class DrawingController extends GetxController with WidgetsBindingObserver {
          }
       } else {
          _isDrawing = true;
-         onPanStart(_screenToCanvas(position));
+         onPanStart(_screenToCanvas(globalPos));
       }
     } else if (activePointersMap.length >= 2) {
       if (_isDrawing) {
@@ -1811,11 +1818,13 @@ class DrawingController extends GetxController with WidgetsBindingObserver {
   }
 
   void onPointerMove(PointerMoveEvent event) {
+    final globalPos = event.position;
     final position = event.localPosition;
     
     if (activeTool.value == DrawingTool.eyedropper) {
-      eyedropperPosition.value = position;
-      _sampleColorAt(position);
+      final canvasPos = _screenToCanvas(globalPos);
+      eyedropperPosition.value = canvasPos;
+      _sampleColorAt(canvasPos);
       return;
     }
     
@@ -1825,7 +1834,7 @@ class DrawingController extends GetxController with WidgetsBindingObserver {
     
     if (activePointersMap.length == 1) {
       if (_isDrawing) {
-        onPanUpdate(_screenToCanvas(position));
+        onPanUpdate(_screenToCanvas(globalPos));
       } else if (activeTool.value == DrawingTool.cursor) {
         final active = activeStempelId.value.isNotEmpty ? _findStempel(activeStempelId.value) : null;
         final isResizing = active != null && active.isResizing.value;
@@ -1940,7 +1949,13 @@ class DrawingController extends GetxController with WidgetsBindingObserver {
     
     double deltaAngle = 0.0;
     if (points.length >= 2 && _prevAngle != null) {
-        deltaAngle = currentAngle - _prevAngle!;
+      deltaAngle = currentAngle - _prevAngle!;
+      while (deltaAngle > math.pi) {
+        deltaAngle -= 2 * math.pi;
+      }
+      while (deltaAngle < -math.pi) {
+        deltaAngle += 2 * math.pi;
+      }
     }
     
     final currentScale = canvasMatrix.value.getMaxScaleOnAxis();
@@ -2137,6 +2152,17 @@ class DrawingController extends GetxController with WidgetsBindingObserver {
     if (isPaused.value || isTimeUp.value) return;
     final stroke = currentStroke.value;
     if (stroke == null) return;
+
+    // Abaikan goresan yang 100% berada di luar kertas
+    if (paperWidth > 0 && paperHeight > 0) {
+      final margin = stroke.thickness;
+      final paperRect = Rect.fromLTRB(-margin, -margin, paperWidth + margin, paperHeight + margin);
+      final touchesPaper = stroke.points.any((p) => paperRect.contains(p));
+      if (!touchesPaper) {
+        currentStroke.value = null;
+        return;
+      }
+    }
 
     if (stroke.points.length == 1) {
       activeLayer.strokes.add(DrawingStroke(

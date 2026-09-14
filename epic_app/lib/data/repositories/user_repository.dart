@@ -4,6 +4,7 @@ import 'package:epic_app/data/models/user_model.dart';
 import 'package:epic_app/data/models/character_model.dart';
 import 'package:epic_app/data/models/score_model.dart';
 import 'package:epic_app/core/services/app_config_service.dart';
+import 'package:epic_app/data/services/local_storage_service.dart';
 
 /// Repository untuk mengelola data User di Firestore.
 class UserRepository {
@@ -55,10 +56,16 @@ class UserRepository {
   // ─── NYAWA ─────────────────────────────────────────────────────────────────
 
   /// Ambil nilai maxNyawa dari AppConfigService jika sudah dimuat,
+  /// atau fallback ke LocalStorageService (cache terakhir),
   /// atau fallback ke UserModel.maxNyawa jika service belum tersedia.
   int _getMaxNyawa() {
     if (Get.isRegistered<AppConfigService>()) {
-      return Get.find<AppConfigService>().maxNyawa.value;
+      final val = Get.find<AppConfigService>().maxNyawa.value;
+      if (val > 0) return val;
+    }
+    if (Get.isRegistered<LocalStorageService>()) {
+      final cached = Get.find<LocalStorageService>().cachedMaxNyawa;
+      if (cached > 0) return cached;
     }
     return UserModel.maxNyawa;
   }
@@ -112,20 +119,68 @@ class UserRepository {
     });
   }
 
-  /// Sync nyawa dari Firestore (cek reset harian tanpa mengurangi).
+  /// Sync nyawa dari Firestore (cek reset harian & penyesuaian dinamis konfigurasi admin).
   Future<UserModel> syncNyawa(UserModel user) async {
-    if (!user.perluResetNyawa) return user;
-
-    // Reset nyawa ke max karena hari baru
     final maxNyawa = _getMaxNyawa();
-    await _db.collection(_collection).doc(user.uid).update({
-      'nyawa': maxNyawa,
-      'nyawaLastReset': Timestamp.fromDate(DateTime.now()),
-    });
-    return user.copyWith(
-      nyawa: maxNyawa,
-      nyawaLastReset: DateTime.now(),
-    );
+    final bool isNewDay = user.perluResetNyawa;
+
+    // KASUS 1: Hari baru -> reset nyawa ke maxNyawa
+    if (isNewDay) {
+      final now = DateTime.now();
+      await _db.collection(_collection).doc(user.uid).update({
+        'nyawa': maxNyawa,
+        'nyawaLastReset': Timestamp.fromDate(now),
+      });
+      if (Get.isRegistered<LocalStorageService>()) {
+        await Get.find<LocalStorageService>().setLastSyncedMaxNyawa(user.uid, maxNyawa);
+      }
+      return user.copyWith(
+        nyawa: maxNyawa,
+        nyawaLastReset: now,
+      );
+    }
+
+    // KASUS 2: Hari yang sama, tapi batas maxNyawa dari Admin dinaikkan (misal 3 ke 5)
+    // atau user sebelumnya terkunci di default 3 akibat race condition startup lama:
+    if (Get.isRegistered<LocalStorageService>()) {
+      final prefs = Get.find<LocalStorageService>();
+      final lastSyncedMax = prefs.getLastSyncedMaxNyawa(user.uid);
+
+      if (lastSyncedMax == 0) {
+        // Migrasi pertama kali: jika nyawa tersimpan kurang dari maxNyawa saat ini,
+        // dan belum pernah tercatat lastSyncedMax, sesuaikan ke maxNyawa
+        if (user.nyawa < maxNyawa) {
+          final bonus = maxNyawa - user.nyawa;
+          final newNyawa = (user.nyawa + bonus).clamp(0, maxNyawa);
+          await _db.collection(_collection).doc(user.uid).update({
+            'nyawa': newNyawa,
+          });
+          await prefs.setLastSyncedMaxNyawa(user.uid, maxNyawa);
+          return user.copyWith(nyawa: newNyawa);
+        }
+        await prefs.setLastSyncedMaxNyawa(user.uid, maxNyawa);
+      } else if (maxNyawa > lastSyncedMax) {
+        // Admin menaikkan batas maxNyawa di tengah hari:
+        // Berikan selisih kenaikan tersebut secara proporsional kepada user
+        final bonus = maxNyawa - lastSyncedMax;
+        final newNyawa = (user.nyawa + bonus).clamp(0, maxNyawa);
+        await _db.collection(_collection).doc(user.uid).update({
+          'nyawa': newNyawa,
+        });
+        await prefs.setLastSyncedMaxNyawa(user.uid, maxNyawa);
+        return user.copyWith(nyawa: newNyawa);
+      }
+    }
+
+    // KASUS 3: Admin menurunkan maxNyawa (misal dari 5 ke 3)
+    if (user.nyawa > maxNyawa) {
+      await _db.collection(_collection).doc(user.uid).update({
+        'nyawa': maxNyawa,
+      });
+      return user.copyWith(nyawa: maxNyawa);
+    }
+
+    return user;
   }
 
   // ─── KARAKTER ──────────────────────────────────────────────────────────────

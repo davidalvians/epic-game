@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get/get.dart';
 import 'package:epic_app/core/services/app_config_service.dart';
+import 'package:epic_app/data/services/local_storage_service.dart';
 
 /// Data model untuk profil pengguna/pemain.
 /// Mendukung 3 role: murid, guru, admin.
@@ -101,7 +102,11 @@ class UserModel {
     int currentMaxNyawa = maxNyawa;
     try {
       if (Get.isRegistered<AppConfigService>()) {
-        currentMaxNyawa = Get.find<AppConfigService>().maxNyawa.value;
+        final val = Get.find<AppConfigService>().maxNyawa.value;
+        if (val > 0) currentMaxNyawa = val;
+      } else if (Get.isRegistered<LocalStorageService>()) {
+        final cached = Get.find<LocalStorageService>().cachedMaxNyawa;
+        if (cached > 0) currentMaxNyawa = cached;
       }
     } catch (_) {}
     return perluResetNyawa ? currentMaxNyawa : nyawa;
@@ -216,7 +221,14 @@ class UserModel {
       isProfileComplete: json['isProfileComplete'] == true,
       geminiPermission: json['geminiPermission'] == true,
       poin: parseSafeInt(json['poin'], 0),
-      nyawa: parseSafeInt(json['nyawa'], maxNyawa),
+      nyawa: parseSafeInt(
+        json['nyawa'],
+        Get.isRegistered<AppConfigService>()
+            ? Get.find<AppConfigService>().maxNyawa.value
+            : (Get.isRegistered<LocalStorageService>()
+                ? Get.find<LocalStorageService>().cachedMaxNyawa
+                : maxNyawa),
+      ),
       nyawaLastReset: parseTimestamp(json['nyawaLastReset']),
       karakterAktif: json['karakterAktif']?.toString() ?? 'epi_default',
       karakterDimiliki: json['karakterDimiliki'] is List

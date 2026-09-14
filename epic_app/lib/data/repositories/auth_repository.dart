@@ -3,9 +3,12 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
+import 'package:get/get.dart';
 import 'package:epic_app/data/models/user_model.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:epic_app/core/services/google_sign_in_client.dart';
+import 'package:epic_app/core/services/app_config_service.dart';
+import 'package:epic_app/data/services/local_storage_service.dart';
 
 /// Repository untuk Autentikasi menggunakan Firebase.
 /// Hanya mendukung Google Sign-In, QR Code, dan Kode 6 Digit.
@@ -78,6 +81,12 @@ class AuthRepository {
       if (!doc.exists || doc.data() == null) {
         // User baru — buat profil dasar dengan isProfileComplete = false
         final now = DateTime.now();
+        final initialNyawa = Get.isRegistered<AppConfigService>()
+            ? Get.find<AppConfigService>().maxNyawa.value
+            : (Get.isRegistered<LocalStorageService>()
+                ? Get.find<LocalStorageService>().cachedMaxNyawa
+                : UserModel.maxNyawa);
+
         final newUser = UserModel(
           uid: uid,
           namaLengkap: userCredential.user?.displayName ?? '',
@@ -89,7 +98,7 @@ class AuthRepository {
           isProfileComplete: false,
           geminiPermission: geminiGranted,
           poin: 0,
-          nyawa: UserModel.maxNyawa,
+          nyawa: initialNyawa,
           nyawaLastReset: now,
           karakterAktif: 'epi_default',
           karakterDimiliki: const ['epi_default', 'ipeh_default'],

@@ -17,6 +17,7 @@ import 'package:epic_app/core/routes/app_routes.dart';
 import 'package:epic_app/core/utils/epic_notification.dart';
 import 'package:epic_app/features/kelas/kelas_controller.dart' as epic_app_kelas_controller;
 import 'package:epic_app/data/repositories/misi_harian_repository.dart';
+import 'package:epic_app/core/services/app_config_service.dart';
 
 /// Controller global untuk mengelola sesi pengguna menggunakan Firebase Auth.
 class SessionController extends GetxController {
@@ -239,7 +240,17 @@ class SessionController extends GetxController {
 
       // Sinkronisasi nyawa & keaktifan (background, non-blocking untuk startup)
       () async {
-        try { await _userRepo.syncNyawa(userModel); } catch (e) {
+        try {
+          if (Get.isRegistered<AppConfigService>()) {
+            await Get.find<AppConfigService>()
+                .whenReady
+                .timeout(const Duration(seconds: 2), onTimeout: () {});
+          }
+          final syncedUser = await _userRepo.syncNyawa(userModel);
+          if (currentUser.value?.uid == syncedUser.uid) {
+            currentUser.value = syncedUser;
+          }
+        } catch (e) {
           debugPrint('⚠️ syncNyawa error: $e');
         }
       }();

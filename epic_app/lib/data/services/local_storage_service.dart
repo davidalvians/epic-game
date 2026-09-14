@@ -18,6 +18,7 @@ class LocalStorageService extends GetxService {
   static const String keyMusicEnabled = 'music_enabled';
   static const String keySoundEnabled = 'sound_enabled';
   static const String keyNotifEnabled = 'notif_enabled';
+  static const String keyCachedMaxNyawa = 'cached_max_nyawa';
 
   // ─── Getters ────────────────────────────────────────
   bool get isFirstLaunch => _prefs.getBool(keyIsFirstLaunch) ?? true;
@@ -26,6 +27,8 @@ class LocalStorageService extends GetxService {
   bool get isMusicEnabled => _prefs.getBool(keyMusicEnabled) ?? true;
   bool get isSoundEnabled => _prefs.getBool(keySoundEnabled) ?? true;
   bool get isNotifEnabled => _prefs.getBool(keyNotifEnabled) ?? true;
+  int get cachedMaxNyawa => _prefs.getInt(keyCachedMaxNyawa) ?? 3;
+  int getLastSyncedMaxNyawa(String uid) => _prefs.getInt('last_synced_max_nyawa_$uid') ?? 0;
 
   // ─── Setters ────────────────────────────────────────
   Future<bool> setFirstLaunch(bool value) => _prefs.setBool(keyIsFirstLaunch, value);
@@ -34,6 +37,9 @@ class LocalStorageService extends GetxService {
   Future<bool> setMusicEnabled(bool value) => _prefs.setBool(keyMusicEnabled, value);
   Future<bool> setSoundEnabled(bool value) => _prefs.setBool(keySoundEnabled, value);
   Future<bool> setNotifEnabled(bool value) => _prefs.setBool(keyNotifEnabled, value);
+  Future<bool> setCachedMaxNyawa(int value) => _prefs.setInt(keyCachedMaxNyawa, value);
+  Future<bool> setLastSyncedMaxNyawa(String uid, int value) =>
+      _prefs.setInt('last_synced_max_nyawa_$uid', value);
 
   // ─── Clear ──────────────────────────────────────────
   Future<bool> clearAll() => _prefs.clear();

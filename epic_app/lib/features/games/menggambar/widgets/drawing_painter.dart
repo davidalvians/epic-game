@@ -17,11 +17,14 @@ class _DrawingPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    if (size.width <= 0 || size.height <= 0) return;
+
+    canvas.save();
+    canvas.clipRect(Offset.zero & size);
+
     for (int i = 0; i < layers.length; i++) {
       final layer = layers[i];
       if (!layer.isVisible.value) continue;
-
-      if (size.width <= 0 || size.height <= 0) continue;
       
       canvas.saveLayer(Offset.zero & size, Paint());
 
@@ -87,6 +90,8 @@ class _DrawingPainter extends CustomPainter {
         previewPaint,
       );
     }
+
+    canvas.restore();
   }
 
   void _paintStroke(Canvas canvas, DrawingStroke stroke, Size size) {
