@@ -101,7 +101,13 @@ class _DrawingScreenState extends State<DrawingScreen> {
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) {
-          _showExitDialog();
+          // Jika waktu sudah habis: langsung keluar dari canvas menggambar
+          // (tidak ada ruang untuk lanjut menggambar)
+          if (controller.isTimeUp.value) {
+            Get.back();
+          } else {
+            _showExitDialog();
+          }
         }
       },
       child: Scaffold(

@@ -83,16 +83,20 @@ class _DrawingCanvas extends StatelessWidget {
                   final layerIndex = controller.layers.indexOf(layer);
                   return [
                     // 1. Coretan untuk layer ini
-                    CustomPaint(
-                      painter: _DrawingPainter(
-                        layers: [layer],
-                        currentStroke: controller.activeLayerIndex.value == layerIndex 
-                                       ? controller.currentStroke.value : null,
-                        activeLayerIndex: 0,
-                        zoomScale: controller.canvasMatrix.value.getMaxScaleOnAxis(),
-                        renderStempels: false,
+                    // IgnorePointer wajib agar CustomPaint tidak memblokir hit test
+                    // ke stempel/bentuk di layer-layer di bawahnya.
+                    IgnorePointer(
+                      child: CustomPaint(
+                        painter: _DrawingPainter(
+                          layers: [layer],
+                          currentStroke: controller.activeLayerIndex.value == layerIndex 
+                                         ? controller.currentStroke.value : null,
+                          activeLayerIndex: 0,
+                          zoomScale: controller.canvasMatrix.value.getMaxScaleOnAxis(),
+                          renderStempels: false,
+                        ),
+                        child: Container(),
                       ),
-                      child: Container(),
                     ),
                     // 2. Stempel/Bentuk untuk layer ini
                     ...layer.stempels.map((stempel) {

@@ -623,12 +623,16 @@ class DrawingController extends GetxController with WidgetsBindingObserver {
   }
 
   void addStempel(StempelShape shape) {
+    // Jangan izinkan menambah stempel saat waktu habis
+    if (isTimeUp.value) return;
     activeTool.value = DrawingTool.cursor;
     activeStempelShape.value = shape;
     activeStempelId.value = ''; // Deselect current, wait for user to touch canvas
   }
 
   void placeNewStempel(Offset position) {
+    // Jangan izinkan menempatkan stempel saat waktu habis
+    if (isTimeUp.value) return;
     if (activeStempelShape.value == null) return;
     if (layers.isEmpty) return; // Butuh setidaknya 1 layer
 
@@ -1288,6 +1292,15 @@ class DrawingController extends GetxController with WidgetsBindingObserver {
         } catch (_) {}
       }
 
+      // Jika waktu sudah habis di sesi sebelumnya, langsung tampilkan popup
+      // waktu habis tanpa memulai timer (tidak ada ruang untuk menggambar).
+      if (existingDraft.remainingSeconds <= 0) {
+        isTimeUp.value = true;
+        isPaused.value = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) => _showTimeUpDialog());
+        return;
+      }
+
       if (isLanjutkan) {
         startTimer();
         if (activeTemplate.value == null) {
@@ -1577,69 +1590,80 @@ class DrawingController extends GetxController with WidgetsBindingObserver {
     final timerMenit = ((configService?.timerDurasiDetik.value ?? _timerDurasiDetik) / 60).round();
 
     Get.dialog(
-      AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: const Text(
-          'Waktu Habis! ⏰',
-          style: TextStyle(fontFamily: 'FredokaOne', fontSize: 18),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'Waktu $timerMenit menit sudah habis. Mau tambah waktu $timerMenit menit dengan nyawa?',
-              style: const TextStyle(fontFamily: 'Nunito', fontSize: 14),
+      // PopScope mencegah tombol Back Android hanya menutup dialog tanpa efek.
+      // Ketika Back ditekan: tutup dialog DAN langsung keluar dari canvas menggambar.
+      PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (didPop, _) {
+          if (!didPop) {
+            Get.back(); // tutup dialog waktu habis
+            Get.back(); // keluar dari canvas menggambar
+          }
+        },
+        child: AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          title: const Text(
+            'Waktu Habis! ⏰',
+            style: TextStyle(fontFamily: 'FredokaOne', fontSize: 18),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Waktu $timerMenit menit sudah habis. Mau tambah waktu $timerMenit menit dengan nyawa?',
+                style: const TextStyle(fontFamily: 'Nunito', fontSize: 14),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(maxNyawaDisplay, (i) {
+                  return Icon(
+                    i < nyawaSisa
+                        ? Icons.favorite_rounded
+                        : Icons.favorite_border_rounded,
+                    color: i < nyawaSisa
+                        ? const Color(0xFFEF4444)
+                        : const Color(0xFFCBD5E1),
+                    size: 24,
+                  );
+                }),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '$nyawaSisa nyawa tersisa',
+                style: const TextStyle(
+                    fontFamily: 'Nunito',
+                    fontSize: 12,
+                    color: Color(0xFF64748B)),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Get.back();
+                submitDrawing();
+              },
+              child: const Text('Kumpulkan Sekarang',
+                  style: TextStyle(color: Colors.grey, fontFamily: 'Nunito')),
             ),
-            const SizedBox(height: 12),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(maxNyawaDisplay, (i) {
-                return Icon(
-                  i < nyawaSisa
-                      ? Icons.favorite_rounded
-                      : Icons.favorite_border_rounded,
-                  color: i < nyawaSisa
-                      ? const Color(0xFFEF4444)
-                      : const Color(0xFFCBD5E1),
-                  size: 24,
-                );
-              }),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              '$nyawaSisa nyawa tersisa',
-              style: const TextStyle(
-                  fontFamily: 'Nunito',
-                  fontSize: 12,
-                  color: Color(0xFF64748B)),
-            ),
+            if (nyawaSisa > 0)
+              ElevatedButton(
+                onPressed: () async {
+                  Get.back();
+                  await _gunakanNyawaUntukTambahWaktu();
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFEF4444),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
+                child: Text('Pakai ❤️ +$timerMenit menit',
+                    style: const TextStyle(fontFamily: 'FredokaOne', fontSize: 13)),
+              ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Get.back();
-              submitDrawing();
-            },
-            child: const Text('Kumpulkan Sekarang',
-                style: TextStyle(color: Colors.grey, fontFamily: 'Nunito')),
-          ),
-          if (nyawaSisa > 0)
-            ElevatedButton(
-              onPressed: () async {
-                Get.back();
-                await _gunakanNyawaUntukTambahWaktu();
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFEF4444),
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
-              ),
-              child: Text('Pakai ❤️ +$timerMenit menit',
-                  style: const TextStyle(fontFamily: 'FredokaOne', fontSize: 13)),
-            ),
-        ],
       ),
       barrierDismissible: false,
     );
