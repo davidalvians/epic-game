@@ -1,3 +1,5 @@
+import 'package:epic_admin/core/utils/evaluation_report.dart';
+import 'package:epic_admin/features/evaluasi/widgets/response_detail_dialog.dart';
 import 'package:epic_admin/core/theme/admin_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -6,10 +8,12 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:epic_admin/core/utils/file_download_helper.dart';
 import 'package:epic_admin/core/utils/kelas_pdf_generator.dart';
+import 'package:intl/intl.dart';
 
 String _getProxiedImageUrl(String url) {
   if (url.isEmpty) return '';
-  if (url.contains('firebasestorage.googleapis.com') || url.contains('googleusercontent.com')) {
+  if (url.contains('firebasestorage.googleapis.com') ||
+      url.contains('googleusercontent.com')) {
     return 'https://images.weserv.nl/?url=${Uri.encodeComponent(url)}';
   }
   return url;
@@ -26,7 +30,12 @@ class KelasDetailScreen extends StatefulWidget {
 class _KelasDetailScreenState extends State<KelasDetailScreen> {
   String _selectedCategory = 'Semua';
   String _studentSearchQuery = '';
-  final TextEditingController _studentSearchController = TextEditingController();
+  final TextEditingController _studentSearchController =
+      TextEditingController();
+
+  // State untuk filter tabel evaluasi
+  String _evalFilterCategory = 'Semua';
+  int _evalFilterLevel = 0; // 0 = Semua Level
 
   @override
   void dispose() {
@@ -37,15 +46,19 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final double screenWidth = MediaQuery.of(context).size.width;
-    final bool isWide = screenWidth >= 1100;
 
     return StreamBuilder<DocumentSnapshot>(
-      stream: FirebaseFirestore.instance.collection('kelas').doc(widget.id).snapshots(),
+      stream: FirebaseFirestore.instance
+          .collection('kelas')
+          .doc(widget.id)
+          .snapshots(),
       builder: (context, classSnapshot) {
         if (classSnapshot.hasError) {
           return Scaffold(
             backgroundColor: const Color(0xFFF8FAFC),
-            body: Center(child: Text('Terjadi kesalahan memuat kelas: ${classSnapshot.error}')),
+            body: Center(
+                child: Text(
+                    'Terjadi kesalahan memuat kelas: ${classSnapshot.error}')),
           );
         }
 
@@ -67,7 +80,8 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Text('Kelas tidak ditemukan.', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const Text('Kelas tidak ditemukan.',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 16),
                   ElevatedButton(
                     onPressed: () => context.pop(),
@@ -84,7 +98,8 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
         final String classCode = classData['kodeKelas'] ?? '-';
         final String teacherName = classData['guruNama'] ?? 'Tanpa Guru';
         final String guruId = classData['guruUid'] ?? classData['guruId'] ?? '';
-        final List<dynamic> muridIds = classData['muridIds'] is List ? classData['muridIds'] : [];
+        final List<dynamic> muridIds =
+            classData['muridIds'] is List ? classData['muridIds'] : [];
         final String status = classData['status'] ?? 'aktif';
         final bool isClassActive = status == 'aktif';
 
@@ -97,23 +112,36 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
 
         return StreamBuilder<DocumentSnapshot>(
           stream: guruId.isNotEmpty
-              ? FirebaseFirestore.instance.collection('users').doc(guruId).snapshots()
+              ? FirebaseFirestore.instance
+                  .collection('users')
+                  .doc(guruId)
+                  .snapshots()
               : const Stream.empty(),
           builder: (context, guruProfileSnapshot) {
             String school = 'Sekolah tidak ditentukan';
-            if (guruProfileSnapshot.hasData && guruProfileSnapshot.data!.exists) {
-              final gData = guruProfileSnapshot.data!.data() as Map<String, dynamic>;
+            if (guruProfileSnapshot.hasData &&
+                guruProfileSnapshot.data!.exists) {
+              final gData =
+                  guruProfileSnapshot.data!.data() as Map<String, dynamic>;
               school = gData['sekolah'] ?? 'Sekolah tidak ditentukan';
             }
 
             return StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance.collection('users').where('role', isEqualTo: 'murid').snapshots(),
+              stream: FirebaseFirestore.instance
+                  .collection('users')
+                  .where('role', isEqualTo: 'murid')
+                  .snapshots(),
               builder: (context, allStudentsSnapshot) {
-                final allStudents = (allStudentsSnapshot.data?.docs ?? []).cast<QueryDocumentSnapshot<Map<String, dynamic>>>();
+                final allStudents = (allStudentsSnapshot.data?.docs ?? [])
+                    .cast<QueryDocumentSnapshot<Map<String, dynamic>>>();
 
                 // Filter students who are members of this class
+                final classMemberIds =
+                    muridIds.map((id) => id.toString().trim()).toSet();
                 final classStudents = allStudents.where((doc) {
-                  return muridIds.contains(doc.id);
+                  final uid = doc.data()['uid']?.toString().trim() ?? '';
+                  return classMemberIds.contains(doc.id) ||
+                      (uid.isNotEmpty && classMemberIds.contains(uid));
                 }).toList();
 
                 final int studentCount = classStudents.length;
@@ -125,15 +153,20 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
                       .where('kelasId', isEqualTo: widget.id)
                       .snapshots(),
                   builder: (context, artworksSnapshot) {
-                    final classArtworksDocs = (artworksSnapshot.data?.docs ?? [])
+                    final classArtworksDocs = (artworksSnapshot.data?.docs ??
+                            [])
                         .cast<QueryDocumentSnapshot<Map<String, dynamic>>>();
 
                     // Sort artworks descending by createdAt
                     classArtworksDocs.sort((a, b) {
                       final aData = a.data();
                       final bData = b.data();
-                      final Timestamp aTime = aData['createdAt'] is Timestamp ? aData['createdAt'] : Timestamp.now();
-                      final Timestamp bTime = bData['createdAt'] is Timestamp ? bData['createdAt'] : Timestamp.now();
+                      final Timestamp aTime = aData['createdAt'] is Timestamp
+                          ? aData['createdAt']
+                          : Timestamp.now();
+                      final Timestamp bTime = bData['createdAt'] is Timestamp
+                          ? bData['createdAt']
+                          : Timestamp.now();
                       return bTime.compareTo(aTime);
                     });
 
@@ -144,12 +177,16 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
                       final String studentUid = aData['uid'] ?? '';
                       final int pts = aData['poinDapat'] is int
                           ? aData['poinDapat'] as int
-                          : (int.tryParse(aData['poinDapat']?.toString() ?? '') ?? 0);
-                      studentClassPoints[studentUid] = (studentClassPoints[studentUid] ?? 0) + pts;
+                          : (int.tryParse(
+                                  aData['poinDapat']?.toString() ?? '') ??
+                              0);
+                      studentClassPoints[studentUid] =
+                          (studentClassPoints[studentUid] ?? 0) + pts;
                     }
 
                     // 2. Total points of the class
-                    final int totalPoints = studentClassPoints.values.fold<int>(0, (sum, p) => sum + p);
+                    final int totalPoints = studentClassPoints.values
+                        .fold<int>(0, (sum, p) => sum + p);
 
                     // 3. Calculate average AI score of artworks in this class
                     double totalArtworkScore = 0;
@@ -158,7 +195,8 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
                       final aData = aDoc.data();
                       final int score = aData['skorAI'] is int
                           ? aData['skorAI'] as int
-                          : (int.tryParse(aData['skorAI']?.toString() ?? '') ?? 0);
+                          : (int.tryParse(aData['skorAI']?.toString() ?? '') ??
+                              0);
                       totalArtworkScore += score;
                     }
 
@@ -168,21 +206,26 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
 
                     // 4. Count students with zero artworks in this class
                     final int zeroWorksCount = classStudents.where((sDoc) {
-                      return !classArtworksDocs.any((aDoc) => aDoc.data()['uid'] == sDoc.id);
+                      return !classArtworksDocs
+                          .any((aDoc) => aDoc.data()['uid'] == sDoc.id);
                     }).length;
 
                     // 5. Build Class Leaderboard items
-                    final List<Map<String, dynamic>> leaderboardItems = classStudents.map((doc) {
+                    final List<Map<String, dynamic>> leaderboardItems =
+                        classStudents.map((doc) {
                       final sData = doc.data();
                       return {
                         'uid': doc.id,
-                        'name': sData['namaLengkap'] ?? sData['nama'] ?? 'Tanpa Nama',
+                        'name': sData['namaLengkap'] ??
+                            sData['nama'] ??
+                            'Tanpa Nama',
                         'points': studentClassPoints[doc.id] ?? 0,
                       };
                     }).toList();
 
                     // Sort leaderboard descending by class-specific points
-                    leaderboardItems.sort((a, b) => (b['points'] as int).compareTo(a['points'] as int));
+                    leaderboardItems.sort((a, b) =>
+                        (b['points'] as int).compareTo(a['points'] as int));
 
                     // Add ranks
                     final List<Map<String, dynamic>> leaderboardWithRanks = [];
@@ -209,7 +252,8 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
                     }
 
                     // 6. Map to students table rows (scoped strictly to this class)
-                    final List<Map<String, dynamic>> studentRows = classStudents.map((doc) {
+                    final List<Map<String, dynamic>> studentRows =
+                        classStudents.map((doc) {
                       final sData = doc.data();
                       final String studentUid = doc.id;
 
@@ -227,10 +271,14 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
                       }
                       String topGrade = '-';
                       if (grades.isNotEmpty) {
-                        topGrade = 'Grade ' + grades.entries.reduce((a, b) => a.value > b.value ? a : b).key;
+                        topGrade = 'Grade ' +
+                            grades.entries
+                                .reduce((a, b) => a.value > b.value ? a : b)
+                                .key;
                       }
 
-                      final dynamic lastAct = sData['lastActiveAt'] ?? sData['nyawaLastReset'];
+                      final dynamic lastAct =
+                          sData['lastActiveAt'] ?? sData['nyawaLastReset'];
                       String lastActStr = 'Baru saja';
                       if (lastAct is Timestamp) {
                         final dt = lastAct.toDate();
@@ -239,8 +287,11 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
 
                       return {
                         'uid': studentUid,
-                        'rank': studentRanks[studentUid] ?? (leaderboardItems.length + 1),
-                        'name': sData['namaLengkap'] ?? sData['nama'] ?? 'Tanpa Nama',
+                        'rank': studentRanks[studentUid] ??
+                            (leaderboardItems.length + 1),
+                        'name': sData['namaLengkap'] ??
+                            sData['nama'] ??
+                            'Tanpa Nama',
                         'namaPanggilan': sData['namaPanggilan'] ?? '-',
                         'username': sData['username'] ?? '-',
                         'points': studentClassPoints[studentUid] ?? 0,
@@ -251,23 +302,21 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
                     }).toList();
 
                     // Sort student rows alphabetically (A - Z) by student name
-                    studentRows.sort((a, b) => (a['name'] as String).toLowerCase().compareTo((b['name'] as String).toLowerCase()));
+                    studentRows.sort((a, b) => (a['name'] as String)
+                        .toLowerCase()
+                        .compareTo((b['name'] as String).toLowerCase()));
 
                     // Filter students by search query
                     final filteredStudentRows = studentRows.where((s) {
                       final query = _studentSearchQuery.trim().toLowerCase();
                       if (query.isEmpty) return true;
                       final name = (s['name'] as String).toLowerCase();
-                      final nickname = (s['namaPanggilan'] as String).toLowerCase();
+                      final nickname =
+                          (s['namaPanggilan'] as String).toLowerCase();
                       final username = (s['username'] as String).toLowerCase();
-                      return name.contains(query) || nickname.contains(query) || username.contains(query);
-                    }).toList();
-
-                    // 7. Filter class artworks by selected category for the Gallery Preview
-                    final filteredArtworksDocs = classArtworksDocs.where((doc) {
-                      if (_selectedCategory == 'Semua') return true;
-                      final cat = (doc.data()['kategori'] ?? '').toString().toLowerCase();
-                      return cat == _selectedCategory.toLowerCase();
+                      return name.contains(query) ||
+                          nickname.contains(query) ||
+                          username.contains(query);
                     }).toList();
 
                     return Stack(
@@ -321,46 +370,90 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
                                       decoration: BoxDecoration(
                                         color: Colors.white,
                                         shape: BoxShape.circle,
-                                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                                        border: Border.all(
+                                            color: const Color(0xFFE2E8F0)),
                                         boxShadow: [
                                           BoxShadow(
-                                            color: Colors.black.withOpacity(0.03),
+                                            color:
+                                                Colors.black.withOpacity(0.03),
                                             blurRadius: 8,
                                             offset: const Offset(0, 2),
                                           ),
                                         ],
                                       ),
                                       child: IconButton(
-                                        icon: const Icon(Icons.arrow_back_rounded, color: Color(0xFF0F172A), size: 20),
+                                        icon: const Icon(
+                                            Icons.arrow_back_rounded,
+                                            color: Color(0xFF0F172A),
+                                            size: 20),
                                         onPressed: () => context.pop(),
                                       ),
                                     ),
-                                    const SizedBox(width: 16),
-                                    Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Row(
-                                          children: [
-                                            Text('Dashboard', style: Theme.of(context).textTheme.labelSmall?.copyWith(color: const Color(0xFF64748B))),
-                                            const Icon(Icons.chevron_right, size: 14, color: Color(0xFF64748B)),
-                                            Text('Manajemen Kelas', style: Theme.of(context).textTheme.labelSmall?.copyWith(color: const Color(0xFF64748B))),
-                                            const Icon(Icons.chevron_right, size: 14, color: Color(0xFF64748B)),
-                                            Text('Detail Kelas', style: Theme.of(context).textTheme.labelSmall?.copyWith(color: AdminColors.primary, fontWeight: FontWeight.bold)),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 6),
-                                        Text(
-                                          'Detail Informasi Kelas',
-                                          style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                                                fontWeight: FontWeight.w800,
-                                                color: const Color(0xFF0F172A),
-                                                letterSpacing: -0.5,
-                                              ),
-                                        ),
-                                      ],
+                                    SizedBox(
+                                        width: screenWidth < 768 ? 10 : 16),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          if (screenWidth >= 600)
+                                            Row(
+                                              children: [
+                                                Text('Dashboard',
+                                                    style: Theme.of(context)
+                                                        .textTheme
+                                                        .labelSmall
+                                                        ?.copyWith(
+                                                            color: const Color(
+                                                                0xFF64748B))),
+                                                const Icon(Icons.chevron_right,
+                                                    size: 14,
+                                                    color: Color(0xFF64748B)),
+                                                Text('Manajemen Kelas',
+                                                    style: Theme.of(context)
+                                                        .textTheme
+                                                        .labelSmall
+                                                        ?.copyWith(
+                                                            color: const Color(
+                                                                0xFF64748B))),
+                                                const Icon(Icons.chevron_right,
+                                                    size: 14,
+                                                    color: Color(0xFF64748B)),
+                                                Text('Detail Kelas',
+                                                    style: Theme.of(context)
+                                                        .textTheme
+                                                        .labelSmall
+                                                        ?.copyWith(
+                                                            color: AdminColors
+                                                                .primary,
+                                                            fontWeight:
+                                                                FontWeight
+                                                                    .bold)),
+                                              ],
+                                            ),
+                                          const SizedBox(height: 6),
+                                          Text(
+                                            'Detail Informasi Kelas',
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .headlineLarge
+                                                ?.copyWith(
+                                                  fontWeight: FontWeight.w800,
+                                                  color:
+                                                      const Color(0xFF0F172A),
+                                                  letterSpacing: -0.5,
+                                                ),
+                                          ),
+                                        ],
+                                      ),
                                     ),
                                   ],
-                                ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.04, end: 0, curve: Curves.easeOutQuad),
+                                ).animate().fadeIn(duration: 400.ms).slideY(
+                                    begin: 0.04,
+                                    end: 0,
+                                    curve: Curves.easeOutQuad),
                                 const SizedBox(height: 28),
 
                                 // Scrollable Content
@@ -369,7 +462,8 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
                                     physics: const BouncingScrollPhysics(),
                                     padding: const EdgeInsets.only(bottom: 32),
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         // Header Card
                                         _buildClassHeaderCard(
@@ -397,42 +491,18 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
                                         ),
                                         const SizedBox(height: 32),
 
-                                        // Leaderboard & Gallery Preview Sections
-                                        if (isWide)
-                                          Row(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            children: [
-                                              // Leaderboard on the left
-                                              SizedBox(
-                                                width: 360,
-                                                child: _buildLeaderboardCard(context, leaderboardWithRanks),
-                                              ),
-                                              const SizedBox(width: 24),
-                                              // Gallery & Artwork Preview on the right
-                                              Expanded(
-                                                child: _buildClassArtworksGalleryCard(
-                                                  context: context,
-                                                  artworks: filteredArtworksDocs,
-                                                  allArtworksCount: classArtworksDocs.length,
-                                                  allStudents: allStudents,
-                                                ),
-                                              ),
-                                            ],
-                                          )
-                                        else
-                                          Column(
-                                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                                            children: [
-                                              _buildLeaderboardCard(context, leaderboardWithRanks),
-                                              const SizedBox(height: 24),
-                                              _buildClassArtworksGalleryCard(
-                                                context: context,
-                                                artworks: filteredArtworksDocs,
-                                                allArtworksCount: classArtworksDocs.length,
-                                                allStudents: allStudents,
-                                              ),
-                                            ],
-                                          ),
+                                        // Akses galeri ditampilkan sebagai banner
+                                        // penuh agar tidak bertabrakan dengan
+                                        // tinggi leaderboard di desktop.
+                                        _buildGalleryShortcutCard(
+                                          context,
+                                          className: className,
+                                          artworkCount:
+                                              classArtworksDocs.length,
+                                        ),
+                                        const SizedBox(height: 24),
+                                        _buildLeaderboardCard(
+                                            context, leaderboardWithRanks),
                                         const SizedBox(height: 32),
 
                                         // Students List Card
@@ -441,6 +511,14 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
                                           classId: widget.id,
                                           list: filteredStudentRows,
                                           studentCount: studentCount.toString(),
+                                        ),
+                                        const SizedBox(height: 32),
+
+                                        // Evaluation Responses Card
+                                        _buildClassEvaluationResponsesCard(
+                                          context: context,
+                                          muridIds: muridIds.cast<String>(),
+                                          classStudents: classStudents,
                                         ),
                                       ],
                                     ),
@@ -476,8 +554,60 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
     required double avgScore,
     required bool isClassActive,
     required List<Map<String, dynamic>> studentRows,
-    required List<QueryDocumentSnapshot<Map<String, dynamic>>> classArtworksDocs,
+    required List<QueryDocumentSnapshot<Map<String, dynamic>>>
+        classArtworksDocs,
   }) {
+    if (MediaQuery.sizeOf(context).width < 900) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+            color: const Color(0xFF1E3A8A),
+            borderRadius: BorderRadius.circular(20)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(className,
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800)),
+          const SizedBox(height: 6),
+          Text(school, style: const TextStyle(color: Colors.white70)),
+          const SizedBox(height: 14),
+          Text('Wali kelas: $teacherName',
+              style: const TextStyle(color: Colors.white)),
+          Text('Dibuat: $createdDate',
+              style: const TextStyle(color: Colors.white70)),
+          const SizedBox(height: 14),
+          Wrap(spacing: 8, runSpacing: 8, children: [
+            ActionChip(
+                label: Text('Kode: $classCode'),
+                avatar: const Icon(Icons.copy, size: 16),
+                onPressed: () =>
+                    Clipboard.setData(ClipboardData(text: classCode))),
+            ActionChip(
+                label:
+                    Text(isClassActive ? 'Arsipkan Kelas' : 'Aktifkan Kelas'),
+                onPressed: () => _toggleArchiveClass(
+                    context, widget.id, isClassActive, className)),
+          ]),
+          const SizedBox(height: 10),
+          SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                  icon: const Icon(Icons.download),
+                  label: const Text('Laporan Kelas'),
+                  onPressed: () => _showReportPreviewDialog(
+                      context,
+                      className,
+                      classCode,
+                      teacherName,
+                      school,
+                      createdDate,
+                      studentRows,
+                      classArtworksDocs))),
+        ]),
+      );
+    }
     return Container(
       padding: const EdgeInsets.all(28),
       decoration: BoxDecoration(
@@ -542,7 +672,8 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
                           color: Colors.white.withOpacity(0.15),
                           borderRadius: BorderRadius.circular(16),
                         ),
-                        child: const Icon(Icons.school_rounded, color: Colors.white, size: 28),
+                        child: const Icon(Icons.school_rounded,
+                            color: Colors.white, size: 28),
                       ),
                       const SizedBox(width: 16),
                       Column(
@@ -571,7 +702,8 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
                     ],
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                     decoration: BoxDecoration(
                       color: Colors.white.withOpacity(0.15),
                       borderRadius: BorderRadius.circular(14),
@@ -599,19 +731,22 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
                                 SnackBar(
                                   content: Row(
                                     children: [
-                                      const Icon(Icons.check_circle_rounded, color: Colors.white, size: 18),
+                                      const Icon(Icons.check_circle_rounded,
+                                          color: Colors.white, size: 18),
                                       const SizedBox(width: 10),
                                       Expanded(
                                         child: Text(
                                           'Kode kelas $classCode berhasil disalin!',
-                                          style: const TextStyle(fontWeight: FontWeight.w500),
+                                          style: const TextStyle(
+                                              fontWeight: FontWeight.w500),
                                         ),
                                       ),
                                     ],
                                   ),
                                   backgroundColor: const Color(0xFF059669),
                                   behavior: SnackBarBehavior.floating,
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12)),
                                   width: 360,
                                 ),
                               );
@@ -637,31 +772,57 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
                 crossAxisAlignment: WrapCrossAlignment.center,
                 alignment: WrapAlignment.spaceBetween,
                 children: [
-                  _buildHeaderBadge(Icons.person_rounded, 'Wali Kelas: $teacherName'),
-                  _buildHeaderBadge(Icons.calendar_today_rounded, 'Dibuat: $createdDate'),
-                  _buildHeaderBadge(Icons.groups_rounded, '$studentCount Murid Terdaftar'),
-                  _buildHeaderBadge(Icons.analytics_rounded, 'Rata-rata Skor: ${avgScore.toStringAsFixed(1)}'),
+                  _buildHeaderBadge(
+                      Icons.person_rounded, 'Wali Kelas: $teacherName'),
+                  _buildHeaderBadge(
+                      Icons.calendar_today_rounded, 'Dibuat: $createdDate'),
+                  _buildHeaderBadge(
+                      Icons.groups_rounded, '$studentCount Murid Terdaftar'),
+                  _buildHeaderBadge(Icons.analytics_rounded,
+                      'Rata-rata Skor: ${avgScore.toStringAsFixed(1)}'),
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       InkWell(
-                        onTap: () => _toggleArchiveClass(context, widget.id, isClassActive, className),
+                        onTap: () => _toggleArchiveClass(
+                            context, widget.id, isClassActive, className),
                         borderRadius: BorderRadius.circular(10),
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 6),
                           decoration: BoxDecoration(
-                            color: isClassActive ? const Color(0xFFD1FAE5) : const Color(0xFFF1F5F9),
+                            color: isClassActive
+                                ? const Color(0xFFD1FAE5)
+                                : const Color(0xFFF1F5F9),
                             borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: (isClassActive ? const Color(0xFF10B981) : const Color(0xFF64748B)).withOpacity(0.3)),
+                            border: Border.all(
+                                color: (isClassActive
+                                        ? const Color(0xFF10B981)
+                                        : const Color(0xFF64748B))
+                                    .withOpacity(0.3)),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(isClassActive ? Icons.check_circle_rounded : Icons.archive_rounded, size: 13, color: isClassActive ? const Color(0xFF065F46) : const Color(0xFF475569)),
+                              Icon(
+                                  isClassActive
+                                      ? Icons.check_circle_rounded
+                                      : Icons.archive_rounded,
+                                  size: 13,
+                                  color: isClassActive
+                                      ? const Color(0xFF065F46)
+                                      : const Color(0xFF475569)),
                               const SizedBox(width: 6),
                               Text(
-                                isClassActive ? 'Status: Aktif (Arsipkan)' : 'Status: Arsip (Aktifkan)',
-                                style: TextStyle(color: isClassActive ? const Color(0xFF065F46) : const Color(0xFF475569), fontWeight: FontWeight.bold, fontSize: 11),
+                                isClassActive
+                                    ? 'Status: Aktif (Arsipkan)'
+                                    : 'Status: Arsip (Aktifkan)',
+                                style: TextStyle(
+                                    color: isClassActive
+                                        ? const Color(0xFF065F46)
+                                        : const Color(0xFF475569),
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 11),
                               ),
                             ],
                           ),
@@ -681,20 +842,26 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
                         ),
                         borderRadius: BorderRadius.circular(10),
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 6),
                           decoration: BoxDecoration(
                             color: Colors.white.withOpacity(0.15),
                             borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: Colors.white.withOpacity(0.25)),
+                            border: Border.all(
+                                color: Colors.white.withOpacity(0.25)),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: const [
-                              Icon(Icons.download_rounded, size: 13, color: Colors.white),
+                              Icon(Icons.download_rounded,
+                                  size: 13, color: Colors.white),
                               SizedBox(width: 6),
                               Text(
                                 'Unduh Laporan',
-                                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11),
+                                style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 11),
                               ),
                             ],
                           ),
@@ -708,7 +875,10 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
           ),
         ],
       ),
-    ).animate().fadeIn(duration: 400.ms, delay: 100.ms).slideY(begin: 0.04, end: 0, curve: Curves.easeOutQuad);
+    )
+        .animate()
+        .fadeIn(duration: 400.ms, delay: 100.ms)
+        .slideY(begin: 0.04, end: 0, curve: Curves.easeOutQuad);
   }
 
   // ==========================================
@@ -726,12 +896,12 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
         final bool isSmall = constraints.maxWidth < 800;
         final bool isExtraSmall = constraints.maxWidth < 500;
         return GridView.count(
-          crossAxisCount: isSmall ? 2 : 4,
+          crossAxisCount: isExtraSmall ? 1 : (isSmall ? 2 : 4),
           crossAxisSpacing: 16,
           mainAxisSpacing: 16,
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
-          childAspectRatio: isExtraSmall ? 1.35 : (isSmall ? 2.0 : 2.5),
+          mainAxisExtent: isExtraSmall ? 112 : 140,
           children: [
             _buildMetricItemCard(
               title: 'TOTAL KARYA KELAS',
@@ -739,7 +909,9 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
               icon: Icons.palette_rounded,
               color: const Color(0xFF2563EB),
               bgColor: const Color(0xFFEFF6FF),
-              subtitle: zeroWorksCount > 0 ? '$zeroWorksCount siswa belum berkarya' : 'Semua siswa telah berkarya',
+              subtitle: zeroWorksCount > 0
+                  ? '$zeroWorksCount siswa belum berkarya'
+                  : 'Semua siswa telah berkarya',
             ),
             _buildMetricItemCard(
               title: 'TOTAL POIN KELAS',
@@ -848,6 +1020,138 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
   // ==========================================
   // 3. CLASS ARTWORKS GALLERY & PREVIEW CARD
   // ==========================================
+  Widget _buildGalleryShortcutCard(
+    BuildContext context, {
+    required String className,
+    required int artworkCount,
+  }) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isCompact = constraints.maxWidth < 700;
+        final icon = Container(
+          width: isCompact ? 52 : 64,
+          height: isCompact ? 52 : 64,
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFF2563EB), Color(0xFF4F46E5)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(isCompact ? 15 : 18),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF2563EB).withOpacity(0.18),
+                blurRadius: 16,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          child: Icon(Icons.photo_library_rounded,
+              size: isCompact ? 26 : 31, color: Colors.white),
+        );
+        final content = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                const Text(
+                  'Galeri Kelas',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF0F172A),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEFF6FF),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    '$artworkCount karya',
+                    style: const TextStyle(
+                      color: Color(0xFF2563EB),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Lihat seluruh karya $className, detail penilaian, komentar AI, dan opsi unduhan dalam satu halaman.',
+              style: const TextStyle(
+                color: Color(0xFF64748B),
+                height: 1.45,
+                fontSize: 13,
+              ),
+            ),
+          ],
+        );
+        final button = ElevatedButton.icon(
+          onPressed: () => context.go('/kelas/${widget.id}/galeri'),
+          icon: const Icon(Icons.arrow_forward_rounded, size: 18),
+          label: const Text('Buka Galeri'),
+          style: ElevatedButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+            ),
+          ),
+        );
+
+        return Container(
+          width: double.infinity,
+          padding: EdgeInsets.all(isCompact ? 18 : 24),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(isCompact ? 18 : 22),
+            border: Border.all(color: const Color(0xFFDCE7F8), width: 1.2),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF0F172A).withOpacity(0.025),
+                blurRadius: 18,
+                offset: const Offset(0, 7),
+              ),
+            ],
+          ),
+          child: isCompact
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        icon,
+                        const SizedBox(width: 14),
+                        Expanded(child: content),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    button,
+                  ],
+                )
+              : Row(
+                  children: [
+                    icon,
+                    const SizedBox(width: 20),
+                    Expanded(child: content),
+                    const SizedBox(width: 24),
+                    button,
+                  ],
+                ),
+        );
+      },
+    );
+  }
+
   Widget _buildClassArtworksGalleryCard({
     required BuildContext context,
     required List<QueryDocumentSnapshot<Map<String, dynamic>>> artworks,
@@ -883,7 +1187,8 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
                       color: const Color(0xFFEFF6FF),
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: const Icon(Icons.palette_rounded, color: Color(0xFF2563EB), size: 20),
+                    child: const Icon(Icons.palette_rounded,
+                        color: Color(0xFF2563EB), size: 20),
                   ),
                   const SizedBox(width: 12),
                   Column(
@@ -902,11 +1207,13 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
                           ),
                           const SizedBox(width: 8),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 2),
                             decoration: BoxDecoration(
                               color: const Color(0xFFEFF6FF),
                               borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: const Color(0xFFBFDBFE)),
+                              border:
+                                  Border.all(color: const Color(0xFFBFDBFE)),
                             ),
                             child: Text(
                               '$allArtworksCount Karya',
@@ -944,13 +1251,18 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
                     selectedColor: const Color(0xFF1E3A8A),
                     backgroundColor: const Color(0xFFF1F5F9),
                     labelStyle: TextStyle(
-                      color: isSelected ? Colors.white : const Color(0xFF475569),
-                      fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                      color:
+                          isSelected ? Colors.white : const Color(0xFF475569),
+                      fontWeight:
+                          isSelected ? FontWeight.bold : FontWeight.w600,
                       fontSize: 12,
                     ),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10)),
                     side: BorderSide(
-                      color: isSelected ? const Color(0xFF1E3A8A) : const Color(0xFFE2E8F0),
+                      color: isSelected
+                          ? const Color(0xFF1E3A8A)
+                          : const Color(0xFFE2E8F0),
                     ),
                     onSelected: (val) {
                       if (val) {
@@ -989,7 +1301,8 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
                         ),
                       ],
                     ),
-                    child: const Icon(Icons.brush_outlined, size: 36, color: Color(0xFF94A3B8)),
+                    child: const Icon(Icons.brush_outlined,
+                        size: 36, color: Color(0xFF94A3B8)),
                   ),
                   const SizedBox(height: 14),
                   Text(
@@ -1018,7 +1331,8 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
               builder: (context, constraints) {
                 final double width = constraints.maxWidth;
                 int crossAxisCount = 3;
-                if (width < 600) crossAxisCount = 1;
+                if (width < 600)
+                  crossAxisCount = 1;
                 else if (width < 950) crossAxisCount = 2;
 
                 return GridView.builder(
@@ -1039,10 +1353,12 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
                     // Find student creator name
                     String studentName = 'Siswa';
                     String studentNickname = '';
-                    final sDoc = allStudents.where((s) => s.id == uid).firstOrNull;
+                    final sDoc =
+                        allStudents.where((s) => s.id == uid).firstOrNull;
                     if (sDoc != null) {
                       final sData = sDoc.data();
-                      studentName = sData['namaLengkap'] ?? sData['nama'] ?? 'Siswa';
+                      studentName =
+                          sData['namaLengkap'] ?? sData['nama'] ?? 'Siswa';
                       studentNickname = sData['namaPanggilan'] ?? '';
                     }
 
@@ -1050,7 +1366,8 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
                       artworkData: aData,
                       studentName: studentName,
                       studentNickname: studentNickname,
-                      onTap: () => _showArtworkDetailDialog(context, aData, studentName),
+                      onTap: () =>
+                          _showArtworkDetailDialog(context, aData, studentName),
                     );
                   },
                 );
@@ -1058,13 +1375,17 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
             ),
         ],
       ),
-    ).animate().fadeIn(duration: 400.ms, delay: 250.ms).slideY(begin: 0.04, end: 0, curve: Curves.easeOutQuad);
+    )
+        .animate()
+        .fadeIn(duration: 400.ms, delay: 250.ms)
+        .slideY(begin: 0.04, end: 0, curve: Curves.easeOutQuad);
   }
 
   // ==========================================
   // 4. LEADERBOARD CARD WIDGET
   // ==========================================
-  Widget _buildLeaderboardCard(BuildContext context, List<Map<String, dynamic>> items) {
+  Widget _buildLeaderboardCard(
+      BuildContext context, List<Map<String, dynamic>> items) {
     return Container(
       padding: const EdgeInsets.all(28),
       decoration: BoxDecoration(
@@ -1084,7 +1405,8 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
         children: [
           Row(
             children: const [
-              Icon(Icons.emoji_events_rounded, color: Color(0xFFF59E0B), size: 22),
+              Icon(Icons.emoji_events_rounded,
+                  color: Color(0xFFF59E0B), size: 22),
               SizedBox(width: 10),
               Text(
                 'Leaderboard Kelas',
@@ -1100,7 +1422,10 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
           const SizedBox(height: 6),
           const Text(
             'Berdasarkan poin karya di kelas ini',
-            style: TextStyle(fontSize: 12, color: Color(0xFF64748B), fontWeight: FontWeight.w500),
+            style: TextStyle(
+                fontSize: 12,
+                color: Color(0xFF64748B),
+                fontWeight: FontWeight.w500),
           ),
           const SizedBox(height: 20),
           if (items.isEmpty)
@@ -1109,7 +1434,8 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
               child: Center(
                 child: Text(
                   'Belum ada data leaderboard',
-                  style: TextStyle(color: Color(0xFF64748B), fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                      color: Color(0xFF64748B), fontWeight: FontWeight.bold),
                 ),
               ),
             )
@@ -1125,10 +1451,14 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
             }).toList(),
         ],
       ),
-    ).animate().fadeIn(duration: 400.ms, delay: 200.ms).slideY(begin: 0.04, end: 0, curve: Curves.easeOutQuad);
+    )
+        .animate()
+        .fadeIn(duration: 400.ms, delay: 200.ms)
+        .slideY(begin: 0.04, end: 0, curve: Curves.easeOutQuad);
   }
 
-  Widget _buildLeaderboardItem(BuildContext context, int rank, String name, int points, String rankIcon) {
+  Widget _buildLeaderboardItem(BuildContext context, int rank, String name,
+      int points, String rankIcon) {
     Color itemBgColor = Colors.transparent;
     Color borderCol = const Color(0xFFE2E8F0);
 
@@ -1168,12 +1498,18 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
           CircleAvatar(
             backgroundColor: rank == 1
                 ? const Color(0xFFFCD34D)
-                : (rank == 2 ? const Color(0xFFCBD5E1) : (rank == 3 ? const Color(0xFFFDBA74) : const Color(0xFFEFF6FF))),
+                : (rank == 2
+                    ? const Color(0xFFCBD5E1)
+                    : (rank == 3
+                        ? const Color(0xFFFDBA74)
+                        : const Color(0xFFEFF6FF))),
             radius: 16,
             child: Text(
               name.isNotEmpty ? name.substring(0, 1) : 'S',
               style: TextStyle(
-                color: rank <= 3 ? const Color(0xFF1E293B) : const Color(0xFF2563EB),
+                color: rank <= 3
+                    ? const Color(0xFF1E293B)
+                    : const Color(0xFF2563EB),
                 fontWeight: FontWeight.bold,
                 fontSize: 12,
               ),
@@ -1194,15 +1530,21 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
-              color: rank == 1 ? const Color(0xFFFEF3C7) : const Color(0xFFF1F5F9),
+              color:
+                  rank == 1 ? const Color(0xFFFEF3C7) : const Color(0xFFF1F5F9),
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: rank == 1 ? const Color(0xFFFCD34D).withOpacity(0.3) : const Color(0xFFE2E8F0)),
+              border: Border.all(
+                  color: rank == 1
+                      ? const Color(0xFFFCD34D).withOpacity(0.3)
+                      : const Color(0xFFE2E8F0)),
             ),
             child: Text(
               '$points pts',
               style: TextStyle(
                 fontWeight: FontWeight.bold,
-                color: rank == 1 ? const Color(0xFFB45309) : const Color(0xFF475569),
+                color: rank == 1
+                    ? const Color(0xFFB45309)
+                    : const Color(0xFF475569),
                 fontSize: 11,
               ),
             ),
@@ -1244,7 +1586,8 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
           if (isMobile) ...[
             Row(
               children: [
-                const Icon(Icons.people_alt_rounded, color: Color(0xFF2563EB), size: 20),
+                const Icon(Icons.people_alt_rounded,
+                    color: Color(0xFF2563EB), size: 20),
                 const SizedBox(width: 8),
                 Text(
                   'Daftar Murid ($studentCount)',
@@ -1263,8 +1606,10 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
               onChanged: (val) => setState(() => _studentSearchQuery = val),
               decoration: InputDecoration(
                 hintText: 'Cari murid di kelas ini...',
-                hintStyle: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
-                prefixIcon: const Icon(Icons.search_rounded, size: 18, color: Color(0xFF64748B)),
+                hintStyle:
+                    const TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+                prefixIcon: const Icon(Icons.search_rounded,
+                    size: 18, color: Color(0xFF64748B)),
                 suffixIcon: _studentSearchQuery.isNotEmpty
                     ? IconButton(
                         icon: const Icon(Icons.clear_rounded, size: 16),
@@ -1275,7 +1620,8 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
                       )
                     : null,
                 isDense: true,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                   borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
@@ -1296,7 +1642,8 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
               children: [
                 Row(
                   children: [
-                    const Icon(Icons.people_alt_rounded, color: Color(0xFF2563EB), size: 22),
+                    const Icon(Icons.people_alt_rounded,
+                        color: Color(0xFF2563EB), size: 22),
                     const SizedBox(width: 10),
                     Text(
                       'Daftar Murid ($studentCount)',
@@ -1314,11 +1661,14 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
                   width: 260,
                   child: TextField(
                     controller: _studentSearchController,
-                    onChanged: (val) => setState(() => _studentSearchQuery = val),
+                    onChanged: (val) =>
+                        setState(() => _studentSearchQuery = val),
                     decoration: InputDecoration(
                       hintText: 'Cari murid di kelas ini...',
-                      hintStyle: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
-                      prefixIcon: const Icon(Icons.search_rounded, size: 18, color: Color(0xFF64748B)),
+                      hintStyle: const TextStyle(
+                          fontSize: 12, color: Color(0xFF94A3B8)),
+                      prefixIcon: const Icon(Icons.search_rounded,
+                          size: 18, color: Color(0xFF64748B)),
                       suffixIcon: _studentSearchQuery.isNotEmpty
                           ? IconButton(
                               icon: const Icon(Icons.clear_rounded, size: 16),
@@ -1329,7 +1679,8 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
                             )
                           : null,
                       isDense: true,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 10),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                         borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
@@ -1356,42 +1707,66 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
                     width: 64,
                     child: Text(
                       'RANK',
-                      style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFD97706), fontSize: 11, letterSpacing: 0.5),
+                      style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFFD97706),
+                          fontSize: 11,
+                          letterSpacing: 0.5),
                     ),
                   ),
                   Expanded(
                     flex: 4,
                     child: Text(
                       'NAMA MURID (A-Z)',
-                      style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF64748B), fontSize: 11, letterSpacing: 0.5),
+                      style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF64748B),
+                          fontSize: 11,
+                          letterSpacing: 0.5),
                     ),
                   ),
                   Expanded(
                     flex: 3,
                     child: Text(
                       'POIN KELAS',
-                      style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF64748B), fontSize: 11, letterSpacing: 0.5),
+                      style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF64748B),
+                          fontSize: 11,
+                          letterSpacing: 0.5),
                     ),
                   ),
                   Expanded(
                     flex: 3,
                     child: Text(
                       'KARYA KELAS',
-                      style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF64748B), fontSize: 11, letterSpacing: 0.5),
+                      style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF64748B),
+                          fontSize: 11,
+                          letterSpacing: 0.5),
                     ),
                   ),
                   Expanded(
                     flex: 3,
                     child: Text(
                       'GRADE TERBANYAK',
-                      style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF64748B), fontSize: 11, letterSpacing: 0.5),
+                      style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF64748B),
+                          fontSize: 11,
+                          letterSpacing: 0.5),
                     ),
                   ),
                   Expanded(
                     flex: 3,
                     child: Text(
                       'AKTIF TERAKHIR',
-                      style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF64748B), fontSize: 11, letterSpacing: 0.5),
+                      style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF64748B),
+                          fontSize: 11,
+                          letterSpacing: 0.5),
                     ),
                   ),
                   SizedBox(
@@ -1399,7 +1774,11 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
                     child: Center(
                       child: Text(
                         'AKSI',
-                        style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF64748B), fontSize: 11, letterSpacing: 0.5),
+                        style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF64748B),
+                            fontSize: 11,
+                            letterSpacing: 0.5),
                       ),
                     ),
                   ),
@@ -1409,14 +1788,15 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
             const Divider(color: Color(0xFFE2E8F0), height: 1),
           ],
           const SizedBox(height: 12),
-
           list.isEmpty
               ? const Padding(
                   padding: EdgeInsets.symmetric(vertical: 32),
                   child: Center(
                     child: Text(
                       'Tidak ada data murid yang sesuai.',
-                      style: TextStyle(color: Color(0xFF64748B), fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                          color: Color(0xFF64748B),
+                          fontWeight: FontWeight.bold),
                     ),
                   ),
                 )
@@ -1427,7 +1807,9 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
                   itemBuilder: (context, index) {
                     final student = list[index];
                     return _HoverableStudentRow(
-                      rank: (student['rank'] is int) ? student['rank'] as int : (index + 1),
+                      rank: (student['rank'] is int)
+                          ? student['rank'] as int
+                          : (index + 1),
                       name: student['name'] as String,
                       points: student['points'] as int,
                       artworks: student['artworks'] as int,
@@ -1440,16 +1822,21 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
                 ),
         ],
       ),
-    ).animate().fadeIn(duration: 400.ms, delay: 300.ms).slideY(begin: 0.04, end: 0, curve: Curves.easeOutQuad);
+    )
+        .animate()
+        .fadeIn(duration: 400.ms, delay: 300.ms)
+        .slideY(begin: 0.04, end: 0, curve: Curves.easeOutQuad);
   }
 
   // ==========================================
   // 6. ARTWORK DETAIL MODAL DIALOG
   // ==========================================
-  void _showArtworkDetailDialog(BuildContext context, Map<String, dynamic> artwork, String studentName) {
+  void _showArtworkDetailDialog(
+      BuildContext context, Map<String, dynamic> artwork, String studentName) {
     final String kategori = (artwork['kategori'] ?? 'Karya').toString();
     final String judulKarya = (artwork['judulKarya'] ?? '').toString().trim();
-    final String displayTitle = judulKarya.isNotEmpty ? judulKarya : kategori.toUpperCase();
+    final String displayTitle =
+        judulKarya.isNotEmpty ? judulKarya : kategori.toUpperCase();
     final int skor = artwork['skorAI'] is int
         ? artwork['skorAI'] as int
         : (int.tryParse(artwork['skorAI']?.toString() ?? '') ?? 0);
@@ -1458,23 +1845,30 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
         ? artwork['poinDapat'] as int
         : (int.tryParse(artwork['poinDapat']?.toString() ?? '') ?? 0);
     final int level = artwork['level'] is int ? artwork['level'] as int : 1;
-    final int waktuPengerjaan = artwork['waktuPengerjaan'] is int ? artwork['waktuPengerjaan'] as int : 0;
+    final int waktuPengerjaan = artwork['waktuPengerjaan'] is int
+        ? artwork['waktuPengerjaan'] as int
+        : 0;
     final String modelAI = artwork['modelAI'] ?? 'gemini-2.5-flash-lite';
     final String rawFeedback = (artwork['feedback'] as String?)?.trim() ?? '';
-    final String rawFeedbackAI = (artwork['feedbackAI'] as String?)?.trim() ?? '';
+    final String rawFeedbackAI =
+        (artwork['feedbackAI'] as String?)?.trim() ?? '';
     final String feedback = rawFeedback.isNotEmpty
         ? rawFeedback
-        : (rawFeedbackAI.isNotEmpty ? rawFeedbackAI : 'Tidak ada catatan feedback AI.');
+        : (rawFeedbackAI.isNotEmpty
+            ? rawFeedbackAI
+            : 'Tidak ada catatan feedback AI.');
     final String imageUrl = artwork['imageUrl'] ?? '';
-    final Map<String, dynamic> detailPenilaian = artwork['detailPenilaian'] is Map
-        ? Map<String, dynamic>.from(artwork['detailPenilaian'])
-        : {};
+    final Map<String, dynamic> detailPenilaian =
+        artwork['detailPenilaian'] is Map
+            ? Map<String, dynamic>.from(artwork['detailPenilaian'])
+            : {};
 
     final dynamic createdVal = artwork['createdAt'];
     String dateStr = '-';
     if (createdVal is Timestamp) {
       final dt = createdVal.toDate();
-      dateStr = '${dt.day}/${dt.month}/${dt.year} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+      dateStr =
+          '${dt.day}/${dt.month}/${dt.year} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
     }
 
     Color gradeColor = const Color(0xFFEF4444);
@@ -1487,7 +1881,8 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
       context: context,
       builder: (context) {
         return Dialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
           clipBehavior: Clip.antiAlias,
           backgroundColor: const Color(0xFFF8FAFC),
           child: Container(
@@ -1502,7 +1897,8 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
               children: [
                 // Modal Header
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 20),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 28, vertical: 20),
                   decoration: const BoxDecoration(
                     gradient: LinearGradient(
                       colors: [Color(0xFF1E3A8A), Color(0xFF2563EB)],
@@ -1521,7 +1917,8 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
                               color: Colors.white.withOpacity(0.15),
                               borderRadius: BorderRadius.circular(10),
                             ),
-                            child: const Icon(Icons.palette_rounded, color: Colors.white, size: 20),
+                            child: const Icon(Icons.palette_rounded,
+                                color: Colors.white, size: 20),
                           ),
                           const SizedBox(width: 14),
                           Column(
@@ -1551,7 +1948,8 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
                       ),
                       IconButton(
                         onPressed: () => Navigator.of(context).pop(),
-                        icon: const Icon(Icons.close_rounded, color: Colors.white, size: 24),
+                        icon: const Icon(Icons.close_rounded,
+                            color: Colors.white, size: 24),
                         hoverColor: Colors.white.withOpacity(0.1),
                       ),
                     ],
@@ -1576,7 +1974,8 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
                                 decoration: BoxDecoration(
                                   color: const Color(0xFF0F172A),
                                   borderRadius: BorderRadius.circular(20),
-                                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                                  border: Border.all(
+                                      color: const Color(0xFFE2E8F0)),
                                   boxShadow: [
                                     BoxShadow(
                                       color: Colors.black.withOpacity(0.06),
@@ -1593,23 +1992,31 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
                                           ? Image.network(
                                               _getProxiedImageUrl(imageUrl),
                                               fit: BoxFit.contain,
-                                              errorBuilder: (context, error, stackTrace) => CustomPaint(
-                                                painter: GenerativeArtPainter(grade: grade),
+                                              errorBuilder: (context, error,
+                                                      stackTrace) =>
+                                                  CustomPaint(
+                                                painter: GenerativeArtPainter(
+                                                    grade: grade),
                                               ),
                                             )
                                           : CustomPaint(
-                                              painter: GenerativeArtPainter(grade: grade),
+                                              painter: GenerativeArtPainter(
+                                                  grade: grade),
                                             ),
                                     ),
                                     Positioned(
                                       top: 14,
                                       right: 14,
                                       child: Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 12, vertical: 6),
                                         decoration: BoxDecoration(
                                           color: Colors.black.withOpacity(0.65),
-                                          borderRadius: BorderRadius.circular(10),
-                                          border: Border.all(color: gradeColor.withOpacity(0.5)),
+                                          borderRadius:
+                                              BorderRadius.circular(10),
+                                          border: Border.all(
+                                              color:
+                                                  gradeColor.withOpacity(0.5)),
                                         ),
                                         child: Text(
                                           'Grade $grade',
@@ -1641,18 +2048,45 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
                                 decoration: BoxDecoration(
                                   color: Colors.white,
                                   borderRadius: BorderRadius.circular(18),
-                                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                                  border: Border.all(
+                                      color: const Color(0xFFE2E8F0)),
                                 ),
                                 child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceAround,
                                   children: [
-                                    _buildArtworkModalMetric('SKOR AI', '$skor/100', Icons.auto_awesome_rounded, gradeColor),
-                                    Container(width: 1, height: 36, color: const Color(0xFFE2E8F0)),
-                                    _buildArtworkModalMetric('POIN KELAS', '+$poinDapat Pts', Icons.star_rounded, const Color(0xFFD97706)),
-                                    Container(width: 1, height: 36, color: const Color(0xFFE2E8F0)),
-                                    _buildArtworkModalMetric('LEVEL', 'Level $level', Icons.trending_up_rounded, const Color(0xFF2563EB)),
-                                    Container(width: 1, height: 36, color: const Color(0xFFE2E8F0)),
-                                    _buildArtworkModalMetric('WAKTU', '${waktuPengerjaan}s', Icons.timer_rounded, const Color(0xFF64748B)),
+                                    _buildArtworkModalMetric(
+                                        'SKOR AI',
+                                        '$skor/100',
+                                        Icons.auto_awesome_rounded,
+                                        gradeColor),
+                                    Container(
+                                        width: 1,
+                                        height: 36,
+                                        color: const Color(0xFFE2E8F0)),
+                                    _buildArtworkModalMetric(
+                                        'POIN KELAS',
+                                        '+$poinDapat Pts',
+                                        Icons.star_rounded,
+                                        const Color(0xFFD97706)),
+                                    Container(
+                                        width: 1,
+                                        height: 36,
+                                        color: const Color(0xFFE2E8F0)),
+                                    _buildArtworkModalMetric(
+                                        'LEVEL',
+                                        'Level $level',
+                                        Icons.trending_up_rounded,
+                                        const Color(0xFF2563EB)),
+                                    Container(
+                                        width: 1,
+                                        height: 36,
+                                        color: const Color(0xFFE2E8F0)),
+                                    _buildArtworkModalMetric(
+                                        'WAKTU',
+                                        '${waktuPengerjaan}s',
+                                        Icons.timer_rounded,
+                                        const Color(0xFF64748B)),
                                   ],
                                 ),
                               ),
@@ -1674,40 +2108,68 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
                                   decoration: BoxDecoration(
                                     color: Colors.white,
                                     borderRadius: BorderRadius.circular(16),
-                                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                                    border: Border.all(
+                                        color: const Color(0xFFE2E8F0)),
                                   ),
                                   child: Column(
-                                    children: detailPenilaian.entries.map((entry) {
+                                    children:
+                                        detailPenilaian.entries.map((entry) {
                                       final rawVal = entry.value;
-                                      final int scoreVal = rawVal is num ? rawVal.toInt() : (int.tryParse(rawVal.toString()) ?? 0);
-                                      final double progress = (scoreVal / 100.0).clamp(0.0, 1.0);
+                                      final int scoreVal = rawVal is num
+                                          ? rawVal.toInt()
+                                          : (int.tryParse(rawVal.toString()) ??
+                                              0);
+                                      final double progress =
+                                          (scoreVal / 100.0).clamp(0.0, 1.0);
                                       return Padding(
-                                        padding: const EdgeInsets.symmetric(vertical: 4),
+                                        padding: const EdgeInsets.symmetric(
+                                            vertical: 4),
                                         child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
                                           children: [
                                             Row(
-                                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment
+                                                      .spaceBetween,
                                               children: [
                                                 Text(
                                                   entry.key,
-                                                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF475569)),
+                                                  style: const TextStyle(
+                                                      fontSize: 12,
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                      color: Color(0xFF475569)),
                                                 ),
                                                 Text(
                                                   '$scoreVal%',
-                                                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+                                                  style: const TextStyle(
+                                                      fontSize: 12,
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      color: Color(0xFF0F172A)),
                                                 ),
                                               ],
                                             ),
                                             const SizedBox(height: 4),
                                             ClipRRect(
-                                              borderRadius: BorderRadius.circular(4),
+                                              borderRadius:
+                                                  BorderRadius.circular(4),
                                               child: LinearProgressIndicator(
                                                 value: progress,
                                                 minHeight: 6,
-                                                backgroundColor: const Color(0xFFF1F5F9),
-                                                valueColor: AlwaysStoppedAnimation<Color>(
-                                                  progress >= 0.8 ? const Color(0xFF10B981) : (progress >= 0.6 ? const Color(0xFF3B82F6) : const Color(0xFFF59E0B)),
+                                                backgroundColor:
+                                                    const Color(0xFFF1F5F9),
+                                                valueColor:
+                                                    AlwaysStoppedAnimation<
+                                                        Color>(
+                                                  progress >= 0.8
+                                                      ? const Color(0xFF10B981)
+                                                      : (progress >= 0.6
+                                                          ? const Color(
+                                                              0xFF3B82F6)
+                                                          : const Color(
+                                                              0xFFF59E0B)),
                                                 ),
                                               ),
                                             ),
@@ -1736,14 +2198,16 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
                                 decoration: BoxDecoration(
                                   color: const Color(0xFFF8FAFC),
                                   borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                                  border: Border.all(
+                                      color: const Color(0xFFE2E8F0)),
                                 ),
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Row(
                                       children: [
-                                        const Icon(Icons.psychology_rounded, size: 18, color: Color(0xFF2563EB)),
+                                        const Icon(Icons.psychology_rounded,
+                                            size: 18, color: Color(0xFF2563EB)),
                                         const SizedBox(width: 8),
                                         Text(
                                           'Feedback Otomatis ($modelAI)',
@@ -1777,7 +2241,8 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
 
                 // Modal Footer
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
                   color: Colors.white,
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.end,
@@ -1786,11 +2251,14 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF0F172A),
                           foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 24, vertical: 14),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
                         ),
                         onPressed: () => Navigator.of(context).pop(),
-                        child: const Text('Tutup', style: TextStyle(fontWeight: FontWeight.bold)),
+                        child: const Text('Tutup',
+                            style: TextStyle(fontWeight: FontWeight.bold)),
                       ),
                     ],
                   ),
@@ -1803,19 +2271,24 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
     );
   }
 
-  Widget _buildArtworkModalMetric(String label, String value, IconData icon, Color color) {
+  Widget _buildArtworkModalMetric(
+      String label, String value, IconData icon, Color color) {
     return Column(
       children: [
         Icon(icon, size: 18, color: color),
         const SizedBox(height: 4),
         Text(
           value,
-          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: color),
+          style: TextStyle(
+              fontWeight: FontWeight.w800, fontSize: 13, color: color),
         ),
         const SizedBox(height: 2),
         Text(
           label,
-          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 9, color: Color(0xFF94A3B8)),
+          style: const TextStyle(
+              fontWeight: FontWeight.w600,
+              fontSize: 9,
+              color: Color(0xFF94A3B8)),
         ),
       ],
     );
@@ -1824,7 +2297,8 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
   // ==========================================
   // 7. TOGGLE ARCHIVE CLASS
   // ==========================================
-  void _toggleArchiveClass(BuildContext context, String classId, bool isCurrentlyActive, String name) {
+  void _toggleArchiveClass(BuildContext context, String classId,
+      bool isCurrentlyActive, String name) {
     final action = isCurrentlyActive ? 'mengarsipkan' : 'mengaktifkan kembali';
     final statusVal = isCurrentlyActive ? 'nonaktif' : 'aktif';
 
@@ -1841,19 +2315,24 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: isCurrentlyActive ? Colors.orange : AdminColors.primary,
+                backgroundColor:
+                    isCurrentlyActive ? Colors.orange : AdminColors.primary,
               ),
               onPressed: () async {
                 Navigator.of(context).pop();
                 try {
-                  await FirebaseFirestore.instance.collection('kelas').doc(classId).update({
+                  await FirebaseFirestore.instance
+                      .collection('kelas')
+                      .doc(classId)
+                      .update({
                     'status': statusVal,
                   });
 
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: Text('Kelas "$name" berhasil ${isCurrentlyActive ? "diarsipkan" : "diaktifkan kembali"}.'),
+                        content: Text(
+                            'Kelas "$name" berhasil ${isCurrentlyActive ? "diarsipkan" : "diaktifkan kembali"}.'),
                         backgroundColor: AdminColors.success,
                       ),
                     );
@@ -1861,12 +2340,15 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
                 } catch (e) {
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Gagal mengubah status kelas: $e'), backgroundColor: AdminColors.danger),
+                      SnackBar(
+                          content: Text('Gagal mengubah status kelas: $e'),
+                          backgroundColor: AdminColors.danger),
                     );
                   }
                 }
               },
-              child: Text(isCurrentlyActive ? 'Arsipkan' : 'Aktifkan', style: const TextStyle(color: Colors.white)),
+              child: Text(isCurrentlyActive ? 'Arsipkan' : 'Aktifkan',
+                  style: const TextStyle(color: Colors.white)),
             ),
           ],
         );
@@ -1903,14 +2385,17 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
       buffer.writeln('"LAPORAN DATA NILAI KELAS - EPIC APP"');
       buffer.writeln('"Kelas:","${className.replaceAll('"', '""')}"');
       buffer.writeln('"Kode Kelas:","$classCode"');
-      buffer.writeln('"Guru/Wali Kelas:","${teacherName.replaceAll('"', '""')}"');
+      buffer
+          .writeln('"Guru/Wali Kelas:","${teacherName.replaceAll('"', '""')}"');
       buffer.writeln('"Sekolah:","${school.replaceAll('"', '""')}"');
       buffer.writeln('"Tanggal Dibuat:","$createdDate"');
-      buffer.writeln('"Tanggal Cetak:","${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year}"');
+      buffer.writeln(
+          '"Tanggal Cetak:","${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year}"');
       buffer.writeln('');
 
       // Add Table Headers
-      buffer.writeln('"No","Peringkat","Nama Lengkap","Nama Panggilan","Username","Total Poin (Kelas)","Total Karya (Kelas)","Level Maks (Keris)","Level Maks (Batik)","Level Maks (Anyaman)","Rata-rata Skor AI","Grade Terbanyak","Aktif Terakhir"');
+      buffer.writeln(
+          '"No","Peringkat","Nama Lengkap","Nama Panggilan","Username","Total Poin (Kelas)","Total Karya (Kelas)","Level Maks (Keris)","Level Maks (Batik)","Level Maks (Anyaman)","Rata-rata Skor AI","Grade Terbanyak","Aktif Terakhir"');
 
       for (int i = 0; i < studentRows.length; i++) {
         final student = studentRows[i];
@@ -1930,20 +2415,58 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
           return data['uid'] == uid;
         }).toList();
 
-        final kerisArts = studentArt.where((a) => (a.data()['kategori'] ?? '').toString().toLowerCase() == 'keris').toList();
-        final maxKeris = kerisArts.isEmpty ? '-' : kerisArts.map((a) => a.data()['level'] is int ? a.data()['level'] as int : 0).reduce((a, b) => a > b ? a : b).toString();
+        final kerisArts = studentArt
+            .where((a) =>
+                (a.data()['kategori'] ?? '').toString().toLowerCase() ==
+                'keris')
+            .toList();
+        final maxKeris = kerisArts.isEmpty
+            ? '-'
+            : kerisArts
+                .map((a) =>
+                    a.data()['level'] is int ? a.data()['level'] as int : 0)
+                .reduce((a, b) => a > b ? a : b)
+                .toString();
 
-        final batikArts = studentArt.where((a) => (a.data()['kategori'] ?? '').toString().toLowerCase() == 'batik').toList();
-        final maxBatik = batikArts.isEmpty ? '-' : batikArts.map((a) => a.data()['level'] is int ? a.data()['level'] as int : 0).reduce((a, b) => a > b ? a : b).toString();
+        final batikArts = studentArt
+            .where((a) =>
+                (a.data()['kategori'] ?? '').toString().toLowerCase() ==
+                'batik')
+            .toList();
+        final maxBatik = batikArts.isEmpty
+            ? '-'
+            : batikArts
+                .map((a) =>
+                    a.data()['level'] is int ? a.data()['level'] as int : 0)
+                .reduce((a, b) => a > b ? a : b)
+                .toString();
 
-        final anyamanArts = studentArt.where((a) => (a.data()['kategori'] ?? '').toString().toLowerCase() == 'anyaman').toList();
-        final maxAnyaman = anyamanArts.isEmpty ? '-' : anyamanArts.map((a) => a.data()['level'] is int ? a.data()['level'] as int : 0).reduce((a, b) => a > b ? a : b).toString();
+        final anyamanArts = studentArt
+            .where((a) =>
+                (a.data()['kategori'] ?? '').toString().toLowerCase() ==
+                'anyaman')
+            .toList();
+        final maxAnyaman = anyamanArts.isEmpty
+            ? '-'
+            : anyamanArts
+                .map((a) =>
+                    a.data()['level'] is int ? a.data()['level'] as int : 0)
+                .reduce((a, b) => a > b ? a : b)
+                .toString();
 
         final double avgAI = studentArt.isEmpty
             ? 0.0
-            : studentArt.fold<int>(0, (acc, a) => acc + (a.data()['skorAI'] is int ? a.data()['skorAI'] as int : 0)) / studentArt.length;
+            : studentArt.fold<int>(
+                    0,
+                    (acc, a) =>
+                        acc +
+                        (a.data()['skorAI'] is int
+                            ? a.data()['skorAI'] as int
+                            : 0)) /
+                studentArt.length;
 
-        buffer.writeln('"${i + 1}","#$rank","${name.replaceAll('"', '""')}","${nickname.replaceAll('"', '""')}","${username.replaceAll('"', '""')}","$points","$artworksCount","$maxKeris","$maxBatik","$maxAnyaman","${avgAI.toStringAsFixed(1)}","$topGrade","$lastActive"');
+        buffer.writeln(
+            '"${i + 1}","#$rank","${name.replaceAll('"', '""')}","${nickname.replaceAll('"', '""')}","${username.replaceAll('"', '""')}","$points","$artworksCount","$maxKeris","$maxBatik","$maxAnyaman","${avgAI.toStringAsFixed(1)}","$topGrade","$lastActive"');
       }
 
       final csvString = buffer.toString();
@@ -1978,7 +2501,8 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
     List<Map<String, dynamic>> studentRows,
     List<QueryDocumentSnapshot<Map<String, dynamic>>> classArtworksDocs,
   ) {
-    final int totalPoin = studentRows.fold<int>(0, (acc, s) => acc + (s['points'] as int));
+    final int totalPoin =
+        studentRows.fold<int>(0, (acc, s) => acc + (s['points'] as int));
     final int totalKarya = classArtworksDocs.length;
     final int totalMurid = studentRows.length;
 
@@ -1986,7 +2510,8 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
       context: context,
       builder: (BuildContext context) {
         return Dialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
           clipBehavior: Clip.antiAlias,
           backgroundColor: const Color(0xFFF8FAFC),
           child: Container(
@@ -2000,7 +2525,8 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
               children: [
                 // Gradient Header
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
                   decoration: const BoxDecoration(
                     gradient: LinearGradient(
                       colors: [Color(0xFF1E3A8A), Color(0xFF2563EB)],
@@ -2036,7 +2562,8 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
                       ),
                       IconButton(
                         onPressed: () => Navigator.of(context).pop(),
-                        icon: const Icon(Icons.close_rounded, color: Colors.white, size: 28),
+                        icon: const Icon(Icons.close_rounded,
+                            color: Colors.white, size: 28),
                         hoverColor: Colors.white.withOpacity(0.1),
                       ),
                     ],
@@ -2071,24 +2598,35 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    _buildPreviewMetadataRow('Nama Kelas', className, isBold: true),
+                                    _buildPreviewMetadataRow(
+                                        'Nama Kelas', className,
+                                        isBold: true),
                                     const SizedBox(height: 8),
-                                    _buildPreviewMetadataRow('Kode Kelas', classCode),
+                                    _buildPreviewMetadataRow(
+                                        'Kode Kelas', classCode),
                                     const SizedBox(height: 8),
-                                    _buildPreviewMetadataRow('Guru Pengajar', teacherName),
+                                    _buildPreviewMetadataRow(
+                                        'Guru Pengajar', teacherName),
                                   ],
                                 ),
                               ),
-                              Container(width: 1.2, height: 80, color: const Color(0xFFE2E8F0), margin: const EdgeInsets.symmetric(horizontal: 24)),
+                              Container(
+                                  width: 1.2,
+                                  height: 80,
+                                  color: const Color(0xFFE2E8F0),
+                                  margin: const EdgeInsets.symmetric(
+                                      horizontal: 24)),
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     _buildPreviewMetadataRow('Sekolah', school),
                                     const SizedBox(height: 8),
-                                    _buildPreviewMetadataRow('Tanggal Dibuat', createdDate),
+                                    _buildPreviewMetadataRow(
+                                        'Tanggal Dibuat', createdDate),
                                     const SizedBox(height: 8),
-                                    _buildPreviewMetadataRow('Tanggal Cetak', '${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year}'),
+                                    _buildPreviewMetadataRow('Tanggal Cetak',
+                                        '${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year}'),
                                   ],
                                 ),
                               ),
@@ -2100,11 +2638,29 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
                         // Metric Cards Summary Row
                         Row(
                           children: [
-                            Expanded(child: _buildPreviewMetricCard('Siswa Terdaftar', totalMurid.toString(), Icons.groups_rounded, const Color(0xFFEFF6FF), const Color(0xFF2563EB))),
+                            Expanded(
+                                child: _buildPreviewMetricCard(
+                                    'Siswa Terdaftar',
+                                    totalMurid.toString(),
+                                    Icons.groups_rounded,
+                                    const Color(0xFFEFF6FF),
+                                    const Color(0xFF2563EB))),
                             const SizedBox(width: 16),
-                            Expanded(child: _buildPreviewMetricCard('Total Poin Kelas', totalPoin.toString(), Icons.star_rounded, const Color(0xFFFEF3C7), const Color(0xFFD97706))),
+                            Expanded(
+                                child: _buildPreviewMetricCard(
+                                    'Total Poin Kelas',
+                                    totalPoin.toString(),
+                                    Icons.star_rounded,
+                                    const Color(0xFFFEF3C7),
+                                    const Color(0xFFD97706))),
                             const SizedBox(width: 16),
-                            Expanded(child: _buildPreviewMetricCard('Artwork Diserahkan', totalKarya.toString(), Icons.palette_rounded, const Color(0xFFF5F3FF), const Color(0xFF7C3AED))),
+                            Expanded(
+                                child: _buildPreviewMetricCard(
+                                    'Artwork Diserahkan',
+                                    totalKarya.toString(),
+                                    Icons.palette_rounded,
+                                    const Color(0xFFF5F3FF),
+                                    const Color(0xFF7C3AED))),
                           ],
                         ),
                         const SizedBox(height: 32),
@@ -2112,7 +2668,8 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
                         // Section Title
                         Row(
                           children: const [
-                            Icon(Icons.format_list_bulleted_rounded, color: Color(0xFF475569), size: 18),
+                            Icon(Icons.format_list_bulleted_rounded,
+                                color: Color(0xFF475569), size: 18),
                             SizedBox(width: 8),
                             Text(
                               'Daftar Rincian Nilai Murid (A-Z)',
@@ -2144,59 +2701,147 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
                                   dividerColor: const Color(0xFFE2E8F0),
                                 ),
                                 child: DataTable(
-                                  headingRowColor: WidgetStateProperty.all(const Color(0xFFF8FAFC)),
+                                  headingRowColor: WidgetStateProperty.all(
+                                      const Color(0xFFF8FAFC)),
                                   dataRowMaxHeight: 52,
                                   dataRowMinHeight: 40,
                                   columns: const [
-                                    DataColumn(label: Text('No', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 11, color: Color(0xFF475569)))),
-                                    DataColumn(label: Text('Rank', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 11, color: Color(0xFFD97706)))),
-                                    DataColumn(label: Text('Nama Lengkap', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 11, color: Color(0xFF475569)))),
-                                    DataColumn(label: Text('Nama Panggil', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 11, color: Color(0xFF475569)))),
-                                    DataColumn(label: Text('Username', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 11, color: Color(0xFF475569)))),
-                                    DataColumn(label: Text('Poin Kelas', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 11, color: Color(0xFF475569)))),
-                                    DataColumn(label: Text('Karya Kelas', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 11, color: Color(0xFF475569)))),
-                                    DataColumn(label: Text('Grade', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 11, color: Color(0xFF475569)))),
+                                    DataColumn(
+                                        label: Text('No',
+                                            style: TextStyle(
+                                                fontWeight: FontWeight.w800,
+                                                fontSize: 11,
+                                                color: Color(0xFF475569)))),
+                                    DataColumn(
+                                        label: Text('Rank',
+                                            style: TextStyle(
+                                                fontWeight: FontWeight.w800,
+                                                fontSize: 11,
+                                                color: Color(0xFFD97706)))),
+                                    DataColumn(
+                                        label: Text('Nama Lengkap',
+                                            style: TextStyle(
+                                                fontWeight: FontWeight.w800,
+                                                fontSize: 11,
+                                                color: Color(0xFF475569)))),
+                                    DataColumn(
+                                        label: Text('Nama Panggil',
+                                            style: TextStyle(
+                                                fontWeight: FontWeight.w800,
+                                                fontSize: 11,
+                                                color: Color(0xFF475569)))),
+                                    DataColumn(
+                                        label: Text('Username',
+                                            style: TextStyle(
+                                                fontWeight: FontWeight.w800,
+                                                fontSize: 11,
+                                                color: Color(0xFF475569)))),
+                                    DataColumn(
+                                        label: Text('Poin Kelas',
+                                            style: TextStyle(
+                                                fontWeight: FontWeight.w800,
+                                                fontSize: 11,
+                                                color: Color(0xFF475569)))),
+                                    DataColumn(
+                                        label: Text('Karya Kelas',
+                                            style: TextStyle(
+                                                fontWeight: FontWeight.w800,
+                                                fontSize: 11,
+                                                color: Color(0xFF475569)))),
+                                    DataColumn(
+                                        label: Text('Grade',
+                                            style: TextStyle(
+                                                fontWeight: FontWeight.w800,
+                                                fontSize: 11,
+                                                color: Color(0xFF475569)))),
                                   ],
-                                  rows: List.generate(studentRows.length, (idx) {
+                                  rows:
+                                      List.generate(studentRows.length, (idx) {
                                     final s = studentRows[idx];
                                     final isEven = idx % 2 == 0;
                                     return DataRow(
-                                      color: WidgetStateProperty.all(isEven ? Colors.white : const Color(0xFFF8FAFC)),
+                                      color: WidgetStateProperty.all(isEven
+                                          ? Colors.white
+                                          : const Color(0xFFF8FAFC)),
                                       cells: [
-                                        DataCell(Text((idx + 1).toString(), style: const TextStyle(fontSize: 13, color: Color(0xFF64748B)))),
+                                        DataCell(Text((idx + 1).toString(),
+                                            style: const TextStyle(
+                                                fontSize: 13,
+                                                color: Color(0xFF64748B)))),
                                         DataCell(
                                           Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 8, vertical: 2),
                                             decoration: BoxDecoration(
                                               color: const Color(0xFFFFFBEB),
-                                              borderRadius: BorderRadius.circular(6),
-                                              border: Border.all(color: const Color(0xFFFDE68A)),
+                                              borderRadius:
+                                                  BorderRadius.circular(6),
+                                              border: Border.all(
+                                                  color:
+                                                      const Color(0xFFFDE68A)),
                                             ),
-                                            child: Text('#${s['rank'] ?? (idx + 1)}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFFB45309))),
+                                            child: Text(
+                                                '#${s['rank'] ?? (idx + 1)}',
+                                                style: const TextStyle(
+                                                    fontSize: 11,
+                                                    fontWeight: FontWeight.w800,
+                                                    color: Color(0xFFB45309))),
                                           ),
                                         ),
-                                        DataCell(Text(s['name'] ?? '-', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)))),
-                                        DataCell(Text(s['namaPanggilan'] ?? '-', style: const TextStyle(fontSize: 13, color: Color(0xFF334155)))),
-                                        DataCell(Text(s['username'] ?? '-', style: const TextStyle(fontSize: 13, color: Color(0xFF475569)))),
+                                        DataCell(Text(s['name'] ?? '-',
+                                            style: const TextStyle(
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.bold,
+                                                color: Color(0xFF0F172A)))),
+                                        DataCell(Text(s['namaPanggilan'] ?? '-',
+                                            style: const TextStyle(
+                                                fontSize: 13,
+                                                color: Color(0xFF334155)))),
+                                        DataCell(Text(s['username'] ?? '-',
+                                            style: const TextStyle(
+                                                fontSize: 13,
+                                                color: Color(0xFF475569)))),
                                         DataCell(
                                           Row(
                                             children: [
-                                              const Icon(Icons.star_rounded, size: 14, color: Color(0xFFD97706)),
+                                              const Icon(Icons.star_rounded,
+                                                  size: 14,
+                                                  color: Color(0xFFD97706)),
                                               const SizedBox(width: 4),
-                                              Text(s['points']?.toString() ?? '0', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
+                                              Text(
+                                                  s['points']?.toString() ??
+                                                      '0',
+                                                  style: const TextStyle(
+                                                      fontSize: 13,
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      color:
+                                                          Color(0xFF0F172A))),
                                             ],
                                           ),
                                         ),
-                                        DataCell(Text('${s['artworks'] ?? 0} karya', style: const TextStyle(fontSize: 13, color: Color(0xFF475569)))),
+                                        DataCell(Text(
+                                            '${s['artworks'] ?? 0} karya',
+                                            style: const TextStyle(
+                                                fontSize: 13,
+                                                color: Color(0xFF475569)))),
                                         DataCell(
                                           Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 8, vertical: 2),
                                             decoration: BoxDecoration(
                                               color: const Color(0xFFF1F5F9),
-                                              borderRadius: BorderRadius.circular(8),
-                                              border: Border.all(color: const Color(0xFFCBD5E1)),
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                              border: Border.all(
+                                                  color:
+                                                      const Color(0xFFCBD5E1)),
                                             ),
-                                            child: Text(s['grade'] ?? '-', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF1E293B))),
+                                            child: Text(s['grade'] ?? '-',
+                                                style: const TextStyle(
+                                                    fontSize: 11,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: Color(0xFF1E293B))),
                                           ),
                                         ),
                                       ],
@@ -2215,12 +2860,14 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
                           decoration: BoxDecoration(
                             color: const Color(0xFFF1F5F9),
                             borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: const Color(0xFFCBD5E1), width: 0.5),
+                            border: Border.all(
+                                color: const Color(0xFFCBD5E1), width: 0.5),
                           ),
                           child: Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: const [
-                              Icon(Icons.info_outline_rounded, color: Color(0xFF475569), size: 18),
+                              Icon(Icons.info_outline_rounded,
+                                  color: Color(0xFF475569), size: 18),
                               SizedBox(width: 10),
                               Expanded(
                                 child: Text(
@@ -2242,7 +2889,8 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
 
                 // Footer Action buttons
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 20),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 32, vertical: 20),
                   color: Colors.white,
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.end,
@@ -2250,19 +2898,26 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
                       OutlinedButton(
                         style: OutlinedButton.styleFrom(
                           side: const BorderSide(color: Color(0xFFCBD5E1)),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 24, vertical: 16),
                         ),
                         onPressed: () => Navigator.of(context).pop(),
-                        child: const Text('Batal', style: TextStyle(color: Color(0xFF64748B), fontWeight: FontWeight.bold)),
+                        child: const Text('Batal',
+                            style: TextStyle(
+                                color: Color(0xFF64748B),
+                                fontWeight: FontWeight.bold)),
                       ),
                       const SizedBox(width: 16),
                       ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF0F172A),
                           foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 24, vertical: 16),
                         ),
                         onPressed: () {
                           Navigator.of(context).pop();
@@ -2278,7 +2933,8 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
                           );
                         },
                         icon: const Icon(Icons.grid_on_rounded, size: 16),
-                        label: const Text('Unduh Excel (CSV)', style: TextStyle(fontWeight: FontWeight.bold)),
+                        label: const Text('Unduh Excel (CSV)',
+                            style: TextStyle(fontWeight: FontWeight.bold)),
                       ),
                       const SizedBox(width: 16),
                       Container(
@@ -2302,13 +2958,16 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
                             backgroundColor: Colors.transparent,
                             shadowColor: Colors.transparent,
                             foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12)),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 24, vertical: 16),
                           ),
                           onPressed: () async {
                             Navigator.of(context).pop();
                             try {
-                              final pdfBytes = await KelasPdfGenerator.generateReport(
+                              final pdfBytes =
+                                  await KelasPdfGenerator.generateReport(
                                 className: className,
                                 classCode: classCode,
                                 teacherName: teacherName,
@@ -2317,7 +2976,8 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
                                 studentRows: studentRows,
                                 classArtworksDocs: classArtworksDocs,
                               );
-                              final cleanName = className.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_');
+                              final cleanName = className.replaceAll(
+                                  RegExp(r'[<>:"/\\|?*]'), '_');
                               FileDownloadHelper.downloadBytes(
                                 pdfBytes,
                                 'Laporan_Kelas_$cleanName.pdf',
@@ -2326,7 +2986,8 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
                               if (context.mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(
-                                    content: Text('Laporan PDF kelas "$className" berhasil diunduh!'),
+                                    content: Text(
+                                        'Laporan PDF kelas "$className" berhasil diunduh!'),
                                     backgroundColor: AdminColors.success,
                                   ),
                                 );
@@ -2335,15 +2996,18 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
                               if (context.mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(
-                                    content: Text('Gagal mengunduh laporan PDF: $e'),
+                                    content:
+                                        Text('Gagal mengunduh laporan PDF: $e'),
                                     backgroundColor: AdminColors.danger,
                                   ),
                                 );
                               }
                             }
                           },
-                          icon: const Icon(Icons.picture_as_pdf_rounded, size: 16),
-                          label: const Text('Unduh Laporan PDF', style: TextStyle(fontWeight: FontWeight.bold)),
+                          icon: const Icon(Icons.picture_as_pdf_rounded,
+                              size: 16),
+                          label: const Text('Unduh Laporan PDF',
+                              style: TextStyle(fontWeight: FontWeight.bold)),
                         ),
                       ),
                     ],
@@ -2357,11 +3021,15 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
     );
   }
 
-  Widget _buildPreviewMetadataRow(String label, String value, {bool isBold = false}) {
+  Widget _buildPreviewMetadataRow(String label, String value,
+      {bool isBold = false}) {
     return RichText(
       text: TextSpan(
         text: '$label:  ',
-        style: const TextStyle(fontSize: 13, color: Color(0xFF64748B), fontWeight: FontWeight.bold),
+        style: const TextStyle(
+            fontSize: 13,
+            color: Color(0xFF64748B),
+            fontWeight: FontWeight.bold),
         children: [
           TextSpan(
             text: value,
@@ -2376,7 +3044,8 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
     );
   }
 
-  Widget _buildPreviewMetricCard(String label, String value, IconData icon, Color bgColor, Color textColor) {
+  Widget _buildPreviewMetricCard(String label, String value, IconData icon,
+      Color bgColor, Color textColor) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -2400,12 +3069,19 @@ class _KelasDetailScreenState extends State<KelasDetailScreen> {
             children: [
               Text(
                 label.toUpperCase(),
-                style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: textColor.withOpacity(0.75), letterSpacing: 0.5),
+                style: TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w800,
+                    color: textColor.withOpacity(0.75),
+                    letterSpacing: 0.5),
               ),
               const SizedBox(height: 4),
               Text(
                 value,
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textColor),
+                style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: textColor),
               ),
             ],
           ),
@@ -2457,10 +3133,12 @@ class _HoverableClassArtworkCard extends StatefulWidget {
   });
 
   @override
-  State<_HoverableClassArtworkCard> createState() => _HoverableClassArtworkCardState();
+  State<_HoverableClassArtworkCard> createState() =>
+      _HoverableClassArtworkCardState();
 }
 
-class _HoverableClassArtworkCardState extends State<_HoverableClassArtworkCard> {
+class _HoverableClassArtworkCardState
+    extends State<_HoverableClassArtworkCard> {
   bool _isHovered = false;
 
   @override
@@ -2468,11 +3146,16 @@ class _HoverableClassArtworkCardState extends State<_HoverableClassArtworkCard> 
     final a = widget.artworkData;
     final String kategori = (a['kategori'] ?? 'Karya').toString();
     final String judulKarya = (a['judulKarya'] ?? '').toString().trim();
-    final String displayTitle = judulKarya.isNotEmpty ? judulKarya : kategori.toUpperCase();
+    final String displayTitle =
+        judulKarya.isNotEmpty ? judulKarya : kategori.toUpperCase();
     final String imageUrl = a['imageUrl'] ?? '';
     final String grade = a['grade'] ?? 'C';
-    final int skorAI = a['skorAI'] is int ? a['skorAI'] as int : (int.tryParse(a['skorAI']?.toString() ?? '') ?? 0);
-    final int poinDapat = a['poinDapat'] is int ? a['poinDapat'] as int : (int.tryParse(a['poinDapat']?.toString() ?? '') ?? 0);
+    final int skorAI = a['skorAI'] is int
+        ? a['skorAI'] as int
+        : (int.tryParse(a['skorAI']?.toString() ?? '') ?? 0);
+    final int poinDapat = a['poinDapat'] is int
+        ? a['poinDapat'] as int
+        : (int.tryParse(a['poinDapat']?.toString() ?? '') ?? 0);
     final int level = a['level'] is int ? a['level'] as int : 1;
 
     Color gradeColor = const Color(0xFFEF4444);
@@ -2509,7 +3192,9 @@ class _HoverableClassArtworkCardState extends State<_HoverableClassArtworkCard> 
               color: Colors.white,
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
-                color: _isHovered ? gradeColor.withOpacity(0.5) : const Color(0xFFE2E8F0),
+                color: _isHovered
+                    ? gradeColor.withOpacity(0.5)
+                    : const Color(0xFFE2E8F0),
                 width: _isHovered ? 1.5 : 1.2,
               ),
               boxShadow: [
@@ -2539,7 +3224,8 @@ class _HoverableClassArtworkCardState extends State<_HoverableClassArtworkCard> 
                             ? Image.network(
                                 _getProxiedImageUrl(imageUrl),
                                 fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) => CustomPaint(
+                                errorBuilder: (context, error, stackTrace) =>
+                                    CustomPaint(
                                   painter: GenerativeArtPainter(grade: grade),
                                 ),
                               )
@@ -2568,12 +3254,15 @@ class _HoverableClassArtworkCardState extends State<_HoverableClassArtworkCard> 
                         top: 10,
                         left: 10,
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 3),
                           decoration: BoxDecoration(
                             color: catColor,
                             borderRadius: BorderRadius.circular(8),
                             boxShadow: [
-                              BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 4),
+                              BoxShadow(
+                                  color: Colors.black.withOpacity(0.2),
+                                  blurRadius: 4),
                             ],
                           ),
                           child: Text(
@@ -2592,12 +3281,15 @@ class _HoverableClassArtworkCardState extends State<_HoverableClassArtworkCard> 
                         top: 10,
                         right: 10,
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 3),
                           decoration: BoxDecoration(
                             color: Colors.white.withOpacity(0.92),
                             borderRadius: BorderRadius.circular(8),
                             boxShadow: [
-                              BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 4),
+                              BoxShadow(
+                                  color: Colors.black.withOpacity(0.1),
+                                  blurRadius: 4),
                             ],
                           ),
                           child: Text(
@@ -2615,7 +3307,8 @@ class _HoverableClassArtworkCardState extends State<_HoverableClassArtworkCard> 
                         bottom: 10,
                         left: 10,
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 3),
                           decoration: BoxDecoration(
                             color: Colors.black.withOpacity(0.6),
                             borderRadius: BorderRadius.circular(6),
@@ -2623,11 +3316,15 @@ class _HoverableClassArtworkCardState extends State<_HoverableClassArtworkCard> 
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Icon(Icons.layers_rounded, color: Colors.white70, size: 11),
+                              const Icon(Icons.layers_rounded,
+                                  color: Colors.white70, size: 11),
                               const SizedBox(width: 4),
                               Text(
                                 'Lvl $level',
-                                style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                                style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold),
                               ),
                             ],
                           ),
@@ -2640,7 +3337,8 @@ class _HoverableClassArtworkCardState extends State<_HoverableClassArtworkCard> 
                             color: Colors.black.withOpacity(0.25),
                             child: Center(
                               child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 14, vertical: 8),
                                 decoration: BoxDecoration(
                                   color: Colors.white,
                                   borderRadius: BorderRadius.circular(20),
@@ -2654,7 +3352,8 @@ class _HoverableClassArtworkCardState extends State<_HoverableClassArtworkCard> 
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    Icon(Icons.visibility_rounded, size: 14, color: gradeColor),
+                                    Icon(Icons.visibility_rounded,
+                                        size: 14, color: gradeColor),
                                     const SizedBox(width: 6),
                                     Text(
                                       'Pratinjau',
@@ -2692,7 +3391,8 @@ class _HoverableClassArtworkCardState extends State<_HoverableClassArtworkCard> 
                       const SizedBox(height: 4),
                       Row(
                         children: [
-                          const Icon(Icons.person_outline_rounded, size: 13, color: Color(0xFF64748B)),
+                          const Icon(Icons.person_outline_rounded,
+                              size: 13, color: Color(0xFF64748B)),
                           const SizedBox(width: 4),
                           Expanded(
                             child: Text(
@@ -2724,7 +3424,8 @@ class _HoverableClassArtworkCardState extends State<_HoverableClassArtworkCard> 
                         children: [
                           Row(
                             children: [
-                              const Icon(Icons.smart_toy_rounded, size: 13, color: Color(0xFF64748B)),
+                              const Icon(Icons.smart_toy_rounded,
+                                  size: 13, color: Color(0xFF64748B)),
                               const SizedBox(width: 4),
                               Text(
                                 '$skorAI',
@@ -2737,11 +3438,13 @@ class _HoverableClassArtworkCardState extends State<_HoverableClassArtworkCard> 
                             ],
                           ),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(
                               color: const Color(0xFFFFFBEB),
                               borderRadius: BorderRadius.circular(6),
-                              border: Border.all(color: const Color(0xFFFDE68A)),
+                              border:
+                                  Border.all(color: const Color(0xFFFDE68A)),
                             ),
                             child: Text(
                               '+$poinDapat pts',
@@ -2797,33 +3500,40 @@ class _HoverableStudentRow extends StatefulWidget {
 class _HoverableStudentRowState extends State<_HoverableStudentRow> {
   bool _isHovered = false;
 
-  void _removeStudentFromClass(BuildContext context, String classId, String studentId, String name) {
+  void _removeStudentFromClass(
+      BuildContext context, String classId, String studentId, String name) {
     showDialog(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
           title: const Text('Keluarkan Murid'),
-          content: Text('Apakah Anda yakin ingin mengeluarkan murid "$name" dari kelas ini?'),
+          content: Text(
+              'Apakah Anda yakin ingin mengeluarkan murid "$name" dari kelas ini?'),
           actions: <Widget>[
             TextButton(
               child: const Text('Batal'),
               onPressed: () => Navigator.of(context).pop(),
             ),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: AdminColors.danger),
+              style:
+                  ElevatedButton.styleFrom(backgroundColor: AdminColors.danger),
               onPressed: () async {
                 Navigator.of(context).pop();
                 try {
                   final batch = FirebaseFirestore.instance.batch();
 
                   // 1. Remove from class list in kelas doc
-                  final classRef = FirebaseFirestore.instance.collection('kelas').doc(classId);
+                  final classRef = FirebaseFirestore.instance
+                      .collection('kelas')
+                      .doc(classId);
                   batch.update(classRef, {
                     'muridIds': FieldValue.arrayRemove([studentId]),
                   });
 
                   // 2. Remove classId from student's kelasIds array
-                  final userRef = FirebaseFirestore.instance.collection('users').doc(studentId);
+                  final userRef = FirebaseFirestore.instance
+                      .collection('users')
+                      .doc(studentId);
                   batch.update(userRef, {
                     'kelasIds': FieldValue.arrayRemove([classId]),
                   });
@@ -2832,18 +3542,24 @@ class _HoverableStudentRowState extends State<_HoverableStudentRow> {
 
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Murid "$name" berhasil dikeluarkan dari kelas.'), backgroundColor: AdminColors.success),
+                      SnackBar(
+                          content: Text(
+                              'Murid "$name" berhasil dikeluarkan dari kelas.'),
+                          backgroundColor: AdminColors.success),
                     );
                   }
                 } catch (e) {
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Gagal mengeluarkan murid: $e'), backgroundColor: AdminColors.danger),
+                      SnackBar(
+                          content: Text('Gagal mengeluarkan murid: $e'),
+                          backgroundColor: AdminColors.danger),
                     );
                   }
                 }
               },
-              child: const Text('Keluarkan', style: TextStyle(color: Colors.white)),
+              child: const Text('Keluarkan',
+                  style: TextStyle(color: Colors.white)),
             ),
           ],
         );
@@ -2856,7 +3572,11 @@ class _HoverableStudentRowState extends State<_HoverableStudentRow> {
     String initials = 'S';
     if (widget.name.isNotEmpty) {
       final parts = widget.name.trim().split(' ');
-      initials = parts.take(2).map((e) => e.isNotEmpty ? e[0] : '').join().toUpperCase();
+      initials = parts
+          .take(2)
+          .map((e) => e.isNotEmpty ? e[0] : '')
+          .join()
+          .toUpperCase();
     }
     if (initials.isEmpty) initials = 'S';
 
@@ -2880,7 +3600,8 @@ class _HoverableStudentRowState extends State<_HoverableStudentRow> {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
         margin: const EdgeInsets.only(bottom: 10),
-        padding: EdgeInsets.symmetric(horizontal: isMobile ? 14 : 24, vertical: isMobile ? 12 : 14),
+        padding: EdgeInsets.symmetric(
+            horizontal: isMobile ? 14 : 24, vertical: isMobile ? 12 : 14),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(isMobile ? 14 : 18),
@@ -2912,7 +3633,8 @@ class _HoverableStudentRowState extends State<_HoverableStudentRow> {
                   Row(
                     children: [
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 7, vertical: 2),
                         decoration: BoxDecoration(
                           color: const Color(0xFFFFFBEB),
                           borderRadius: BorderRadius.circular(6),
@@ -2957,7 +3679,8 @@ class _HoverableStudentRowState extends State<_HoverableStudentRow> {
                         color: const Color(0xFF2563EB),
                         padding: EdgeInsets.zero,
                         constraints: const BoxConstraints(),
-                        onPressed: () => context.go('/users/murid/${widget.studentId}'),
+                        onPressed: () =>
+                            context.go('/users/murid/${widget.studentId}'),
                       ),
                       const SizedBox(width: 12),
                       IconButton(
@@ -2965,7 +3688,8 @@ class _HoverableStudentRowState extends State<_HoverableStudentRow> {
                         color: const Color(0xFFEF4444),
                         padding: EdgeInsets.zero,
                         constraints: const BoxConstraints(),
-                        onPressed: () => _removeStudentFromClass(context, widget.classId, widget.studentId, widget.name),
+                        onPressed: () => _removeStudentFromClass(context,
+                            widget.classId, widget.studentId, widget.name),
                       ),
                     ],
                   ),
@@ -2978,45 +3702,58 @@ class _HoverableStudentRowState extends State<_HoverableStudentRow> {
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.star_rounded, size: 13, color: Color(0xFFF59E0B)),
+                          const Icon(Icons.star_rounded,
+                              size: 13, color: Color(0xFFF59E0B)),
                           const SizedBox(width: 3),
                           Text(
                             '${widget.points} Pts',
-                            style: const TextStyle(color: Color(0xFF334155), fontWeight: FontWeight.bold, fontSize: 11.5),
+                            style: const TextStyle(
+                                color: Color(0xFF334155),
+                                fontWeight: FontWeight.bold,
+                                fontSize: 11.5),
                           ),
                         ],
                       ),
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.palette_rounded, size: 13, color: Color(0xFF64748B)),
+                          const Icon(Icons.palette_rounded,
+                              size: 13, color: Color(0xFF64748B)),
                           const SizedBox(width: 3),
                           Text(
                             '${widget.artworks} Karya',
-                            style: const TextStyle(color: Color(0xFF475569), fontSize: 11.5),
+                            style: const TextStyle(
+                                color: Color(0xFF475569), fontSize: 11.5),
                           ),
                         ],
                       ),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
                           color: gradeColor.withOpacity(0.08),
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: gradeColor.withOpacity(0.2)),
+                          border:
+                              Border.all(color: gradeColor.withOpacity(0.2)),
                         ),
                         child: Text(
                           widget.topGrade,
-                          style: TextStyle(color: gradeColor, fontWeight: FontWeight.bold, fontSize: 10),
+                          style: TextStyle(
+                              color: gradeColor,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 10),
                         ),
                       ),
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.access_time_rounded, size: 11, color: Color(0xFF94A3B8)),
+                          const Icon(Icons.access_time_rounded,
+                              size: 11, color: Color(0xFF94A3B8)),
                           const SizedBox(width: 3),
                           Text(
                             widget.lastActive,
-                            style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 10.5),
+                            style: const TextStyle(
+                                color: Color(0xFF94A3B8), fontSize: 10.5),
                           ),
                         ],
                       ),
@@ -3032,7 +3769,8 @@ class _HoverableStudentRowState extends State<_HoverableStudentRow> {
                     child: Align(
                       alignment: Alignment.centerLeft,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(
                           color: const Color(0xFFFFFBEB),
                           borderRadius: BorderRadius.circular(6),
@@ -3088,7 +3826,8 @@ class _HoverableStudentRowState extends State<_HoverableStudentRow> {
                     flex: 3,
                     child: Row(
                       children: [
-                        const Icon(Icons.star_rounded, size: 16, color: Color(0xFFF59E0B)),
+                        const Icon(Icons.star_rounded,
+                            size: 16, color: Color(0xFFF59E0B)),
                         const SizedBox(width: 6),
                         Text(
                           '${widget.points} Pts',
@@ -3107,7 +3846,8 @@ class _HoverableStudentRowState extends State<_HoverableStudentRow> {
                     flex: 3,
                     child: Row(
                       children: [
-                        const Icon(Icons.palette_rounded, size: 16, color: Color(0xFF64748B)),
+                        const Icon(Icons.palette_rounded,
+                            size: 16, color: Color(0xFF64748B)),
                         const SizedBox(width: 6),
                         Text(
                           '${widget.artworks} Karya',
@@ -3127,11 +3867,13 @@ class _HoverableStudentRowState extends State<_HoverableStudentRow> {
                     child: Row(
                       children: [
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 4),
                           decoration: BoxDecoration(
                             color: gradeColor.withOpacity(0.08),
                             borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: gradeColor.withOpacity(0.2)),
+                            border:
+                                Border.all(color: gradeColor.withOpacity(0.2)),
                           ),
                           child: Text(
                             widget.topGrade,
@@ -3151,7 +3893,8 @@ class _HoverableStudentRowState extends State<_HoverableStudentRow> {
                     flex: 3,
                     child: Row(
                       children: [
-                        const Icon(Icons.access_time_rounded, size: 14, color: Color(0xFF94A3B8)),
+                        const Icon(Icons.access_time_rounded,
+                            size: 14, color: Color(0xFF94A3B8)),
                         const SizedBox(width: 6),
                         Text(
                           widget.lastActive,
@@ -3175,14 +3918,17 @@ class _HoverableStudentRowState extends State<_HoverableStudentRow> {
                           icon: const Icon(Icons.visibility_rounded, size: 20),
                           color: const Color(0xFF2563EB),
                           hoverColor: const Color(0xFF2563EB).withOpacity(0.08),
-                          onPressed: () => context.go('/users/murid/${widget.studentId}'),
+                          onPressed: () =>
+                              context.go('/users/murid/${widget.studentId}'),
                           tooltip: 'Lihat Profil Murid',
                         ),
                         IconButton(
-                          icon: const Icon(Icons.person_remove_rounded, size: 20),
+                          icon:
+                              const Icon(Icons.person_remove_rounded, size: 20),
                           color: const Color(0xFFEF4444),
                           hoverColor: const Color(0xFFEF4444).withOpacity(0.08),
-                          onPressed: () => _removeStudentFromClass(context, widget.classId, widget.studentId, widget.name),
+                          onPressed: () => _removeStudentFromClass(context,
+                              widget.classId, widget.studentId, widget.name),
                           tooltip: 'Keluarkan dari Kelas',
                         ),
                       ],
@@ -3197,6 +3943,521 @@ class _HoverableStudentRowState extends State<_HoverableStudentRow> {
 
 // ==========================================
 // 11. GENERATIVE FALLBACK ART PAINTER
+// ==========================================
+// EVALUATION RESPONSES CARD
+// ==========================================
+
+extension on _KelasDetailScreenState {
+  Widget _buildClassEvaluationResponsesCard({
+    required BuildContext context,
+    required List<String> muridIds,
+    required List<QueryDocumentSnapshot<Map<String, dynamic>>> classStudents,
+  }) {
+    if (muridIds.isEmpty) return const SizedBox.shrink();
+
+    // Cocokkan respons dengan ID dokumen maupun field `uid`. Data lama dapat
+    // memakai salah satunya, sehingga hanya mengandalkan doc.id membuat respons
+    // kelas terlihat kosong meskipun dokumennya sudah ada.
+    final Map<String, Map<String, dynamic>> studentMap = {};
+    final memberIds = muridIds.map((id) => id.trim()).toSet();
+    for (final doc in classStudents) {
+      final data = doc.data();
+      studentMap[doc.id] = data;
+      memberIds.add(doc.id);
+      final uid = data['uid']?.toString().trim() ?? '';
+      if (uid.isNotEmpty) {
+        studentMap[uid] = data;
+        memberIds.add(uid);
+      }
+    }
+
+    const categories = ['Semua', 'Keris', 'Batik', 'Anyaman'];
+    const levels = [0, 1, 2, 3, 4]; // 0 = Semua
+
+    return StatefulBuilder(
+      builder: (context, setFilterState) => StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance
+            .collection('student_evaluations')
+            .orderBy('submittedAt', descending: true)
+            .snapshots(),
+        builder: (ctx, snap) {
+          final allDocs = (snap.data?.docs ?? [])
+              .cast<QueryDocumentSnapshot<Map<String, dynamic>>>();
+
+          // Filter: hanya murid di kelas ini
+          var filtered = allDocs.where((doc) {
+            final data = doc.data();
+            final studentId = data['studentId']?.toString().trim() ?? '';
+            final responseClassIds = data['kelasIds'] is List
+                ? (data['kelasIds'] as List)
+                    .map((id) => id.toString().trim())
+                    .toSet()
+                : const <String>{};
+            return memberIds.contains(studentId) ||
+                responseClassIds.contains(widget.id);
+          }).toList();
+
+          // Filter kategori
+          if (_evalFilterCategory != 'Semua') {
+            filtered = filtered.where((doc) {
+              final cat =
+                  (doc.data()['categoryId']?.toString() ?? '').toLowerCase();
+              return cat == _evalFilterCategory.toLowerCase();
+            }).toList();
+          }
+
+          // Filter level
+          if (_evalFilterLevel > 0) {
+            filtered = filtered.where((doc) {
+              final value = doc.data()['levelId'];
+              final level = value is num
+                  ? value.toInt()
+                  : int.tryParse(value?.toString() ?? '') ?? 0;
+              return level == _evalFilterLevel;
+            }).toList();
+          }
+
+          return Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.04),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Color(0xFF6C3FE8), Color(0xFF9B59B6)],
+                    ),
+                    borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(20),
+                      topRight: Radius.circular(20),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.psychology_rounded,
+                          color: Colors.white, size: 22),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Respons Evaluasi Penalaran Matematis',
+                          style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                              ),
+                        ),
+                      ),
+                      TextButton.icon(
+                        onPressed: filtered.isEmpty
+                            ? null
+                            : () => _exportEvalPdf(filtered, studentMap),
+                        icon: const Icon(Icons.picture_as_pdf_outlined,
+                            color: Colors.white70, size: 16),
+                        label: const Text('PDF',
+                            style: TextStyle(color: Colors.white70)),
+                      ),
+                      // Export CSV button
+                      TextButton.icon(
+                        onPressed: () => _exportEvalCsv(filtered, studentMap),
+                        icon: const Icon(Icons.download_rounded,
+                            color: Colors.white70, size: 16),
+                        label: const Text('CSV',
+                            style:
+                                TextStyle(color: Colors.white70, fontSize: 12)),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Filter Row
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      ...categories.map((cat) => FilterChip(
+                            label: Text(cat),
+                            selected: _evalFilterCategory == cat,
+                            onSelected: (v) => setFilterState(
+                              () => _evalFilterCategory = cat,
+                            ),
+                            selectedColor:
+                                const Color(0xFF6C3FE8).withOpacity(0.15),
+                            checkmarkColor: const Color(0xFF6C3FE8),
+                            labelStyle: TextStyle(
+                              color: _evalFilterCategory == cat
+                                  ? const Color(0xFF6C3FE8)
+                                  : const Color(0xFF64748B),
+                              fontWeight: _evalFilterCategory == cat
+                                  ? FontWeight.bold
+                                  : FontWeight.normal,
+                              fontSize: 12,
+                            ),
+                            backgroundColor: const Color(0xFFF8FAFC),
+                            side: BorderSide(
+                              color: _evalFilterCategory == cat
+                                  ? const Color(0xFF6C3FE8)
+                                  : const Color(0xFFE2E8F0),
+                            ),
+                          )),
+                      const VerticalDivider(width: 1, color: Color(0xFFE2E8F0)),
+                      ...levels.map((lvl) => FilterChip(
+                            label:
+                                Text(lvl == 0 ? 'Semua Level' : 'Level $lvl'),
+                            selected: _evalFilterLevel == lvl,
+                            onSelected: (v) => setFilterState(
+                              () => _evalFilterLevel = lvl,
+                            ),
+                            selectedColor:
+                                const Color(0xFF6C3FE8).withOpacity(0.15),
+                            checkmarkColor: const Color(0xFF6C3FE8),
+                            labelStyle: TextStyle(
+                              color: _evalFilterLevel == lvl
+                                  ? const Color(0xFF6C3FE8)
+                                  : const Color(0xFF64748B),
+                              fontWeight: _evalFilterLevel == lvl
+                                  ? FontWeight.bold
+                                  : FontWeight.normal,
+                              fontSize: 12,
+                            ),
+                            backgroundColor: const Color(0xFFF8FAFC),
+                            side: BorderSide(
+                              color: _evalFilterLevel == lvl
+                                  ? const Color(0xFF6C3FE8)
+                                  : const Color(0xFFE2E8F0),
+                            ),
+                          )),
+                    ],
+                  ),
+                ),
+
+                // Stats row
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+                  child: Text(
+                    '${filtered.length} respons ditemukan',
+                    style:
+                        const TextStyle(color: Color(0xFF64748B), fontSize: 12),
+                  ),
+                ),
+
+                const Divider(height: 1, color: Color(0xFFE2E8F0)),
+
+                // Table
+                if (snap.hasError)
+                  Padding(
+                    padding: const EdgeInsets.all(32),
+                    child: Center(
+                      child: Column(
+                        children: [
+                          const Icon(
+                            Icons.cloud_off_rounded,
+                            size: 42,
+                            color: Color(0xFFEF4444),
+                          ),
+                          const SizedBox(height: 12),
+                          const Text(
+                            'Respons kelas belum dapat dibaca.',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF334155),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            snap.error.toString(),
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: Color(0xFF64748B),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                else if (snap.connectionState == ConnectionState.waiting)
+                  const Padding(
+                    padding: EdgeInsets.all(40),
+                    child: Center(child: CircularProgressIndicator()),
+                  )
+                else if (filtered.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.all(40),
+                    child: Center(
+                      child: Column(
+                        children: [
+                          Icon(Icons.inbox_rounded,
+                              size: 48, color: Color(0xFFCBD5E1)),
+                          SizedBox(height: 12),
+                          Text(
+                            'Belum ada respons evaluasi\nuntuk filter ini.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: Color(0xFF94A3B8)),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                else if (MediaQuery.sizeOf(ctx).width < 768)
+                  Column(
+                      children: filtered
+                          .map((doc) => EvaluationResponseCard(
+                                row: EvaluationReport.fromRaw(doc.data(),
+                                    studentMap[doc.data()['studentId']] ?? {}),
+                              ))
+                          .toList())
+                else
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: DataTable(
+                      headingRowColor:
+                          WidgetStateProperty.all(const Color(0xFFF8FAFC)),
+                      columnSpacing: 20,
+                      columns: const [
+                        DataColumn(
+                            label: Text('No',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 12))),
+                        DataColumn(
+                            label: Text('Nama Siswa',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 12))),
+                        DataColumn(
+                            label: Text('Username',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 12))),
+                        DataColumn(
+                            label: Text('Email',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 12))),
+                        DataColumn(
+                            label: Text('Kategori',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 12))),
+                        DataColumn(
+                            label: Text('Level',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 12))),
+                        DataColumn(
+                            label: Text('Tanggal',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 12))),
+                        DataColumn(
+                            label: Text('Mood',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 12))),
+                        DataColumn(
+                            label: Text('Aksi',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 12))),
+                      ],
+                      rows: List.generate(filtered.length, (idx) {
+                        final doc = filtered[idx];
+                        final data = doc.data();
+                        final studentId = data['studentId']?.toString() ?? '';
+                        final studentData = studentMap[studentId] ?? {};
+                        final studentName =
+                            data['studentName']?.toString().trim().isNotEmpty ==
+                                    true
+                                ? data['studentName'].toString()
+                                : studentData['namaLengkap']?.toString() ?? '-';
+                        final username =
+                            studentData['username']?.toString() ?? '-';
+                        final email = studentData['email']?.toString() ?? '-';
+                        final categoryId =
+                            data['categoryId']?.toString() ?? '-';
+                        final rawLevel = data['levelId'];
+                        final levelId = rawLevel is num
+                            ? rawLevel.toInt()
+                            : int.tryParse(rawLevel?.toString() ?? '') ?? 0;
+                        final dynamic submittedVal = data['submittedAt'];
+                        String submittedStr = '-';
+                        if (submittedVal is Timestamp) {
+                          submittedStr = DateFormat('dd/MM/yyyy')
+                              .format(submittedVal.toDate());
+                        }
+                        final emotionMap = data['emotion'] is Map
+                            ? Map<String, dynamic>.from(data['emotion'] as Map)
+                            : <String, dynamic>{};
+                        final emotionIcon =
+                            emotionMap['icon']?.toString() ?? '😊';
+                        final emotionLabel =
+                            emotionMap['label']?.toString() ?? '-';
+
+                        return DataRow(
+                          color: WidgetStateProperty.resolveWith(
+                            (states) => idx.isEven
+                                ? Colors.white
+                                : const Color(0xFFFAFAFF),
+                          ),
+                          cells: [
+                            DataCell(Text('${idx + 1}',
+                                style: const TextStyle(fontSize: 12))),
+                            DataCell(Text(studentName,
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 12))),
+                            DataCell(Text(username,
+                                style: const TextStyle(
+                                    fontSize: 12, color: Color(0xFF6C3FE8)))),
+                            DataCell(Text(email,
+                                style: const TextStyle(
+                                    fontSize: 11, color: Color(0xFF64748B)))),
+                            DataCell(
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: _getCategoryColor(categoryId)
+                                      .withOpacity(0.12),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  _capitalize(categoryId),
+                                  style: TextStyle(
+                                    color: _getCategoryColor(categoryId),
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            DataCell(Text('Level $levelId',
+                                style: const TextStyle(fontSize: 12))),
+                            DataCell(Text(submittedStr,
+                                style: const TextStyle(fontSize: 12))),
+                            DataCell(Text('$emotionIcon $emotionLabel',
+                                style: const TextStyle(fontSize: 12))),
+                            DataCell(
+                              TextButton(
+                                onPressed: () => _showEvalDetailModal(
+                                    ctx,
+                                    {
+                                      ...data,
+                                      'kelas': EvaluationReport.schoolGrade(
+                                          studentData, data),
+                                      'sekolah': studentData['sekolah'] ??
+                                          data['sekolah'],
+                                    },
+                                    studentName,
+                                    username,
+                                    email),
+                                child: const Text('Lihat Detail',
+                                    style: TextStyle(
+                                        fontSize: 12,
+                                        color: Color(0xFF6C3FE8))),
+                              ),
+                            ),
+                          ],
+                        );
+                      }),
+                    ),
+                  ),
+
+                const SizedBox(height: 8),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Color _getCategoryColor(String cat) {
+    switch (cat.toLowerCase()) {
+      case 'keris':
+        return const Color(0xFF6C3FE8);
+      case 'batik':
+        return const Color(0xFFFF6B35);
+      case 'anyaman':
+        return const Color(0xFF10B981);
+      default:
+        return const Color(0xFF64748B);
+    }
+  }
+
+  String _capitalize(String s) {
+    if (s.isEmpty) return s;
+    return s[0].toUpperCase() + s.substring(1).toLowerCase();
+  }
+
+  void _showEvalDetailModal(
+    BuildContext ctx,
+    Map<String, dynamic> data,
+    String studentName,
+    String username,
+    String email,
+  ) {
+    ResponseDetailDialog.show(
+        ctx,
+        EvaluationReport.fromRaw(data, {
+          'namaLengkap': studentName,
+          'username': username,
+          'email': email,
+        }));
+  }
+
+  Future<void> _exportEvalPdf(
+      List<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
+      Map<String, Map<String, dynamic>> studentMap) async {
+    try {
+      final rows = docs
+          .map((doc) => EvaluationReport.fromRaw(
+              doc.data(), studentMap[doc.data()['studentId']] ?? {}))
+          .toList();
+      final classDoc = await FirebaseFirestore.instance
+          .collection('kelas')
+          .doc(widget.id)
+          .get();
+      final name = classDoc.data()?['namaKelas'] ?? widget.id;
+      final bytes = await EvaluationReport.pdf(rows,
+          scope:
+              'Kelas guru: $name - $_evalFilterCategory - Level $_evalFilterLevel');
+      FileDownloadHelper.downloadBytes(
+          bytes, 'respons_evaluasi_kelas.pdf', 'application/pdf');
+    } catch (error) {
+      if (mounted)
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Gagal membuat PDF: $error')));
+    }
+  }
+
+  void _exportEvalCsv(
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
+    Map<String, Map<String, dynamic>> studentMap,
+  ) {
+    final rows = docs
+        .map((doc) => EvaluationReport.fromRaw(
+            doc.data(), studentMap[doc.data()['studentId']] ?? {}))
+        .toList();
+    FileDownloadHelper.downloadFile(
+        EvaluationReport.csv(rows), 'respons_evaluasi_kelas.csv');
+  }
+}
+
 // ==========================================
 class GenerativeArtPainter extends CustomPainter {
   final String grade;
@@ -3219,30 +4480,51 @@ class GenerativeArtPainter extends CustomPainter {
     late List<Color> orbColors;
     late Color orbitColor;
     if (grade == 'S') {
-      orbColors = [const Color(0xFFD946EF), const Color(0xFF8B5CF6), const Color(0xFF3B82F6).withOpacity(0)];
+      orbColors = [
+        const Color(0xFFD946EF),
+        const Color(0xFF8B5CF6),
+        const Color(0xFF3B82F6).withOpacity(0)
+      ];
       orbitColor = const Color(0xFFF472B6);
     } else if (grade == 'A') {
-      orbColors = [const Color(0xFF10B981), const Color(0xFF06B6D4), const Color(0xFF3B82F6).withOpacity(0)];
+      orbColors = [
+        const Color(0xFF10B981),
+        const Color(0xFF06B6D4),
+        const Color(0xFF3B82F6).withOpacity(0)
+      ];
       orbitColor = const Color(0xFF34D399);
     } else if (grade == 'B') {
-      orbColors = [const Color(0xFF3B82F6), const Color(0xFF60A5FA), const Color(0xFF93C5FD).withOpacity(0)];
+      orbColors = [
+        const Color(0xFF3B82F6),
+        const Color(0xFF60A5FA),
+        const Color(0xFF93C5FD).withOpacity(0)
+      ];
       orbitColor = const Color(0xFF60A5FA);
     } else {
-      orbColors = [const Color(0xFFF59E0B), const Color(0xFFFB923C), const Color(0xFFFDE047).withOpacity(0)];
+      orbColors = [
+        const Color(0xFFF59E0B),
+        const Color(0xFFFB923C),
+        const Color(0xFFFDE047).withOpacity(0)
+      ];
       orbitColor = const Color(0xFFFBBF24);
     }
 
     final glowPaint = Paint()
-      ..shader = RadialGradient(colors: orbColors).createShader(Rect.fromCircle(center: center, radius: radius * 1.5));
+      ..shader = RadialGradient(colors: orbColors)
+          .createShader(Rect.fromCircle(center: center, radius: radius * 1.5));
     canvas.drawCircle(center, radius * 1.3, glowPaint);
 
     final orbitPaint = Paint()
       ..color = orbitColor.withOpacity(0.5)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2.0;
-    canvas.drawOval(Rect.fromCenter(center: center, width: size.width * 0.7, height: size.height * 0.4), orbitPaint);
+    canvas.drawOval(
+        Rect.fromCenter(
+            center: center, width: size.width * 0.7, height: size.height * 0.4),
+        orbitPaint);
   }
 
   @override
-  bool shouldRepaint(covariant GenerativeArtPainter oldDelegate) => oldDelegate.grade != grade;
+  bool shouldRepaint(covariant GenerativeArtPainter oldDelegate) =>
+      oldDelegate.grade != grade;
 }

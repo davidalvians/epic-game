@@ -153,6 +153,12 @@ class AdminSidebar extends StatelessWidget {
                   isActive: currentRoute.startsWith('/konten'),
                   onTap: () => context.go('/konten'),
                 ),
+                _NavItem(
+                  icon: Icons.psychology_alt_rounded,
+                  label: 'Sistem Evaluasi',
+                  isActive: currentRoute.startsWith('/evaluasi'),
+                  onTap: () => context.go('/evaluasi'),
+                ),
                 const SizedBox(height: 16),
 
                 _buildSectionTitle(context, 'LAPORAN & DETAIL'),
@@ -258,7 +264,11 @@ class _NavItemState extends State<_NavItem> {
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
       child: InkWell(
-        onTap: widget.onTap,
+        onTap: () {
+          final scaffold = Scaffold.maybeOf(context);
+          if (scaffold?.isDrawerOpen ?? false) scaffold!.closeDrawer();
+          widget.onTap();
+        },
         borderRadius: BorderRadius.circular(16),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),

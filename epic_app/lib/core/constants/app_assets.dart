@@ -9,6 +9,7 @@ class AppAssets {
   static const String epiStatic = 'assets/images/character/default/character_static.png';
   static const String ipehBody = 'assets/images/character/ipeh/character_animated.webp';
   static const String ipehStatic = 'assets/images/character/ipeh/character_static.png';
+  static const String evaluasiMascot = 'assets/images/character/evaluasi_mascot.png';
   static const String pedestal = 'assets/images/character/pedestal.png';
 
   // ─── Background ───────────────────────────────────

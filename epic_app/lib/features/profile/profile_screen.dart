@@ -10,7 +10,7 @@ import 'package:epic_app/features/profile/avatar_picker_controller.dart';
 import 'package:epic_app/features/profile/settings/edit_profile/edit_profile_screen.dart' as epic_edit_profile;
 import 'package:epic_app/features/profile/settings/edit_school/edit_school_screen.dart' as epic_edit_school;
 import 'package:epic_app/features/profile/settings/game_settings/game_settings_screen.dart' as epic_game_settings;
-import 'package:epic_app/features/kelas/guru_inactive_classes_screen.dart' as epic_guru_inactive;
+import 'package:epic_app/features/kelas/guru_archived_classes_screen.dart' as epic_guru_archived;
 import 'package:epic_app/data/repositories/kelas_repository.dart';
 import 'package:epic_app/data/models/kelas_model.dart';
 import 'package:epic_app/features/profile/settings/keamanan_akun_screen.dart' as epic_security;
@@ -22,7 +22,6 @@ class ProfileScreen extends StatefulWidget {
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
-
 class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProviderStateMixin {
   late AnimationController _animController;
   late Animation<double> _fadeAnim;
@@ -589,12 +588,12 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                                 ),
                                 const Divider(height: 1, color: Color(0xFFF1F5F9), indent: 76, endIndent: 20),
                                 _buildMenuItem(
-                                  icon: Icons.power_off_rounded,
-                                  title: 'Kelas Nonaktif',
-                                  subtitle: 'Kelola kelas yang dinonaktifkan',
+                                  icon: Icons.archive_outlined,
+                                  title: 'Kelas yang Diarsipkan',
+                                  subtitle: 'Lihat kelas yang telah diarsipkan',
                                   iconColor: const Color(0xFF059669),
                                   iconBgColor: const Color(0xFFECFDF5),
-                                  onTap: () => Get.to(() => const epic_guru_inactive.GuruInactiveClassesScreen()),
+                                  onTap: () => Get.to(() => const epic_guru_archived.GuruArchivedClassesScreen()),
                                 ),
                               ],
                             ),

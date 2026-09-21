@@ -15,6 +15,8 @@ import 'package:epic_app/data/models/scoring_instrument_model.dart';
 import 'package:epic_app/shared/controllers/session_controller.dart';
 import 'package:epic_app/features/games/menggambar/drawing_result_screen.dart';
 import 'package:epic_app/shared/widgets/epic_transition_overlay.dart';
+import 'package:epic_app/core/services/student_evaluation_service.dart';
+import 'package:epic_app/shared/widgets/dialog_refleksi_penalaran.dart';
 
 /// Controller untuk game Anyaman — berbasis grid pattern
 class AnyamanController extends GetxController with WidgetsBindingObserver {
@@ -572,6 +574,11 @@ class AnyamanController extends GetxController with WidgetsBindingObserver {
     isPaused.value = true;
   }
 
+  void resumeTimer() {
+    if (isTimeUp.value) return;
+    startTimer();
+  }
+
   void _onTimeUp() {
     isTimeUp.value = true;
     isPaused.value = true;
@@ -863,13 +870,50 @@ class AnyamanController extends GetxController with WidgetsBindingObserver {
 
   Future<void> submitWork() async {
     pauseTimer();
-    final uid = Get.find<SessionController>().currentUser.value?.uid ?? '';
-    
-    // Tandai sudah submit SEBELUM async apapun, agar _persistState() tidak bisa
-    // menimpa draft kembali saat lifecycle change atau onClose() dipanggil.
-    _isSubmitted = true;
-    debugPrint('✅ [submitWork] _isSubmitted = true, draft tidak akan disimpan lagi.');
+    final waktuPengerjaan = waktuTerpakai.value;
+    final imageBytes = await captureCanvas();
 
+    // ── Pengecekan Evaluasi Penalaran Matematis Siswa (One-Time per Level) ──
+    try {
+      final sessionCtrl = Get.find<SessionController>();
+      final user = sessionCtrl.currentUser.value;
+      if (user != null && user.isMurid) {
+        final evalService = StudentEvaluationService();
+        final hasSubmitted = await evalService.hasStudentSubmitted(
+          user.uid,
+          'anyaman',
+          level,
+        );
+        if (!hasSubmitted) {
+          final config = await evalService.fetchConfig('anyaman', level);
+          if (config != null && config.shouldShowEvaluation) {
+            final activeCtx = Get.context;
+            if (activeCtx != null && activeCtx.mounted) {
+              final bool? didSubmitOrSkip = await DialogRefleksiPenalaran.show(
+                context: activeCtx,
+                config: config,
+                currentUser: user,
+                categoryId: 'anyaman',
+                levelId: level,
+              );
+              // Jika siswa menekan tombol "Kembali" / X (membatalkan evaluasi),
+              // batalkan proses pengumpulan agar siswa tetap di canvas studio dengan draft aman!
+              if (didSubmitOrSkip != true) {
+                debugPrint('🛑 [anyaman submit] Siswa membatalkan evaluasi. Pengumpulan dibatalkan, draft aman.');
+                resumeTimer();
+                return;
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('⚠️ [anyaman submit] Pengecekan evaluasi dilewati: $e');
+    }
+
+    // ✅ Setelah evaluasi selesai / dilewati, tandai submit dan bersihkan draft
+    _isSubmitted = true;
+    final uid = Get.find<SessionController>().currentUser.value?.uid ?? '';
     try {
       Get.find<DraftService>().clearDraftImmediately(uid, 'anyaman', level);
       _session = null;
@@ -877,9 +921,6 @@ class AnyamanController extends GetxController with WidgetsBindingObserver {
     } catch (e) {
       debugPrint('Error deleting draft: $e');
     }
-
-    final waktuPengerjaan = waktuTerpakai.value;
-    final imageBytes = await captureCanvas();
 
     final context = Get.context;
     if (context != null && context.mounted) {

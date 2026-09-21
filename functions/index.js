@@ -879,4 +879,58 @@ exports.evaluateArtwork = functions
     }
   });
 
+/**
+ * 5. Cloud Function: Transcribe Audio (untuk Evaluasi Siswa)
+ * Menerima audio base64 (format m4a/mp4/aac) dan mentranskripsikannya ke bahasa Indonesia menggunakan Gemini.
+ */
+exports.transcribeAudio = functions
+  .runWith({ timeoutSeconds: 60, memory: "512MB" })
+  .https.onCall(async (data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError(
+        "unauthenticated",
+        "Request tidak memiliki token otentikasi."
+      );
+    }
 
+    const { audioBase64, mimeType } = data;
+    if (!audioBase64) {
+      throw new functions.https.HttpsError(
+        "invalid-argument",
+        "Harap sertakan audioBase64."
+      );
+    }
+
+    try {
+      const apiKey = process.env.GEMINI_API_KEY || functions.config().gemini?.apikey;
+      if (!apiKey) {
+        throw new Error("Gemini API key tidak dikonfigurasi.");
+      }
+
+      const genAI = new GoogleGenerativeAI(apiKey);
+      const model = genAI.getGenerativeModel({
+        model: "gemini-2.5-flash-lite",
+      });
+
+      const prompt = "Dengarkan rekaman audio suara anak sekolah dasar berikut ini. Transkripsikan apa yang diucapkan secara akurat ke dalam teks bahasa Indonesia. Berikan HANYA teks transkripnya saja tanpa tanda kutip, tanpa kata pengantar, tanpa penjelasan, dan tanpa format markdown apa pun. Jika suara kurang jelas, tulis apa yang terdengar sebaik mungkin.";
+
+      const result = await model.generateContent([
+        { text: prompt },
+        {
+          inlineData: {
+            mimeType: mimeType || "audio/mp4",
+            data: audioBase64,
+          },
+        },
+      ]);
+
+      const transcript = result.response.text().trim();
+      return {
+        success: true,
+        transcript: transcript,
+      };
+    } catch (error) {
+      console.error("Error transcribeAudio function:", error);
+      throw new functions.https.HttpsError("internal", error.message || String(error));
+    }
+  });

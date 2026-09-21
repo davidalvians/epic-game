@@ -74,5 +74,9 @@
 		<string>Aplikasi memerlukan akses galeri untuk membaca kode QR dari gambar.</string>
 		<key>NSPhotoLibraryAddUsageDescription</key>
 		<string>Aplikasi memerlukan akses galeri untuk menyimpan gambar QR Code.</string>
+		<key>NSMicrophoneUsageDescription</key>
+		<string>Aplikasi memerlukan akses mikrofon agar murid dapat menceritakan proses karyanya menggunakan rekaman suara.</string>
+		<key>NSSpeechRecognitionUsageDescription</key>
+		<string>Aplikasi memerlukan akses pengenalan suara untuk mengubah rekaman suara menjadi teks transkrip refleksi.</string>
 	</dict>
 </plist>

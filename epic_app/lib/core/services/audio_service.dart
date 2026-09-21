@@ -70,15 +70,25 @@ class AudioService extends GetxService {
     }
   }
 
-  /// Memutar suara pemindaian teknologi AI (looping)
+  /// Pembuka pendek untuk layar apresiasi karya; tanpa dengung loop.
   Future<void> startScanHum() async {
     if (!_canPlaySound()) return;
     try {
-      await _scanPlayer.setReleaseMode(ReleaseMode.loop);
-      await _scanPlayer.setVolume(0.65);
-      await _scanPlayer.play(AssetSource('audio/sfx_scan_tech.wav'));
+      await _sfxPlayer.setVolume(0.22);
+      await _sfxPlayer.play(AssetSource('audio/sfx_whoosh.wav'));
     } catch (e) {
       debugPrint('Error startScanHum: $e');
+    }
+  }
+
+  /// Nada kilau singkat ketika apresiasi beralih ke tahap berikutnya.
+  Future<void> playScanDiscovery() async {
+    if (!_canPlaySound()) return;
+    try {
+      await _scanPlayer.setVolume(0.16);
+      await _scanPlayer.play(AssetSource('audio/sfx_star_pop.wav'));
+    } catch (e) {
+      debugPrint('Error playScanDiscovery: $e');
     }
   }
 

@@ -169,6 +169,9 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
         setState(() {
           if (_currentDiagnosticStep < 3) {
             _currentDiagnosticStep++;
+            if (Get.isRegistered<AudioService>()) {
+              Get.find<AudioService>().playScanDiscovery();
+            }
           }
         });
       } else {
@@ -538,14 +541,14 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
         if (!didPop) Get.offAllNamed('/home');
       },
       child: Scaffold(
-        backgroundColor: const Color(0xFF070B16), // Deep Cyber Midnight Background
+        backgroundColor: const Color(0xFF102A43),
         body: Stack(
           children: [
             // 1. Dynamic Nebula & Madura Batik Glow Background
             Positioned.fill(
               child: CustomPaint(
                 painter: _BatikNebulaPainter(
-                  themeColor: _isEvaluating ? const Color(0xFF00F0FF) : _themeColor,
+                  themeColor: _isEvaluating ? const Color(0xFFF59E0B) : _themeColor,
                   pulseValue: _scanCtrl.value,
                 ),
               ),
@@ -585,36 +588,31 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
   }
 
   // ===========================================================================
-  // ── 1. HOLOGRAPHIC SCANNING VIEW (PROSES PEMINDAIAN KARYA) ─────────────────
+  // ── 1. GALERI KARYA AJAIB (PROSES PEMINDAIAN KARYA) ────────────────────────
   // ===========================================================================
   Widget _buildScanningView() {
-    return Container(
+    return SizedBox.expand(
       key: const ValueKey('scanning_view'),
-      width: double.infinity,
-      height: double.infinity,
-      color: Colors.transparent,
       child: SafeArea(
-        child: SingleChildScrollView(
-          physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 14),
-          child: Column(
-            children: [
-              // Top Holographic Scanner Header
-              _buildScanningHeader(),
-              const SizedBox(height: 18),
-
-              // Central Cyber Holographic Scanner Box (A4 Proportion)
-              _buildHologramArtworkScanner(),
-              const SizedBox(height: 20),
-
-              // Live Diagnostic 4-Step Checklist Cards
-              _buildDiagnosticStepChecklist(),
-              const SizedBox(height: 18),
-
-              // Dynamic Mascot / Thought Speech Bubble
-              _buildMascotThoughtBubble(),
-              const SizedBox(height: 20),
-            ],
+        child: LayoutBuilder(
+          builder: (context, constraints) => Padding(
+            padding: const EdgeInsets.fromLTRB(22, 16, 22, 20),
+            child: Column(
+              children: [
+                _buildScanningHeader(),
+                const SizedBox(height: 12),
+                Expanded(
+                  child: Center(
+                    child: FittedBox(
+                      fit: BoxFit.contain,
+                      child: _buildHologramArtworkScanner(),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                _buildScanProgressPanel(),
+              ],
+            ),
           ),
         ),
       ),
@@ -627,12 +625,12 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
           decoration: BoxDecoration(
-            color: const Color(0xFF00F0FF).withValues(alpha: 0.12),
+            color: const Color(0xFFFFDFA0).withValues(alpha: 0.14),
             borderRadius: BorderRadius.circular(30),
-            border: Border.all(color: const Color(0xFF00F0FF).withValues(alpha: 0.4)),
+            border: Border.all(color: const Color(0xFFFFDFA0).withValues(alpha: 0.55)),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF00F0FF).withValues(alpha: 0.2),
+              color: const Color(0xFFF59E0B).withValues(alpha: 0.2),
                 blurRadius: 12,
               ),
             ],
@@ -644,20 +642,20 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
                 width: 8,
                 height: 8,
                 decoration: const BoxDecoration(
-                  color: Color(0xFF00F0FF),
+                  color: Color(0xFFF59E0B),
                   shape: BoxShape.circle,
                   boxShadow: [
-                    BoxShadow(color: Color(0xFF00F0FF), blurRadius: 6, spreadRadius: 1),
+                    BoxShadow(color: Color(0xFFF59E0B), blurRadius: 6, spreadRadius: 1),
                   ],
                 ),
               ),
               const SizedBox(width: 8),
               Text(
-                'PEMINDAIAN KARYA SENI',
+                'GALERI KARYA AJAIB',
                 style: GoogleFonts.outfit(
                   fontSize: 11,
                   fontWeight: FontWeight.w900,
-                  color: const Color(0xFF00F0FF),
+                  color: const Color(0xFFFFDFA0),
                   letterSpacing: 2.0,
                 ),
               ),
@@ -666,14 +664,14 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
         ),
         const SizedBox(height: 8),
         Text(
-          'ANALISIS KARYA SISWA',
+          'Mari Apresiasi Karyamu',
           style: GoogleFonts.outfit(
             fontSize: 26,
             fontWeight: FontWeight.w900,
-            color: Colors.white,
-            letterSpacing: 2.5,
+            color: const Color(0xFFFFE1B5),
+            letterSpacing: 0.3,
             shadows: [
-              Shadow(color: const Color(0xFF00F0FF).withValues(alpha: 0.4), blurRadius: 18),
+              Shadow(color: const Color(0xFFF59E0B).withValues(alpha: 0.25), blurRadius: 14),
             ],
           ),
         ),
@@ -700,9 +698,9 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
               borderRadius: BorderRadius.circular(22),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF00F0FF).withValues(alpha: 0.3),
-                  blurRadius: 36,
-                  spreadRadius: 6,
+                  color: const Color(0xFFF59E0B).withValues(alpha: 0.28),
+                  blurRadius: 28,
+                  spreadRadius: 4,
                 ),
               ],
             ),
@@ -719,7 +717,7 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(16),
                     child: Container(
-                      color: const Color(0xFF0B132B),
+                      color: const Color(0xFF203A52),
                       child: widget.imageBytes != null
                           ? Image.memory(
                               widget.imageBytes!,
@@ -731,17 +729,7 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
                   ),
                 ),
 
-                // 2b. Holographic Cyber Scanlines Grid
-                Positioned.fill(
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
-                    child: CustomPaint(
-                      painter: _HologramMatrixPainter(pulse: _scanCtrl.value),
-                    ),
-                  ),
-                ),
-
-                // 2c. Ultra-Smooth Volumetric Laser Beam Sweep (Scanning 100% of the Canvas)
+                // Sapuan cahaya hangat untuk proses apresiasi karya.
                 Positioned.fill(
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(16),
@@ -756,18 +744,18 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
                           children: [
                             // Volumetric Directional Trail
                             Positioned(
-                              top: isMovingDown ? beamY - 40 : beamY,
+                              top: isMovingDown ? beamY - 52 : beamY,
                               left: 0,
                               right: 0,
-                              height: 40,
+                              height: 52,
                               child: Container(
                                 decoration: BoxDecoration(
                                   gradient: LinearGradient(
                                     begin: isMovingDown ? Alignment.topCenter : Alignment.bottomCenter,
                                     end: isMovingDown ? Alignment.bottomCenter : Alignment.topCenter,
                                     colors: [
-                                      const Color(0xFF00F0FF).withValues(alpha: 0.0),
-                                      const Color(0xFF00F0FF).withValues(alpha: 0.35),
+                                      const Color(0xFFFFDFA0).withValues(alpha: 0.0),
+                                      const Color(0xFFFFC15E).withValues(alpha: 0.42),
                                     ],
                                   ),
                                 ),
@@ -777,18 +765,18 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
                             // Crisp Glowing Laser Core Line
                             Positioned(
                               top: beamY,
-                              left: 2,
-                              right: 2,
-                              height: 3.5,
+                              left: 12,
+                              right: 12,
+                              height: 3,
                               child: Container(
                                 decoration: BoxDecoration(
                                   color: Colors.white,
                                   borderRadius: BorderRadius.circular(4),
                                   boxShadow: const [
                                     BoxShadow(
-                                      color: Color(0xFF00F0FF),
-                                      blurRadius: 14,
-                                      spreadRadius: 3,
+                                      color: Color(0xFFF59E0B),
+                                      blurRadius: 12,
+                                      spreadRadius: 2,
                                     ),
                                     BoxShadow(
                                       color: Colors.white,
@@ -808,10 +796,10 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
                                 width: 8,
                                 height: 8,
                                 decoration: const BoxDecoration(
-                                  color: Color(0xFF00F0FF),
+                                  color: Color(0xFFF59E0B),
                                   shape: BoxShape.circle,
                                   boxShadow: [
-                                    BoxShadow(color: Color(0xFF00F0FF), blurRadius: 8, spreadRadius: 2),
+                                    BoxShadow(color: Color(0xFFF59E0B), blurRadius: 8, spreadRadius: 2),
                                     BoxShadow(color: Colors.white, blurRadius: 3),
                                   ],
                                 ),
@@ -826,10 +814,10 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
                                 width: 8,
                                 height: 8,
                                 decoration: const BoxDecoration(
-                                  color: Color(0xFF00F0FF),
+                                  color: Color(0xFFF59E0B),
                                   shape: BoxShape.circle,
                                   boxShadow: [
-                                    BoxShadow(color: Color(0xFF00F0FF), blurRadius: 8, spreadRadius: 2),
+                                    BoxShadow(color: Color(0xFFF59E0B), blurRadius: 8, spreadRadius: 2),
                                     BoxShadow(color: Colors.white, blurRadius: 3),
                                   ],
                                 ),
@@ -849,26 +837,103 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(
-                          color: const Color(0xFF00F0FF).withValues(alpha: 0.45),
-                          width: 1.5,
+                          color: const Color(0xFFFFDFA0).withValues(alpha: 0.75),
+                          width: 2,
                         ),
                       ),
                     ),
                   ),
                 ),
 
-                // 2e. Precision HUD Corner Brackets
-                Positioned.fill(
-                  child: IgnorePointer(
-                    child: CustomPaint(
-                      painter: _HoloHudPainter(
-                        pulse: _scanCtrl.value,
-                        hudColor: const Color(0xFF00F0FF),
-                      ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildScanProgressPanel() {
+    const steps = [
+      'Melihat Karya',
+      'Mencari Pola',
+      'Mengagumi Warna',
+      'Menyiapkan Pujian',
+    ];
+    final activeStep = _currentDiagnosticStep.clamp(0, steps.length - 1);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(18, 14, 18, 16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF173B57).withValues(alpha: 0.9),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: const Color(0xFFFFDFA0).withValues(alpha: 0.42),
+        ),
+      ),
+      child: Column(
+        children: [
+          Text(
+            steps[activeStep],
+            style: GoogleFonts.nunito(
+              color: const Color(0xFFFFE1B5),
+              fontSize: 16,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              for (var index = 0; index < steps.length; index++) ...[
+                if (index > 0)
+                  Expanded(
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 300),
+                      height: 3,
+                      color: index <= activeStep
+                          ? const Color(0xFFF59E0B)
+                          : Colors.white.withValues(alpha: 0.14),
                     ),
+                  ),
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 300),
+                  width: 14,
+                  height: 14,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: index <= activeStep
+                        ? const Color(0xFFF59E0B)
+                        : const Color(0xFF31536B),
+                    border: Border.all(
+                      color: index == activeStep
+                          ? const Color(0xFFFFE1B5)
+                          : Colors.white.withValues(alpha: 0.22),
+                      width: index == activeStep ? 3 : 1.5,
+                    ),
+                    boxShadow: index == activeStep
+                        ? [
+                            BoxShadow(
+                              color: const Color(0xFFF59E0B)
+                                  .withValues(alpha: 0.45),
+                              blurRadius: 10,
+                              spreadRadius: 1,
+                            ),
+                          ]
+                        : null,
                   ),
                 ),
               ],
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Juri sedang mengenali keunikan karya kamu',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.nunito(
+              color: Colors.white.withValues(alpha: 0.72),
+              fontSize: 11.5,
+              fontWeight: FontWeight.w600,
             ),
           ),
         ],
@@ -878,10 +943,10 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
 
   Widget _buildDiagnosticStepChecklist() {
     final steps = [
-      {'title': 'Pemindaian Goresan Kanvas', 'icon': Icons.brush_rounded},
-      {'title': 'Analisis Simetri & Etnomatematika', 'icon': Icons.square_foot_rounded},
-      {'title': 'Harmonisasi Warna & Ragam Budaya', 'icon': Icons.palette_rounded},
-      {'title': 'Perumusan Skor & Apresiasi Juri', 'icon': Icons.auto_awesome_rounded},
+      {'title': 'Melihat detail karyamu', 'icon': Icons.visibility_rounded},
+      {'title': 'Menemukan pola dan bentuk', 'icon': Icons.grid_view_rounded},
+      {'title': 'Mengagumi warna dan budaya', 'icon': Icons.palette_rounded},
+      {'title': 'Menyiapkan apresiasi untukmu', 'icon': Icons.auto_awesome_rounded},
     ];
 
     return Container(
@@ -897,14 +962,14 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
         children: [
           Row(
             children: [
-              const Icon(Icons.hub_rounded, size: 16, color: Color(0xFF00F0FF)),
+              const Icon(Icons.auto_awesome_rounded, size: 16, color: Color(0xFFF59E0B)),
               const SizedBox(width: 8),
               Text(
-                'TAHAPAN DIAGNOSTIK',
+                'PERJALANAN APRESIASI',
                 style: GoogleFonts.outfit(
                   fontSize: 11,
                   fontWeight: FontWeight.w900,
-                  color: const Color(0xFF00F0FF),
+                  color: const Color(0xFFFFDFA0),
                   letterSpacing: 1.5,
                 ),
               ),
@@ -928,13 +993,13 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
                         color: isDone
                             ? const Color(0xFF10B981)
                             : isCurrent
-                                ? const Color(0xFF00F0FF).withValues(alpha: 0.2)
+                                ? const Color(0xFFF59E0B).withValues(alpha: 0.2)
                                 : Colors.white.withValues(alpha: 0.05),
                         border: Border.all(
                           color: isDone
                               ? const Color(0xFF10B981)
                               : isCurrent
-                                  ? const Color(0xFF00F0FF)
+                                  ? const Color(0xFFF59E0B)
                                   : Colors.white24,
                         ),
                       ),
@@ -947,7 +1012,7 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
                                     height: 10,
                                     child: CircularProgressIndicator(
                                       strokeWidth: 2,
-                                      valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF00F0FF)),
+                                      valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFF59E0B)),
                                     ),
                                   )
                                 : Text(
@@ -966,7 +1031,7 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
                           color: isDone
                               ? Colors.white
                               : isCurrent
-                                  ? const Color(0xFF00F0FF)
+                                  ? const Color(0xFFFFDFA0)
                                   : Colors.white38,
                         ),
                       ),
@@ -1807,76 +1872,7 @@ class _GradeSunburstPainter extends CustomPainter {
   }
 }
 
-/// Custom painter untuk grid holografis lembut di dalam kanvas
-class _HologramMatrixPainter extends CustomPainter {
-  final double pulse;
-
-  _HologramMatrixPainter({required this.pulse});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final linePaint = Paint()
-      ..color = const Color(0xFF00F0FF).withValues(alpha: 0.035)
-      ..strokeWidth = 1.0;
-
-    // Horizontal scanlines
-    for (double y = 0; y < size.height; y += 14) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), linePaint);
-    }
-    // Vertical grid lines
-    for (double x = 0; x < size.width; x += 14) {
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), linePaint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _HologramMatrixPainter oldDelegate) {
-    return false;
-  }
-}
-
-/// Custom painter untuk HUD Futuristic Crosshairs & Corner Target Brackets (Pas sudut)
-class _HoloHudPainter extends CustomPainter {
-  final double pulse;
-  final Color hudColor;
-
-  _HoloHudPainter({required this.pulse, required this.hudColor});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final bracketPaint = Paint()
-      ..color = hudColor.withValues(alpha: 0.8 + 0.2 * math.sin(pulse * math.pi))
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 3.0
-      ..strokeCap = StrokeCap.round;
-
-    const bracketLen = 22.0;
-    const offset = 0.0;
-
-    // Top-Left
-    canvas.drawLine(const Offset(offset, offset + bracketLen), const Offset(offset, offset), bracketPaint);
-    canvas.drawLine(const Offset(offset, offset), const Offset(offset + bracketLen, offset), bracketPaint);
-
-    // Top-Right
-    canvas.drawLine(Offset(size.width - offset - bracketLen, offset), Offset(size.width - offset, offset), bracketPaint);
-    canvas.drawLine(Offset(size.width - offset, offset), Offset(size.width - offset, offset + bracketLen), bracketPaint);
-
-    // Bottom-Left
-    canvas.drawLine(Offset(offset, size.height - offset - bracketLen), Offset(offset, size.height - offset), bracketPaint);
-    canvas.drawLine(Offset(offset, size.height - offset), Offset(offset + bracketLen, size.height - offset), bracketPaint);
-
-    // Bottom-Right
-    canvas.drawLine(Offset(size.width - offset - bracketLen, size.height - offset), Offset(size.width - offset, size.height - offset), bracketPaint);
-    canvas.drawLine(Offset(size.width - offset, size.height - offset), Offset(size.width - offset, size.height - offset - bracketLen), bracketPaint);
-  }
-
-  @override
-  bool shouldRepaint(covariant _HoloHudPainter oldDelegate) {
-    return oldDelegate.pulse != pulse;
-  }
-}
-
-/// Dynamic Batik & Nebula Vector Silhouette Background Painter
+/// Latar budaya Madura: susunan motif batik geometris dan siluet keris.
 class _BatikNebulaPainter extends CustomPainter {
   final Color themeColor;
   final double pulseValue;
@@ -1885,34 +1881,140 @@ class _BatikNebulaPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = themeColor.withValues(alpha: 0.02 + 0.015 * math.sin(pulseValue * math.pi))
-      ..style = PaintingStyle.fill;
-
-    final linePaint = Paint()
-      ..color = themeColor.withValues(alpha: 0.04 + 0.02 * math.cos(pulseValue * math.pi))
+    final motifPaint = Paint()
+      ..color = const Color(0xFFFFDFA0).withValues(alpha: 0.055)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.0;
+      ..strokeWidth = 1.15;
+    final accentPaint = Paint()
+      ..color = themeColor.withValues(
+        alpha: 0.075 + 0.015 * math.sin(pulseValue * math.pi),
+      )
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.4;
 
-    final center = Offset(size.width / 2, size.height * 0.35);
-
-    for (int r = 1; r <= 5; r++) {
-      double radius = r * 80.0;
-      canvas.drawCircle(center, radius, linePaint);
-
-      for (int i = 0; i < 8; i++) {
-        double angle = i * (math.pi / 4) + (pulseValue * 0.05);
-        double leafX = center.dx + radius * math.cos(angle);
-        double leafY = center.dy + radius * math.sin(angle);
-
-        canvas.drawCircle(Offset(leafX, leafY), 3.0 + r, paint);
-        canvas.drawCircle(Offset(leafX, leafY), 2.0, linePaint);
-      }
+    // Pita batik geometris Madura di kedua sisi layar.
+    const cell = 46.0;
+    for (double y = -cell; y < size.height + cell; y += cell) {
+      _drawBatikDiamond(canvas, Offset(24, y), 17, motifPaint);
+      _drawBatikDiamond(canvas, Offset(size.width - 24, y + 23), 17, motifPaint);
     }
+
+    // Motif bunga/daun sederhana sebagai aksen, tidak mengganggu isi utama.
+    for (double y = 90; y < size.height; y += 150) {
+      _drawMaduraFlower(canvas, Offset(66, y), 18, accentPaint);
+      _drawMaduraFlower(
+        canvas,
+        Offset(size.width - 66, y + 72),
+        18,
+        accentPaint,
+      );
+    }
+
+    // Dua siluet keris besar menjadi jangkar budaya pada sudut berlawanan.
+    _drawKeris(
+      canvas,
+      Offset(size.width * 0.10, size.height * 0.56),
+      size.height * 0.27,
+      accentPaint,
+      mirror: false,
+    );
+    _drawKeris(
+      canvas,
+      Offset(size.width * 0.90, size.height * 0.18),
+      size.height * 0.23,
+      accentPaint,
+      mirror: true,
+    );
+  }
+
+  void _drawBatikDiamond(
+    Canvas canvas,
+    Offset center,
+    double radius,
+    Paint paint,
+  ) {
+    final outer = Path()
+      ..moveTo(center.dx, center.dy - radius)
+      ..lineTo(center.dx + radius, center.dy)
+      ..lineTo(center.dx, center.dy + radius)
+      ..lineTo(center.dx - radius, center.dy)
+      ..close();
+    canvas.drawPath(outer, paint);
+    final innerRadius = radius * 0.48;
+    final inner = Path()
+      ..moveTo(center.dx, center.dy - innerRadius)
+      ..lineTo(center.dx + innerRadius, center.dy)
+      ..lineTo(center.dx, center.dy + innerRadius)
+      ..lineTo(center.dx - innerRadius, center.dy)
+      ..close();
+    canvas.drawPath(inner, paint);
+  }
+
+  void _drawMaduraFlower(
+    Canvas canvas,
+    Offset center,
+    double radius,
+    Paint paint,
+  ) {
+    for (var i = 0; i < 4; i++) {
+      final angle = i * math.pi / 2;
+      final petalCenter = Offset(
+        center.dx + math.cos(angle) * radius * 0.62,
+        center.dy + math.sin(angle) * radius * 0.62,
+      );
+      canvas.save();
+      canvas.translate(petalCenter.dx, petalCenter.dy);
+      canvas.rotate(angle);
+      canvas.drawOval(
+        Rect.fromCenter(
+          center: Offset.zero,
+          width: radius * 0.72,
+          height: radius * 1.1,
+        ),
+        paint,
+      );
+      canvas.restore();
+    }
+  }
+
+  void _drawKeris(
+    Canvas canvas,
+    Offset origin,
+    double height,
+    Paint paint, {
+    required bool mirror,
+  }) {
+    canvas.save();
+    canvas.translate(origin.dx, origin.dy);
+    canvas.scale(mirror ? -1 : 1, 1);
+    final width = height * 0.18;
+    final blade = Path()..moveTo(0, -height / 2);
+    const waves = 7;
+    for (var i = 1; i <= waves; i++) {
+      final y = -height / 2 + (height * 0.78 / waves) * i;
+      final x = (i.isEven ? -1 : 1) * width * 0.34;
+      blade.quadraticBezierTo(-x, y - height * 0.045, x, y);
+    }
+    blade.lineTo(0, height * 0.34);
+    canvas.drawPath(blade, paint..strokeWidth = 2.1);
+
+    final guardY = height * 0.30;
+    final guard = Path()
+      ..moveTo(-width, guardY)
+      ..quadraticBezierTo(0, guardY + height * 0.07, width, guardY)
+      ..quadraticBezierTo(0, guardY + height * 0.02, -width, guardY);
+    canvas.drawPath(guard, paint);
+    canvas.drawLine(
+      Offset(0, guardY + height * 0.035),
+      Offset(0, height / 2),
+      paint,
+    );
+    canvas.restore();
   }
 
   @override
   bool shouldRepaint(covariant _BatikNebulaPainter oldDelegate) {
-    return oldDelegate.pulseValue != pulseValue || oldDelegate.themeColor != themeColor;
+    return oldDelegate.pulseValue != pulseValue ||
+        oldDelegate.themeColor != themeColor;
   }
 }

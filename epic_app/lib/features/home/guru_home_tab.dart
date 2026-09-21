@@ -1,18 +1,16 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:epic_app/core/constants/app_colors.dart';
 import 'package:epic_app/core/constants/app_fonts.dart';
-import 'package:epic_app/core/utils/epic_snackbar.dart';
 import 'package:epic_app/data/models/artwork_model.dart';
 import 'package:epic_app/data/models/user_model.dart';
 import 'package:epic_app/data/repositories/artwork_repository.dart';
 import 'package:epic_app/data/repositories/kelas_repository.dart';
 import 'package:epic_app/data/repositories/user_repository.dart';
 import 'package:epic_app/features/kelas/kelas_controller.dart';
-import 'package:epic_app/features/kelas/kelas_detail_guru_screen.dart';
 import 'package:epic_app/features/galeri/artwork_detail_screen.dart';
+import 'package:epic_app/features/main/main_controller.dart';
 import 'package:epic_app/shared/controllers/session_controller.dart';
 import 'package:epic_app/shared/widgets/user_avatar_widget.dart';
 
@@ -192,6 +190,20 @@ class GuruHomeTab extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
                 Obx(() {
+                  if (kelasCtrl.isLoading.value && kelasCtrl.kelasList.isEmpty) {
+                    return Container(
+                      height: 220,
+                      width: double.infinity,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.72),
+                        borderRadius: BorderRadius.circular(24),
+                        border: Border.all(color: Colors.white),
+                      ),
+                      child: const CircularProgressIndicator(color: AppColors.primary),
+                    );
+                  }
+
                   final activeClasses = kelasCtrl.kelasList.where((k) => k.isActive).toList();
                   final totalMurid = activeClasses.fold<int>(0, (acc, k) => acc + k.jumlahMurid);
                   final activeClassIds = activeClasses.map((k) => k.kelasId).toList();
@@ -270,256 +282,16 @@ class GuruHomeTab extends StatelessWidget {
 
                 const SizedBox(height: 32),
 
-                // ─── Daftar Kelas Saya ───
-                Text(
-                  'Kelas Saya',
-                  style: AppFonts.heading3(),
-                ),
-                const SizedBox(height: 16),
                 Obx(() {
                   if (kelasCtrl.isLoading.value && kelasCtrl.kelasList.isEmpty) {
-                    return const Center(child: CircularProgressIndicator());
+                    return const SizedBox.shrink();
                   }
 
-                  final activeClasses = kelasCtrl.kelasList.where((k) => k.isActive).toList();
+                  final hasActiveClass = kelasCtrl.kelasList.any((kelas) => kelas.isActive);
+                  if (hasActiveClass) return const SizedBox.shrink();
 
-                  if (activeClasses.isEmpty) {
-                    return Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(24),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: Colors.grey.shade200),
-                      ),
-                      child: Column(
-                        children: [
-                          Icon(Icons.inbox_rounded, size: 48, color: Colors.grey[400]),
-                          const SizedBox(height: 16),
-                          Text(
-                            'Belum Ada Kelas Aktif',
-                            style: AppFonts.bodyText(weight: FontWeight.bold),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Buka menu Kelas untuk membuatnya.',
-                            style: AppFonts.caption(color: Colors.grey[600]),
-                          ),
-                        ],
-                      ),
-                    );
-                  }
-
-                  return ListView.separated(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: activeClasses.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 14),
-                    itemBuilder: (context, index) {
-                      final kelas = activeClasses[index];
-                      final themeIndex = index % 3;
-                      final Color accentColor = themeIndex == 0
-                          ? AppColors.primary
-                          : themeIndex == 1
-                              ? const Color(0xFF3B82F6)
-                              : const Color(0xFF10B981);
-
-                      return StreamBuilder<List<ArtworkModel>>(
-                        stream: ArtworkRepository().watchArtworksByKelas(kelas.kelasId),
-                        builder: (context, snapshot) {
-                          double avgNilai = 0.0;
-                          int totalKarya = 0;
-                          if (snapshot.hasData) {
-                            final filteredArtworks = snapshot.data!;
-                            totalKarya = filteredArtworks.length;
-                            if (filteredArtworks.isNotEmpty) {
-                              avgNilai = filteredArtworks.fold<int>(0, (acc, a) => acc + (a.skorAI ?? 0)) / totalKarya;
-                            }
-                          }
-
-                          return Container(
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.85),
-                              borderRadius: BorderRadius.circular(24),
-                              border: Border.all(color: Colors.white.withValues(alpha: 0.7), width: 1.5),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.03),
-                                  blurRadius: 24,
-                                  offset: const Offset(0, 10),
-                                ),
-                              ],
-                            ),
-                            child: Material(
-                              color: Colors.transparent,
-                              child: InkWell(
-                                onTap: () => Get.to(() => KelasDetailGuruScreen(kelas: kelas)),
-                                borderRadius: BorderRadius.circular(24),
-                                child: Padding(
-                                  padding: const EdgeInsets.all(20),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
-                                        children: [
-                                          Container(
-                                            padding: const EdgeInsets.all(12),
-                                            decoration: BoxDecoration(
-                                              gradient: LinearGradient(
-                                                colors: [accentColor, accentColor.withValues(alpha: 0.75)],
-                                                begin: Alignment.topLeft,
-                                                end: Alignment.bottomRight,
-                                              ),
-                                              borderRadius: BorderRadius.circular(20),
-                                              boxShadow: [
-                                                BoxShadow(
-                                                  color: accentColor.withValues(alpha: 0.3),
-                                                  blurRadius: 10,
-                                                  offset: const Offset(0, 4),
-                                                ),
-                                              ],
-                                            ),
-                                            child: const Icon(Icons.class_rounded, color: Colors.white, size: 24),
-                                          ),
-                                          const SizedBox(width: 16),
-                                          Expanded(
-                                            child: Column(
-                                              crossAxisAlignment: CrossAxisAlignment.start,
-                                              children: [
-                                                Text(
-                                                  kelas.namaKelas,
-                                                  style: AppFonts.bodyText(weight: FontWeight.bold).copyWith(
-                                                    fontSize: 17,
-                                                    color: AppColors.dark,
-                                                  ),
-                                                ),
-                                                const SizedBox(height: 6),
-                                                Row(
-                                                  children: [
-                                                    Container(
-                                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                                      decoration: BoxDecoration(
-                                                        color: accentColor.withValues(alpha: 0.08),
-                                                        borderRadius: BorderRadius.circular(8),
-                                                      ),
-                                                      child: Text(
-                                                        'KODE: ${kelas.kodeKelas}',
-                                                        style: AppFonts.caption(color: accentColor).copyWith(
-                                                          fontWeight: FontWeight.w900,
-                                                          fontSize: 10,
-                                                          letterSpacing: 0.3,
-                                                        ),
-                                                      ),
-                                                    ),
-                                                    const SizedBox(width: 8),
-                                                    GestureDetector(
-                                                      onTap: () {
-                                                        Clipboard.setData(ClipboardData(text: kelas.kodeKelas));
-                                                        EpicSnackbar.success('Tersalin', 'Kode kelas disalin ke clipboard');
-                                                      },
-                                                      child: Container(
-                                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                                        decoration: BoxDecoration(
-                                                          color: Colors.grey.shade100,
-                                                          borderRadius: BorderRadius.circular(8),
-                                                          border: Border.all(color: Colors.grey.shade200),
-                                                        ),
-                                                        child: Row(
-                                                          children: [
-                                                            Icon(Icons.copy_rounded, size: 10, color: Colors.grey.shade600),
-                                                            const SizedBox(width: 4),
-                                                            Text(
-                                                              'Salin',
-                                                              style: AppFonts.caption(color: Colors.grey.shade600).copyWith(
-                                                                fontSize: 9,
-                                                                fontWeight: FontWeight.bold,
-                                                              ),
-                                                            )
-                                                          ],
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                          Column(
-                                            crossAxisAlignment: CrossAxisAlignment.end,
-                                            children: [
-                                              Text(
-                                                '${kelas.jumlahMurid}',
-                                                style: AppFonts.heading2().copyWith(
-                                                  color: accentColor,
-                                                  fontSize: 26,
-                                                  fontFamily: 'FredokaOne',
-                                                ),
-                                              ),
-                                              Text(
-                                                'Murid',
-                                                style: AppFonts.caption(color: Colors.grey[500]).copyWith(
-                                                  fontWeight: FontWeight.bold,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ],
-                                      ),
-                                      const Divider(height: 24, color: Color(0xFFF1F5F9), thickness: 1.2),
-                                      Row(
-                                        children: [
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                            decoration: BoxDecoration(
-                                              color: const Color(0xFFFFFBEB),
-                                              borderRadius: BorderRadius.circular(16),
-                                              border: Border.all(color: const Color(0xFFFDE68A), width: 1),
-                                            ),
-                                            child: Row(
-                                              children: [
-                                                const Icon(Icons.star_rounded, size: 16, color: Color(0xFFD97706)),
-                                                const SizedBox(width: 4),
-                                                Text(
-                                                  'Rerata: ${avgNilai.toStringAsFixed(1)}',
-                                                  style: AppFonts.bodySmall(color: const Color(0xFFB45309), weight: FontWeight.w800),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                          const SizedBox(width: 12),
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                            decoration: BoxDecoration(
-                                              color: accentColor.withValues(alpha: 0.06),
-                                              borderRadius: BorderRadius.circular(16),
-                                              border: Border.all(color: accentColor.withValues(alpha: 0.15), width: 1),
-                                            ),
-                                            child: Row(
-                                              children: [
-                                                Icon(Icons.palette_rounded, size: 16, color: accentColor),
-                                                const SizedBox(width: 4),
-                                                Text(
-                                                  '$totalKarya Karya',
-                                                  style: AppFonts.bodySmall(color: accentColor, weight: FontWeight.w800),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                          );
-                        },
-                      );
-                    },
-                  );
+                  return _buildNoActiveClassesState();
                 }),
-
-                const SizedBox(height: 32),
 
                 // ─── Karya Terbaru (Real Data) ───
                 Obx(() {
@@ -570,117 +342,6 @@ class GuruHomeTab extends StatelessWidget {
                   );
                 }),
 
-                // ─── Kelas Terarsip (Collapsible Folder) ───
-                Obx(() {
-                  final archivedClasses = kelasCtrl.kelasList.where((k) => k.status == 'arsip').toList();
-                  if (archivedClasses.isEmpty) return const SizedBox.shrink();
-
-                  return Theme(
-                    data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-                    child: ExpansionTile(
-                      tilePadding: EdgeInsets.zero,
-                      title: Row(
-                        children: [
-                          const Icon(Icons.archive_outlined, color: Colors.grey, size: 22),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Kelas Terarsip (${archivedClasses.length})',
-                            style: AppFonts.heading3().copyWith(color: Colors.grey[700]),
-                          ),
-                        ],
-                      ),
-                      children: [
-                        const SizedBox(height: 12),
-                        ListView.separated(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          itemCount: archivedClasses.length,
-                          separatorBuilder: (_, __) => const SizedBox(height: 12),
-                          itemBuilder: (context, index) {
-                            final kelas = archivedClasses[index];
-                            return StreamBuilder<List<ArtworkModel>>(
-                              stream: ArtworkRepository().watchArtworksByKelas(kelas.kelasId),
-                              builder: (context, snapshot) {
-                                double avgNilai = 0.0;
-                                int totalKarya = 0;
-                                if (snapshot.hasData) {
-                                  final filteredArtworks = snapshot.data!;
-                                  totalKarya = filteredArtworks.length;
-                                  if (filteredArtworks.isNotEmpty) {
-                                    avgNilai = filteredArtworks.fold<int>(0, (acc, a) => acc + (a.skorAI ?? 0)) / totalKarya;
-                                  }
-                                }
-
-                                return InkWell(
-                                  onTap: () => Get.to(() => KelasDetailGuruScreen(kelas: kelas)),
-                                  borderRadius: BorderRadius.circular(16),
-                                  child: Container(
-                                    padding: const EdgeInsets.all(16),
-                                    decoration: BoxDecoration(
-                                      color: Colors.grey.shade100,
-                                      borderRadius: BorderRadius.circular(16),
-                                      border: Border.all(color: Colors.grey.shade200),
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        Container(
-                                          padding: const EdgeInsets.all(12),
-                                          decoration: BoxDecoration(
-                                            color: Colors.grey.shade200,
-                                            shape: BoxShape.circle,
-                                          ),
-                                          child: const Icon(Icons.folder_zip_rounded, color: Colors.grey),
-                                        ),
-                                        const SizedBox(width: 16),
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                kelas.namaKelas,
-                                                style: AppFonts.bodyText(weight: FontWeight.bold).copyWith(color: Colors.grey[700]),
-                                              ),
-                                              const SizedBox(height: 4),
-                                              Text(
-                                                'Tahun Ajaran: ${kelas.tahunAjaran}',
-                                                style: AppFonts.caption(color: Colors.grey[500]),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                        Column(
-                                          crossAxisAlignment: CrossAxisAlignment.end,
-                                          children: [
-                                            Text(
-                                              '${kelas.jumlahMurid} Murid',
-                                              style: AppFonts.bodySmall(color: Colors.grey[700], weight: FontWeight.w700),
-                                            ),
-                                            const SizedBox(height: 4),
-                                            Row(
-                                              children: [
-                                                const Icon(Icons.star_rounded, size: 14, color: Colors.amber),
-                                                const SizedBox(width: 2),
-                                                Text(
-                                                  avgNilai.toStringAsFixed(1),
-                                                  style: AppFonts.caption(color: Colors.grey[600]).copyWith(fontWeight: FontWeight.bold),
-                                                ),
-                                              ],
-                                            ),
-                                          ],
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                );
-                              },
-                            );
-                          },
-                        ),
-                        const SizedBox(height: 16),
-                      ],
-                    ),
-                  );
-                }),
                 const SizedBox(height: 24),
               ],
             ),
@@ -691,6 +352,82 @@ class GuruHomeTab extends StatelessWidget {
   ),
 );
 }
+  Widget _buildNoActiveClassesState() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.88),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFFFFE2D1)),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primary.withValues(alpha: 0.08),
+            blurRadius: 24,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Container(
+            width: 72,
+            height: 72,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  AppColors.primary.withValues(alpha: 0.16),
+                  const Color(0xFFFFB700).withValues(alpha: 0.14),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.school_outlined, size: 36, color: AppColors.primary),
+          ),
+          const SizedBox(height: 18),
+          Text(
+            'Belum Ada Kelas Aktif',
+            textAlign: TextAlign.center,
+            style: AppFonts.heading3(color: AppColors.dark),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Buat kelas baru atau aktifkan kembali kelas yang tersedia agar ringkasan aktivitas murid muncul di Home.',
+            textAlign: TextAlign.center,
+            style: AppFonts.bodySmall(color: AppColors.textSecondary).copyWith(height: 1.5),
+          ),
+          const SizedBox(height: 20),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () => Get.find<MainController>().changeTab(1),
+              icon: const Icon(Icons.arrow_forward_rounded, size: 18),
+              label: const Text('Buka Menu Kelas'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                textStyle: const TextStyle(
+                  fontFamily: 'FredokaOne',
+                  fontSize: 14,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Semua pengelolaan kelas tersedia di tab Kelas.',
+            textAlign: TextAlign.center,
+            style: AppFonts.caption(color: const Color(0xFF94A3B8)),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _buildSummaryCard({
     required IconData icon,

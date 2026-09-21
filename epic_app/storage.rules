@@ -114,6 +114,14 @@ service firebase.storage {
       allow write: if false;
     }
 
+    // ─── Rekaman Audio Evaluasi Siswa ────────────────────────────────────
+    // Path: /evaluations/{uid}/{filename}
+    match /evaluations/{uid}/{filename} {
+      allow read: if isLoggedIn();
+      allow create: if isLoggedIn() && isOwner(uid) && isValidSize(15);
+      allow update, delete: if isAdmin();
+    }
+
     // ─── Default: Tolak semua yang tidak diatur ──────────────────────────
     match /{allPaths=**} {
       allow read, write: if false;

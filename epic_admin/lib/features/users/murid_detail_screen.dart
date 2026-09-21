@@ -3,10 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:epic_admin/core/utils/artwork_download_service.dart';
 
 String _getProxiedImageUrl(String url) {
   if (url.isEmpty) return '';
-  if (url.contains('firebasestorage.googleapis.com') || url.contains('googleusercontent.com')) {
+  if (url.contains('firebasestorage.googleapis.com') ||
+      url.contains('googleusercontent.com')) {
     return 'https://images.weserv.nl/?url=${Uri.encodeComponent(url)}';
   }
   return url;
@@ -19,12 +21,14 @@ class MuridDetailScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<DocumentSnapshot>(
-      stream: FirebaseFirestore.instance.collection('users').doc(id).snapshots(),
+      stream:
+          FirebaseFirestore.instance.collection('users').doc(id).snapshots(),
       builder: (context, userSnapshot) {
         if (userSnapshot.hasError) {
           return Scaffold(
             backgroundColor: const Color(0xFFF8FAFC),
-            body: Center(child: Text('Terjadi kesalahan: ${userSnapshot.error}')),
+            body:
+                Center(child: Text('Terjadi kesalahan: ${userSnapshot.error}')),
           );
         }
 
@@ -46,7 +50,9 @@ class MuridDetailScreen extends StatelessWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Text('Data murid tidak ditemukan', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  const Text('Data murid tidak ditemukan',
+                      style:
+                          TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                   const SizedBox(height: 16),
                   ElevatedButton(
                     onPressed: () => context.pop(),
@@ -59,15 +65,19 @@ class MuridDetailScreen extends StatelessWidget {
         }
 
         final userData = userSnapshot.data!.data() as Map<String, dynamic>;
-        final String studentName = userData['namaLengkap'] ?? userData['nama'] ?? 'Tanpa Nama';
+        final String studentName =
+            userData['namaLengkap'] ?? userData['nama'] ?? 'Tanpa Nama';
         final String email = userData['email'] ?? '-';
         final String school = userData['sekolah'] ?? 'Belum diisi';
         final String className = userData['kelas'] ?? 'Belum ada kelas';
-        final String schoolInfo = school.isNotEmpty ? '$className ($school)' : className;
+        final String schoolInfo =
+            school.isNotEmpty ? '$className ($school)' : className;
         final String? avatarUrl = userData['avatarUrl'] as String?;
-        
-        final dynamic joinedAtVal = userData['createdAt'] ?? userData['nyawaLastReset'];
-        final dynamic lastActiveVal = userData['lastActiveAt'] ?? userData['nyawaLastReset'];
+
+        final dynamic joinedAtVal =
+            userData['createdAt'] ?? userData['nyawaLastReset'];
+        final dynamic lastActiveVal =
+            userData['lastActiveAt'] ?? userData['nyawaLastReset'];
         final String userStatus = userData['status'] ?? 'active';
         final bool isSuspended = userStatus == 'suspended';
 
@@ -94,7 +104,8 @@ class MuridDetailScreen extends StatelessWidget {
             elevation: 0,
             scrolledUnderElevation: 0,
             leading: IconButton(
-              icon: const Icon(Icons.arrow_back_rounded, color: Color(0xFF0F172A)),
+              icon: const Icon(Icons.arrow_back_rounded,
+                  color: Color(0xFF0F172A)),
               onPressed: () => context.pop(),
             ),
             title: Text(
@@ -105,7 +116,8 @@ class MuridDetailScreen extends StatelessWidget {
                     letterSpacing: -0.5,
                   ),
             ),
-            shape: const Border(bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1.2)),
+            shape: const Border(
+                bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1.2)),
           ),
           body: Stack(
             children: [
@@ -144,43 +156,57 @@ class MuridDetailScreen extends StatelessWidget {
                   ),
                 ),
               ),
-              
+
               // Main Scrollable Content
               SingleChildScrollView(
                 physics: const BouncingScrollPhysics(),
-                padding: EdgeInsets.symmetric(horizontal: isMobile ? 14 : 32, vertical: isMobile ? 16 : 32),
+                padding: EdgeInsets.symmetric(
+                    horizontal: isMobile ? 14 : 32,
+                    vertical: isMobile ? 16 : 32),
                 child: StreamBuilder<QuerySnapshot>(
-                  stream: FirebaseFirestore.instance.collection('kelas').where('muridIds', arrayContains: id).snapshots(),
+                  stream: FirebaseFirestore.instance
+                      .collection('kelas')
+                      .where('muridIds', arrayContains: id)
+                      .snapshots(),
                   builder: (context, classSnapshot) {
-                    final classDocs = (classSnapshot.data?.docs ?? []).cast<QueryDocumentSnapshot<Map<String, dynamic>>>();
+                    final classDocs = (classSnapshot.data?.docs ?? [])
+                        .cast<QueryDocumentSnapshot<Map<String, dynamic>>>();
                     final String classCount = '${classDocs.length} Kelas';
 
                     return StreamBuilder<QuerySnapshot>(
-                      stream: FirebaseFirestore.instance.collection('artworks').where('uid', isEqualTo: id).snapshots(),
+                      stream: FirebaseFirestore.instance
+                          .collection('artworks')
+                          .where('uid', isEqualTo: id)
+                          .snapshots(),
                       builder: (context, artworksSnapshot) {
-                        final artworkDocs = (artworksSnapshot.data?.docs ?? []).cast<QueryDocumentSnapshot<Map<String, dynamic>>>();
-                        
+                        final artworkDocs = (artworksSnapshot.data?.docs ?? [])
+                            .cast<
+                                QueryDocumentSnapshot<Map<String, dynamic>>>();
+
                         // Compute averages and distributions
                         double totalScore = 0;
                         int artworkCount = artworkDocs.length;
                         Map<String, int> gradeCounts = {};
                         for (var aDoc in artworkDocs) {
                           final aData = aDoc.data() as Map<String, dynamic>;
-                          final int score = aData['skorAI'] is int ? aData['skorAI'] : 0;
+                          final int score =
+                              aData['skorAI'] is int ? aData['skorAI'] : 0;
                           totalScore += score;
 
                           final String gr = aData['grade'] ?? 'C';
                           gradeCounts[gr] = (gradeCounts[gr] ?? 0) + 1;
                         }
 
-                        final String averageScore = artworkCount > 0 
+                        final String averageScore = artworkCount > 0
                             ? (totalScore / artworkCount).toStringAsFixed(1)
                             : '0';
 
                         // Get most common grade
                         String mainGrade = '-';
                         if (gradeCounts.isNotEmpty) {
-                          mainGrade = gradeCounts.entries.reduce((a, b) => a.value > b.value ? a : b).key;
+                          mainGrade = gradeCounts.entries
+                              .reduce((a, b) => a.value > b.value ? a : b)
+                              .key;
                         }
 
                         return Column(
@@ -191,8 +217,10 @@ class MuridDetailScreen extends StatelessWidget {
                               clipBehavior: Clip.antiAlias,
                               decoration: BoxDecoration(
                                 color: Colors.white,
-                                borderRadius: BorderRadius.circular(isMobile ? 18 : 24),
-                                border: Border.all(color: const Color(0xFFE2E8F0), width: 1.2),
+                                borderRadius:
+                                    BorderRadius.circular(isMobile ? 18 : 24),
+                                border: Border.all(
+                                    color: const Color(0xFFE2E8F0), width: 1.2),
                                 boxShadow: [
                                   BoxShadow(
                                     color: Colors.black.withOpacity(0.02),
@@ -206,16 +234,17 @@ class MuridDetailScreen extends StatelessWidget {
                                   Positioned.fill(
                                     child: CustomPaint(
                                       painter: DotGridBackgroundPainter(
-                                        dotColor: const Color(0xFFE2E8F0).withOpacity(0.4),
+                                        dotColor: const Color(0xFFE2E8F0)
+                                            .withOpacity(0.4),
                                       ),
                                     ),
                                   ),
-                                  
                                   Padding(
                                     padding: EdgeInsets.all(isMobile ? 16 : 28),
                                     child: isMobile
                                         ? Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
                                             children: [
                                               Row(
                                                 children: [
@@ -223,55 +252,113 @@ class MuridDetailScreen extends StatelessWidget {
                                                     width: 64,
                                                     height: 64,
                                                     decoration: BoxDecoration(
-                                                      gradient: const LinearGradient(
-                                                        colors: [Color(0xFF2563EB), Color(0xFF4F46E5)],
-                                                        begin: Alignment.topLeft,
-                                                        end: Alignment.bottomRight,
+                                                      gradient:
+                                                          const LinearGradient(
+                                                        colors: [
+                                                          Color(0xFF2563EB),
+                                                          Color(0xFF4F46E5)
+                                                        ],
+                                                        begin:
+                                                            Alignment.topLeft,
+                                                        end: Alignment
+                                                            .bottomRight,
                                                       ),
-                                                      borderRadius: BorderRadius.circular(18),
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                              18),
                                                     ),
-                                                    child: avatarUrl != null && avatarUrl.isNotEmpty
+                                                    child: avatarUrl != null &&
+                                                            avatarUrl.isNotEmpty
                                                         ? ClipRRect(
-                                                            borderRadius: BorderRadius.circular(18),
-                                                            child: Image.network(
-                                                              _getProxiedImageUrl(avatarUrl),
+                                                            borderRadius:
+                                                                BorderRadius
+                                                                    .circular(
+                                                                        18),
+                                                            child:
+                                                                Image.network(
+                                                              _getProxiedImageUrl(
+                                                                  avatarUrl),
                                                               fit: BoxFit.cover,
-                                                              errorBuilder: (context, error, stackTrace) => const Center(
-                                                                child: Icon(Icons.person_rounded, size: 32, color: Colors.white),
+                                                              errorBuilder: (context,
+                                                                      error,
+                                                                      stackTrace) =>
+                                                                  const Center(
+                                                                child: Icon(
+                                                                    Icons
+                                                                        .person_rounded,
+                                                                    size: 32,
+                                                                    color: Colors
+                                                                        .white),
                                                               ),
                                                             ),
                                                           )
-                                                        : const Center(child: Icon(Icons.person_rounded, size: 32, color: Colors.white)),
+                                                        : const Center(
+                                                            child: Icon(
+                                                                Icons
+                                                                    .person_rounded,
+                                                                size: 32,
+                                                                color: Colors
+                                                                    .white)),
                                                   ),
                                                   const SizedBox(width: 14),
                                                   Expanded(
                                                     child: Column(
-                                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                                      crossAxisAlignment:
+                                                          CrossAxisAlignment
+                                                              .start,
                                                       children: [
                                                         Text(
                                                           studentName,
-                                                          style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF0F172A), fontSize: 18),
+                                                          style: const TextStyle(
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .w800,
+                                                              color: Color(
+                                                                  0xFF0F172A),
+                                                              fontSize: 18),
                                                           maxLines: 1,
-                                                          overflow: TextOverflow.ellipsis,
+                                                          overflow: TextOverflow
+                                                              .ellipsis,
                                                         ),
-                                                        const SizedBox(height: 2),
+                                                        const SizedBox(
+                                                            height: 2),
                                                         Text(
                                                           email,
-                                                          style: const TextStyle(color: Color(0xFF64748B), fontSize: 12),
+                                                          style: const TextStyle(
+                                                              color: Color(
+                                                                  0xFF64748B),
+                                                              fontSize: 12),
                                                           maxLines: 1,
-                                                          overflow: TextOverflow.ellipsis,
+                                                          overflow: TextOverflow
+                                                              .ellipsis,
                                                         ),
-                                                        const SizedBox(height: 4),
+                                                        const SizedBox(
+                                                            height: 4),
                                                         Row(
                                                           children: [
-                                                            const Icon(Icons.school_rounded, size: 14, color: Color(0xFF64748B)),
-                                                            const SizedBox(width: 4),
+                                                            const Icon(
+                                                                Icons
+                                                                    .school_rounded,
+                                                                size: 14,
+                                                                color: Color(
+                                                                    0xFF64748B)),
+                                                            const SizedBox(
+                                                                width: 4),
                                                             Expanded(
                                                               child: Text(
                                                                 schoolInfo,
-                                                                style: const TextStyle(color: Color(0xFF334155), fontWeight: FontWeight.w600, fontSize: 12),
+                                                                style: const TextStyle(
+                                                                    color: Color(
+                                                                        0xFF334155),
+                                                                    fontWeight:
+                                                                        FontWeight
+                                                                            .w600,
+                                                                    fontSize:
+                                                                        12),
                                                                 maxLines: 1,
-                                                                overflow: TextOverflow.ellipsis,
+                                                                overflow:
+                                                                    TextOverflow
+                                                                        .ellipsis,
                                                               ),
                                                             ),
                                                           ],
@@ -286,23 +373,69 @@ class MuridDetailScreen extends StatelessWidget {
                                                 spacing: 8,
                                                 runSpacing: 6,
                                                 children: [
-                                                  _buildInfoChip(context, Icons.calendar_today_rounded, joinDate),
-                                                  _buildInfoChip(context, Icons.access_time_rounded, activeTime),
+                                                  _buildInfoChip(
+                                                      context,
+                                                      Icons
+                                                          .calendar_today_rounded,
+                                                      joinDate),
+                                                  _buildInfoChip(
+                                                      context,
+                                                      Icons.access_time_rounded,
+                                                      activeTime),
                                                 ],
                                               ),
                                               const SizedBox(height: 14),
                                               SizedBox(
                                                 width: double.infinity,
                                                 child: OutlinedButton.icon(
-                                                  onPressed: () => _toggleSuspend(context, id, isSuspended, studentName),
-                                                  icon: Icon(isSuspended ? Icons.play_arrow_rounded : Icons.block_flipped, size: 15),
-                                                  label: Text(isSuspended ? 'Aktifkan Akun' : 'Suspend Akun', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                                                  style: OutlinedButton.styleFrom(
-                                                    foregroundColor: isSuspended ? const Color(0xFF10B981) : const Color(0xFFEF4444),
-                                                    side: BorderSide(color: isSuspended ? const Color(0xFFD1FAE5) : const Color(0xFFFEE2E2), width: 1.5),
-                                                    padding: const EdgeInsets.symmetric(vertical: 12),
-                                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                                    backgroundColor: isSuspended ? const Color(0xFFECFDF5) : const Color(0xFFFEF2F2),
+                                                  onPressed: () =>
+                                                      _toggleSuspend(
+                                                          context,
+                                                          id,
+                                                          isSuspended,
+                                                          studentName),
+                                                  icon: Icon(
+                                                      isSuspended
+                                                          ? Icons
+                                                              .play_arrow_rounded
+                                                          : Icons.block_flipped,
+                                                      size: 15),
+                                                  label: Text(
+                                                      isSuspended
+                                                          ? 'Aktifkan Akun'
+                                                          : 'Suspend Akun',
+                                                      style: const TextStyle(
+                                                          fontWeight:
+                                                              FontWeight.bold,
+                                                          fontSize: 12)),
+                                                  style:
+                                                      OutlinedButton.styleFrom(
+                                                    foregroundColor: isSuspended
+                                                        ? const Color(
+                                                            0xFF10B981)
+                                                        : const Color(
+                                                            0xFFEF4444),
+                                                    side: BorderSide(
+                                                        color: isSuspended
+                                                            ? const Color(
+                                                                0xFFD1FAE5)
+                                                            : const Color(
+                                                                0xFFFEE2E2),
+                                                        width: 1.5),
+                                                    padding: const EdgeInsets
+                                                        .symmetric(
+                                                        vertical: 12),
+                                                    shape:
+                                                        RoundedRectangleBorder(
+                                                            borderRadius:
+                                                                BorderRadius
+                                                                    .circular(
+                                                                        12)),
+                                                    backgroundColor: isSuspended
+                                                        ? const Color(
+                                                            0xFFECFDF5)
+                                                        : const Color(
+                                                            0xFFFEF2F2),
                                                   ),
                                                 ),
                                               ),
@@ -317,38 +450,69 @@ class MuridDetailScreen extends StatelessWidget {
                                                     width: 84,
                                                     height: 84,
                                                     decoration: BoxDecoration(
-                                                      gradient: const LinearGradient(
-                                                        colors: [Color(0xFF2563EB), Color(0xFF4F46E5)],
-                                                        begin: Alignment.topLeft,
-                                                        end: Alignment.bottomRight,
+                                                      gradient:
+                                                          const LinearGradient(
+                                                        colors: [
+                                                          Color(0xFF2563EB),
+                                                          Color(0xFF4F46E5)
+                                                        ],
+                                                        begin:
+                                                            Alignment.topLeft,
+                                                        end: Alignment
+                                                            .bottomRight,
                                                       ),
-                                                      borderRadius: BorderRadius.circular(22),
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                              22),
                                                       boxShadow: [
                                                         BoxShadow(
-                                                          color: const Color(0xFF2563EB).withOpacity(0.2),
+                                                          color: const Color(
+                                                                  0xFF2563EB)
+                                                              .withOpacity(0.2),
                                                           blurRadius: 12,
-                                                          offset: const Offset(0, 4),
+                                                          offset: const Offset(
+                                                              0, 4),
                                                         ),
                                                       ],
                                                     ),
-                                                    child: avatarUrl != null && avatarUrl.isNotEmpty
+                                                    child: avatarUrl != null &&
+                                                            avatarUrl.isNotEmpty
                                                         ? ClipRRect(
-                                                            borderRadius: BorderRadius.circular(22),
-                                                            child: Image.network(
-                                                              _getProxiedImageUrl(avatarUrl),
+                                                            borderRadius:
+                                                                BorderRadius
+                                                                    .circular(
+                                                                        22),
+                                                            child:
+                                                                Image.network(
+                                                              _getProxiedImageUrl(
+                                                                  avatarUrl),
                                                               fit: BoxFit.cover,
-                                                              errorBuilder: (context, error, stackTrace) => const Center(
+                                                              errorBuilder: (context,
+                                                                      error,
+                                                                      stackTrace) =>
+                                                                  const Center(
                                                                 child: Icon(
-                                                                  Icons.person_rounded,
+                                                                  Icons
+                                                                      .person_rounded,
                                                                   size: 44,
-                                                                  color: Colors.white,
+                                                                  color: Colors
+                                                                      .white,
                                                                 ),
                                                               ),
-                                                              loadingBuilder: (context, child, loadingProgress) {
-                                                                if (loadingProgress == null) return child;
+                                                              loadingBuilder:
+                                                                  (context,
+                                                                      child,
+                                                                      loadingProgress) {
+                                                                if (loadingProgress ==
+                                                                    null)
+                                                                  return child;
                                                                 return const Center(
-                                                                  child: CircularProgressIndicator(
-                                                                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white70),
+                                                                  child:
+                                                                      CircularProgressIndicator(
+                                                                    valueColor: AlwaysStoppedAnimation<
+                                                                            Color>(
+                                                                        Colors
+                                                                            .white70),
                                                                   ),
                                                                 );
                                                               },
@@ -356,9 +520,11 @@ class MuridDetailScreen extends StatelessWidget {
                                                           )
                                                         : const Center(
                                                             child: Icon(
-                                                              Icons.person_rounded,
+                                                              Icons
+                                                                  .person_rounded,
                                                               size: 44,
-                                                              color: Colors.white,
+                                                              color:
+                                                                  Colors.white,
                                                             ),
                                                           ),
                                                   ),
@@ -373,16 +539,26 @@ class MuridDetailScreen extends StatelessWidget {
                                                         shape: BoxShape.circle,
                                                         boxShadow: [
                                                           BoxShadow(
-                                                            color: Colors.black.withOpacity(0.1),
+                                                            color: Colors.black
+                                                                .withOpacity(
+                                                                    0.1),
                                                             blurRadius: 4,
                                                           ),
                                                         ],
                                                       ),
-                                                      padding: const EdgeInsets.all(2.5),
+                                                      padding:
+                                                          const EdgeInsets.all(
+                                                              2.5),
                                                       child: Container(
-                                                        decoration: BoxDecoration(
-                                                          color: isSuspended ? const Color(0xFFEF4444) : const Color(0xFF10B981),
-                                                          shape: BoxShape.circle,
+                                                        decoration:
+                                                            BoxDecoration(
+                                                          color: isSuspended
+                                                              ? const Color(
+                                                                  0xFFEF4444)
+                                                              : const Color(
+                                                                  0xFF10B981),
+                                                          shape:
+                                                              BoxShape.circle,
                                                         ),
                                                       ),
                                                     ),
@@ -392,13 +568,19 @@ class MuridDetailScreen extends StatelessWidget {
                                               const SizedBox(width: 24),
                                               Expanded(
                                                 child: Column(
-                                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment.start,
                                                   children: [
                                                     Text(
                                                       studentName,
-                                                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                                                            fontWeight: FontWeight.w800,
-                                                            color: const Color(0xFF0F172A),
+                                                      style: Theme.of(context)
+                                                          .textTheme
+                                                          .headlineMedium
+                                                          ?.copyWith(
+                                                            fontWeight:
+                                                                FontWeight.w800,
+                                                            color: const Color(
+                                                                0xFF0F172A),
                                                             fontSize: 24,
                                                             letterSpacing: -0.5,
                                                           ),
@@ -407,22 +589,37 @@ class MuridDetailScreen extends StatelessWidget {
                                                     Text(
                                                       email,
                                                       style: const TextStyle(
-                                                        color: Color(0xFF64748B),
+                                                        color:
+                                                            Color(0xFF64748B),
                                                         fontSize: 13,
-                                                        fontWeight: FontWeight.w500,
+                                                        fontWeight:
+                                                            FontWeight.w500,
                                                       ),
                                                     ),
                                                     const SizedBox(height: 8),
                                                     Row(
                                                       children: [
-                                                        const Icon(Icons.school_rounded, size: 16, color: Color(0xFF64748B)),
-                                                        const SizedBox(width: 8),
+                                                        const Icon(
+                                                            Icons
+                                                                .school_rounded,
+                                                            size: 16,
+                                                            color: Color(
+                                                                0xFF64748B)),
+                                                        const SizedBox(
+                                                            width: 8),
                                                         Text(
                                                           schoolInfo,
-                                                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                                                color: const Color(0xFF334155),
-                                                                fontWeight: FontWeight.w600,
-                                                              ),
+                                                          style:
+                                                              Theme.of(context)
+                                                                  .textTheme
+                                                                  .bodyMedium
+                                                                  ?.copyWith(
+                                                                    color: const Color(
+                                                                        0xFF334155),
+                                                                    fontWeight:
+                                                                        FontWeight
+                                                                            .w600,
+                                                                  ),
                                                         ),
                                                       ],
                                                     ),
@@ -431,24 +628,63 @@ class MuridDetailScreen extends StatelessWidget {
                                                       spacing: 12,
                                                       runSpacing: 8,
                                                       children: [
-                                                        _buildInfoChip(context, Icons.calendar_today_rounded, joinDate),
-                                                        _buildInfoChip(context, Icons.access_time_rounded, activeTime),
+                                                        _buildInfoChip(
+                                                            context,
+                                                            Icons
+                                                                .calendar_today_rounded,
+                                                            joinDate),
+                                                        _buildInfoChip(
+                                                            context,
+                                                            Icons
+                                                                .access_time_rounded,
+                                                            activeTime),
                                                       ],
                                                     ),
                                                   ],
                                                 ),
                                               ),
-                                              
                                               OutlinedButton.icon(
-                                                onPressed: () => _toggleSuspend(context, id, isSuspended, studentName),
-                                                icon: Icon(isSuspended ? Icons.play_arrow_rounded : Icons.block_flipped, size: 16),
-                                                label: Text(isSuspended ? 'Aktifkan Akun' : 'Suspend Akun', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                                                onPressed: () => _toggleSuspend(
+                                                    context,
+                                                    id,
+                                                    isSuspended,
+                                                    studentName),
+                                                icon: Icon(
+                                                    isSuspended
+                                                        ? Icons
+                                                            .play_arrow_rounded
+                                                        : Icons.block_flipped,
+                                                    size: 16),
+                                                label: Text(
+                                                    isSuspended
+                                                        ? 'Aktifkan Akun'
+                                                        : 'Suspend Akun',
+                                                    style: const TextStyle(
+                                                        fontWeight:
+                                                            FontWeight.bold,
+                                                        fontSize: 13)),
                                                 style: OutlinedButton.styleFrom(
-                                                  foregroundColor: isSuspended ? const Color(0xFF10B981) : const Color(0xFFEF4444),
-                                                  side: BorderSide(color: isSuspended ? const Color(0xFFD1FAE5) : const Color(0xFFFEE2E2), width: 1.5),
-                                                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                                                  backgroundColor: isSuspended ? const Color(0xFFECFDF5) : const Color(0xFFFEF2F2),
+                                                  foregroundColor: isSuspended
+                                                      ? const Color(0xFF10B981)
+                                                      : const Color(0xFFEF4444),
+                                                  side: BorderSide(
+                                                      color: isSuspended
+                                                          ? const Color(
+                                                              0xFFD1FAE5)
+                                                          : const Color(
+                                                              0xFFFEE2E2),
+                                                      width: 1.5),
+                                                  padding: const EdgeInsets
+                                                      .symmetric(
+                                                      horizontal: 20,
+                                                      vertical: 16),
+                                                  shape: RoundedRectangleBorder(
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                              14)),
+                                                  backgroundColor: isSuspended
+                                                      ? const Color(0xFFECFDF5)
+                                                      : const Color(0xFFFEF2F2),
                                                 ),
                                               ),
                                             ],
@@ -456,7 +692,8 @@ class MuridDetailScreen extends StatelessWidget {
                                   ),
                                 ],
                               ),
-                            ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.04, end: 0, curve: Curves.easeOutQuad),
+                            ).animate().fadeIn(duration: 400.ms).slideY(
+                                begin: 0.04, end: 0, curve: Curves.easeOutQuad),
                             SizedBox(height: isMobile ? 16 : 28),
 
                             // Stats Cards Grid/Row
@@ -519,7 +756,13 @@ class MuridDetailScreen extends StatelessWidget {
                                     ],
                                   ),
                                 ],
-                              ).animate().fadeIn(delay: 100.ms, duration: 400.ms).slideY(begin: 0.04, end: 0, curve: Curves.easeOutQuad)
+                              )
+                                  .animate()
+                                  .fadeIn(delay: 100.ms, duration: 400.ms)
+                                  .slideY(
+                                      begin: 0.04,
+                                      end: 0,
+                                      curve: Curves.easeOutQuad)
                             else
                               Row(
                                 children: [
@@ -571,33 +814,87 @@ class MuridDetailScreen extends StatelessWidget {
                                     ),
                                   ),
                                 ],
-                              ).animate().fadeIn(delay: 100.ms, duration: 400.ms).slideY(begin: 0.04, end: 0, curve: Curves.easeOutQuad),
+                              )
+                                  .animate()
+                                  .fadeIn(delay: 100.ms, duration: 400.ms)
+                                  .slideY(
+                                      begin: 0.04,
+                                      end: 0,
+                                      curve: Curves.easeOutQuad),
                             SizedBox(height: isMobile ? 24 : 40),
 
                             // Gallery Section Title
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            Wrap(
+                              alignment: WrapAlignment.spaceBetween,
+                              crossAxisAlignment: WrapCrossAlignment.center,
+                              spacing: 16,
+                              runSpacing: 10,
                               children: [
                                 Text(
                                   'Karya Murid ($artworkCount)',
-                                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .titleLarge
+                                      ?.copyWith(
                                         fontWeight: FontWeight.bold,
                                         color: const Color(0xFF0F172A),
                                         letterSpacing: -0.5,
                                       ),
                                 ),
+                                if (artworkDocs.isNotEmpty)
+                                  ElevatedButton.icon(
+                                    onPressed: () async {
+                                      try {
+                                        final count =
+                                            await ArtworkDownloadService
+                                                .downloadZip(
+                                          artworkDocs.map((doc) => doc.data()),
+                                          archiveName: 'karya_$studentName',
+                                          studentName: (_) => studentName,
+                                        );
+                                        if (context.mounted) {
+                                          ScaffoldMessenger.of(context)
+                                              .showSnackBar(
+                                            SnackBar(
+                                                content: Text(
+                                                    '$count karya berhasil diunduh sebagai ZIP.')),
+                                          );
+                                        }
+                                      } catch (error) {
+                                        if (context.mounted) {
+                                          ScaffoldMessenger.of(context)
+                                              .showSnackBar(
+                                            SnackBar(
+                                                content: Text(
+                                                    'Gagal mengunduh karya: $error')),
+                                          );
+                                        }
+                                      }
+                                    },
+                                    icon: const Icon(Icons.folder_zip_outlined,
+                                        size: 18),
+                                    label: const Text('Unduh Semua'),
+                                  ),
                               ],
-                            ).animate().fadeIn(delay: 200.ms, duration: 400.ms).slideY(begin: 0.04, end: 0, curve: Curves.easeOutQuad),
+                            )
+                                .animate()
+                                .fadeIn(delay: 200.ms, duration: 400.ms)
+                                .slideY(
+                                    begin: 0.04,
+                                    end: 0,
+                                    curve: Curves.easeOutQuad),
                             const SizedBox(height: 16),
-                            
+
                             artworkDocs.isEmpty
                                 ? Container(
                                     width: double.infinity,
-                                    padding: const EdgeInsets.symmetric(vertical: 40),
+                                    padding: const EdgeInsets.symmetric(
+                                        vertical: 40),
                                     decoration: BoxDecoration(
                                       color: Colors.white,
                                       borderRadius: BorderRadius.circular(16),
-                                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                                      border: Border.all(
+                                          color: const Color(0xFFE2E8F0)),
                                     ),
                                     child: const Center(
                                       child: Text(
@@ -608,11 +905,19 @@ class MuridDetailScreen extends StatelessWidget {
                                         ),
                                       ),
                                     ),
-                                  ).animate().fadeIn(delay: 300.ms, duration: 400.ms).slideY(begin: 0.04, end: 0, curve: Curves.easeOutQuad)
+                                  )
+                                    .animate()
+                                    .fadeIn(delay: 300.ms, duration: 400.ms)
+                                    .slideY(
+                                        begin: 0.04,
+                                        end: 0,
+                                        curve: Curves.easeOutQuad)
                                 : GridView.builder(
                                     shrinkWrap: true,
-                                    physics: const NeverScrollableScrollPhysics(),
-                                    gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                                    physics:
+                                        const NeverScrollableScrollPhysics(),
+                                    gridDelegate:
+                                        const SliverGridDelegateWithMaxCrossAxisExtent(
                                       maxCrossAxisExtent: 220,
                                       mainAxisSpacing: 16,
                                       crossAxisSpacing: 16,
@@ -620,30 +925,47 @@ class MuridDetailScreen extends StatelessWidget {
                                     ),
                                     itemCount: artworkDocs.length,
                                     itemBuilder: (context, index) {
-                                       final aDoc = artworkDocs[index];
-                                       final aData = aDoc.data() as Map<String, dynamic>;
-                                       final String kategori = aData['kategori'] ?? 'Karya';
-                                       final String grade = aData['grade'] ?? 'C';
-                                       final int score = aData['skorAI'] is int ? aData['skorAI'] : 0;
-                                       final String imageUrl = aData['imageUrl'] ?? '';
+                                      final aDoc = artworkDocs[index];
+                                      final aData =
+                                          aDoc.data() as Map<String, dynamic>;
+                                      final String kategori =
+                                          aData['kategori'] ?? 'Karya';
+                                      final String grade =
+                                          aData['grade'] ?? 'C';
+                                      final int score = aData['skorAI'] is int
+                                          ? aData['skorAI']
+                                          : 0;
+                                      final String imageUrl =
+                                          aData['imageUrl'] ?? '';
 
-                                       Color gradeColor = const Color(0xFFEF4444);
-                                       if (grade == 'S') gradeColor = const Color(0xFFD946EF);
-                                       if (grade == 'A') gradeColor = const Color(0xFF10B981);
-                                       if (grade == 'B') gradeColor = const Color(0xFF3B82F6);
+                                      Color gradeColor =
+                                          const Color(0xFFEF4444);
+                                      if (grade == 'S')
+                                        gradeColor = const Color(0xFFD946EF);
+                                      if (grade == 'A')
+                                        gradeColor = const Color(0xFF10B981);
+                                      if (grade == 'B')
+                                        gradeColor = const Color(0xFF3B82F6);
 
-                                       return InkWell(
-                                         onTap: () => _showArtworkPreview(context, aData),
-                                         child: _HoverableArtworkCard(
-                                           title: kategori.toUpperCase(),
-                                           grade: grade,
-                                           gradeColor: gradeColor,
-                                           score: score,
-                                           imageUrl: imageUrl,
-                                         ),
-                                       );
+                                      return InkWell(
+                                        onTap: () => _showArtworkPreview(
+                                            context, aData, studentName),
+                                        child: _HoverableArtworkCard(
+                                          title: kategori.toUpperCase(),
+                                          grade: grade,
+                                          gradeColor: gradeColor,
+                                          score: score,
+                                          imageUrl: imageUrl,
+                                        ),
+                                      );
                                     },
-                                  ).animate().fadeIn(delay: 300.ms, duration: 400.ms).slideY(begin: 0.04, end: 0, curve: Curves.easeOutQuad),
+                                  )
+                                    .animate()
+                                    .fadeIn(delay: 300.ms, duration: 400.ms)
+                                    .slideY(
+                                        begin: 0.04,
+                                        end: 0,
+                                        curve: Curves.easeOutQuad),
                           ],
                         );
                       },
@@ -658,18 +980,23 @@ class MuridDetailScreen extends StatelessWidget {
     );
   }
 
-  void _showArtworkPreview(BuildContext context, Map<String, dynamic> artwork) {
+  void _showArtworkPreview(BuildContext context,
+      Map<String, dynamic> artwork, String studentName) {
     showDialog(
       context: context,
       builder: (context) {
         final String kategori = artwork['kategori'] ?? 'Karya';
         final int skor = artwork['skorAI'] is int ? artwork['skorAI'] : 0;
         final String grade = artwork['grade'] ?? '-';
-        final String rawFeedback = (artwork['feedback'] as String?)?.trim() ?? '';
-        final String rawFeedbackAI = (artwork['feedbackAI'] as String?)?.trim() ?? '';
+        final String rawFeedback =
+            (artwork['feedback'] as String?)?.trim() ?? '';
+        final String rawFeedbackAI =
+            (artwork['feedbackAI'] as String?)?.trim() ?? '';
         final String feedback = rawFeedback.isNotEmpty
             ? rawFeedback
-            : (rawFeedbackAI.isNotEmpty ? rawFeedbackAI : 'Tidak ada feedback AI.');
+            : (rawFeedbackAI.isNotEmpty
+                ? rawFeedbackAI
+                : 'Tidak ada feedback AI.');
         final String imageUrl = artwork['imageUrl'] ?? '';
         final dynamic createdVal = artwork['createdAt'];
         String dateStr = '-';
@@ -678,10 +1005,16 @@ class MuridDetailScreen extends StatelessWidget {
           dateStr = '${dt.day}/${dt.month}/${dt.year}';
         }
 
+        final mediaSize = MediaQuery.sizeOf(context);
         return Dialog(
           backgroundColor: Colors.transparent,
-          child: Container(
-            width: 500,
+          insetPadding: const EdgeInsets.all(12),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: 560,
+              maxHeight: mediaSize.height * .92,
+            ),
+            child: Container(
             decoration: BoxDecoration(
               color: const Color(0xFF1E293B),
               borderRadius: BorderRadius.circular(28),
@@ -690,21 +1023,30 @@ class MuridDetailScreen extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                Flexible(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
                 Container(
-                  height: 250,
+                  height: mediaSize.width < 600 ? 220 : 280,
                   width: double.infinity,
                   decoration: const BoxDecoration(
-                    borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+                    borderRadius:
+                        BorderRadius.vertical(top: Radius.circular(26)),
                     color: Color(0xFF0F172A),
                   ),
                   child: imageUrl.isNotEmpty
                       ? ClipRRect(
-                          borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
+                          borderRadius: const BorderRadius.vertical(
+                              top: Radius.circular(26)),
                           child: Image.network(
                             _getProxiedImageUrl(imageUrl),
                             fit: BoxFit.contain,
-                            errorBuilder: (context, error, stackTrace) => const Center(
-                              child: Icon(Icons.broken_image_rounded, size: 50, color: Colors.white24),
+                            errorBuilder: (context, error, stackTrace) =>
+                                const Center(
+                              child: Icon(Icons.broken_image_rounded,
+                                  size: 50, color: Colors.white24),
                             ),
                           ),
                         )
@@ -725,18 +1067,26 @@ class MuridDetailScreen extends StatelessWidget {
                         children: [
                           Text(
                             kategori.toUpperCase(),
-                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 18),
                           ),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 6),
                             decoration: BoxDecoration(
                               color: AdminColors.primary.withOpacity(0.2),
                               borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: AdminColors.primary.withOpacity(0.3)),
+                              border: Border.all(
+                                  color: AdminColors.primary.withOpacity(0.3)),
                             ),
                             child: Text(
                               'Grade $grade',
-                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                              style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12),
                             ),
                           ),
                         ],
@@ -744,23 +1094,31 @@ class MuridDetailScreen extends StatelessWidget {
                       const SizedBox(height: 12),
                       Row(
                         children: [
-                          const Icon(Icons.star_rounded, color: Colors.amber, size: 18),
+                          const Icon(Icons.star_rounded,
+                              color: Colors.amber, size: 18),
                           const SizedBox(width: 6),
                           Text(
                             'Skor AI: $skor',
-                            style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.bold, fontSize: 14),
+                            style: const TextStyle(
+                                color: Colors.white70,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14),
                           ),
                           const Spacer(),
                           Text(
                             dateStr,
-                            style: const TextStyle(color: Colors.white38, fontSize: 12),
+                            style: const TextStyle(
+                                color: Colors.white38, fontSize: 12),
                           ),
                         ],
                       ),
                       const SizedBox(height: 16),
                       const Text(
                         'Analisis & Feedback Gemini AI:',
-                        style: TextStyle(color: Colors.white54, fontWeight: FontWeight.bold, fontSize: 13),
+                        style: TextStyle(
+                            color: Colors.white54,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13),
                       ),
                       const SizedBox(height: 6),
                       Container(
@@ -774,27 +1132,62 @@ class MuridDetailScreen extends StatelessWidget {
                           width: double.infinity,
                           child: Text(
                             feedback,
-                            style: const TextStyle(color: Colors.white70, height: 1.4, fontSize: 13),
+                            style: const TextStyle(
+                                color: Colors.white70,
+                                height: 1.4,
+                                fontSize: 13),
                           ),
                         ),
                       ),
                       const SizedBox(height: 24),
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AdminColors.primary,
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      Wrap(
+                        alignment: WrapAlignment.end,
+                        spacing: 10,
+                        runSpacing: 8,
+                        children: [
+                          TextButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            child: const Text('Tutup'),
                           ),
-                          onPressed: () => Navigator.of(context).pop(),
-                          child: const Text('Tutup'),
-                        ),
+                          ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AdminColors.primary,
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12)),
+                            ),
+                            onPressed: imageUrl.isEmpty
+                                ? null
+                                : () async {
+                                    try {
+                                      await ArtworkDownloadService.downloadOne(
+                                        artwork,
+                                        studentName: studentName,
+                                      );
+                                    } catch (error) {
+                                      if (context.mounted) {
+                                        ScaffoldMessenger.of(context)
+                                            .showSnackBar(SnackBar(
+                                          content: Text(
+                                              'Gagal mengunduh karya: $error'),
+                                        ));
+                                      }
+                                    }
+                                  },
+                            icon: const Icon(Icons.download_rounded),
+                            label: const Text('Unduh Karya'),
+                          ),
+                        ],
                       ),
                     ],
                   ),
                 ),
+                      ],
+                    ),
+                  ),
+                ),
               ],
+            ),
             ),
           ),
         );
@@ -802,15 +1195,19 @@ class MuridDetailScreen extends StatelessWidget {
     );
   }
 
-  void _toggleSuspend(BuildContext context, String uid, bool isCurrentlySuspended, String name) async {
-    final action = isCurrentlySuspended ? 'mengaktifkan kembali' : 'menangguhkan (suspend)';
+  void _toggleSuspend(BuildContext context, String uid,
+      bool isCurrentlySuspended, String name) async {
+    final action = isCurrentlySuspended
+        ? 'mengaktifkan kembali'
+        : 'menangguhkan (suspend)';
     final confirmBtn = isCurrentlySuspended ? 'Aktifkan' : 'Suspend';
 
     showDialog(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: Text(isCurrentlySuspended ? 'Aktifkan Akun' : 'Konfirmasi Suspend'),
+          title: Text(
+              isCurrentlySuspended ? 'Aktifkan Akun' : 'Konfirmasi Suspend'),
           content: Text('Apakah Anda yakin ingin $action akun murid "$name"?'),
           actions: <Widget>[
             TextButton(
@@ -819,12 +1216,17 @@ class MuridDetailScreen extends StatelessWidget {
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: isCurrentlySuspended ? AdminColors.success : AdminColors.danger,
+                backgroundColor: isCurrentlySuspended
+                    ? AdminColors.success
+                    : AdminColors.danger,
               ),
               onPressed: () async {
                 Navigator.of(context).pop();
                 try {
-                  await FirebaseFirestore.instance.collection('users').doc(uid).update({
+                  await FirebaseFirestore.instance
+                      .collection('users')
+                      .doc(uid)
+                      .update({
                     'status': isCurrentlySuspended ? 'active' : 'suspended',
                     'isActive': isCurrentlySuspended ? true : false,
                   });
@@ -832,7 +1234,8 @@ class MuridDetailScreen extends StatelessWidget {
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: Text('Akun "$name" berhasil ${isCurrentlySuspended ? "diaktifkan" : "ditangguhkan"}.'),
+                        content: Text(
+                            'Akun "$name" berhasil ${isCurrentlySuspended ? "diaktifkan" : "ditangguhkan"}.'),
                         backgroundColor: AdminColors.success,
                       ),
                     );
@@ -840,12 +1243,15 @@ class MuridDetailScreen extends StatelessWidget {
                 } catch (e) {
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Gagal mengubah status akun: $e'), backgroundColor: AdminColors.danger),
+                      SnackBar(
+                          content: Text('Gagal mengubah status akun: $e'),
+                          backgroundColor: AdminColors.danger),
                     );
                   }
                 }
               },
-              child: Text(confirmBtn, style: const TextStyle(color: Colors.white)),
+              child:
+                  Text(confirmBtn, style: const TextStyle(color: Colors.white)),
             ),
           ],
         );
@@ -931,15 +1337,21 @@ class MuridDetailScreen extends StatelessWidget {
                     const SizedBox(width: 8),
                     Flexible(
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
-                          color: (trendPositive ? const Color(0xFF10B981) : const Color(0xFFEF4444)).withOpacity(0.08),
+                          color: (trendPositive
+                                  ? const Color(0xFF10B981)
+                                  : const Color(0xFFEF4444))
+                              .withOpacity(0.08),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(
                           trendText,
                           style: TextStyle(
-                            color: trendPositive ? const Color(0xFF047857) : const Color(0xFFB91C1C),
+                            color: trendPositive
+                                ? const Color(0xFF047857)
+                                : const Color(0xFFB91C1C),
                             fontWeight: FontWeight.bold,
                             fontSize: 10,
                           ),
@@ -1018,7 +1430,9 @@ class _HoverableArtworkCardState extends State<_HoverableArtworkCard> {
             color: Colors.white,
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
-              color: _isHovered ? widget.gradeColor.withOpacity(0.4) : const Color(0xFFE2E8F0),
+              color: _isHovered
+                  ? widget.gradeColor.withOpacity(0.4)
+                  : const Color(0xFFE2E8F0),
               width: _isHovered ? 1.5 : 1.2,
             ),
             boxShadow: [
@@ -1048,20 +1462,24 @@ class _HoverableArtworkCardState extends State<_HoverableArtworkCard> {
                               child: Image.network(
                                 _getProxiedImageUrl(widget.imageUrl),
                                 fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) => CustomPaint(
-                                  painter: GenerativeArtPainter(grade: widget.grade),
+                                errorBuilder: (context, error, stackTrace) =>
+                                    CustomPaint(
+                                  painter:
+                                      GenerativeArtPainter(grade: widget.grade),
                                 ),
                               ),
                             )
                           : CustomPaint(
-                              painter: GenerativeArtPainter(grade: widget.grade),
+                              painter:
+                                  GenerativeArtPainter(grade: widget.grade),
                             ),
                     ),
                     Positioned(
                       top: 12,
                       right: 12,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
                           color: Colors.white.withOpacity(0.9),
                           borderRadius: BorderRadius.circular(8),
@@ -1088,7 +1506,8 @@ class _HoverableArtworkCardState extends State<_HoverableArtworkCard> {
                           color: Colors.black.withOpacity(0.2),
                           child: Center(
                             child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 8),
                               decoration: BoxDecoration(
                                 color: Colors.white,
                                 borderRadius: BorderRadius.circular(20),
@@ -1102,7 +1521,8 @@ class _HoverableArtworkCardState extends State<_HoverableArtworkCard> {
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Icon(Icons.visibility_rounded, size: 14, color: widget.gradeColor),
+                                  Icon(Icons.visibility_rounded,
+                                      size: 14, color: widget.gradeColor),
                                   const SizedBox(width: 6),
                                   Text(
                                     'Detail',
@@ -1138,7 +1558,8 @@ class _HoverableArtworkCardState extends State<_HoverableArtworkCard> {
                     const SizedBox(height: 6),
                     Row(
                       children: [
-                        const Icon(Icons.smart_toy_rounded, size: 14, color: Color(0xFF64748B)),
+                        const Icon(Icons.smart_toy_rounded,
+                            size: 14, color: Color(0xFF64748B)),
                         const SizedBox(width: 6),
                         Text(
                           'Skor AI: ${widget.score}',
@@ -1201,16 +1622,32 @@ class GenerativeArtPainter extends CustomPainter {
     late List<Color> orbColors;
     late Color orbitColor;
     if (grade == 'S') {
-      orbColors = [const Color(0xFFD946EF), const Color(0xFF8B5CF6), const Color(0xFF3B82F6).withOpacity(0)];
+      orbColors = [
+        const Color(0xFFD946EF),
+        const Color(0xFF8B5CF6),
+        const Color(0xFF3B82F6).withOpacity(0)
+      ];
       orbitColor = const Color(0xFFF472B6);
     } else if (grade == 'A') {
-      orbColors = [const Color(0xFF10B981), const Color(0xFF06B6D4), const Color(0xFF3B82F6).withOpacity(0)];
+      orbColors = [
+        const Color(0xFF10B981),
+        const Color(0xFF06B6D4),
+        const Color(0xFF3B82F6).withOpacity(0)
+      ];
       orbitColor = const Color(0xFF34D399);
     } else if (grade == 'B') {
-      orbColors = [const Color(0xFF3B82F6), const Color(0xFF6366F1), const Color(0xFF8B5CF6).withOpacity(0)];
+      orbColors = [
+        const Color(0xFF3B82F6),
+        const Color(0xFF6366F1),
+        const Color(0xFF8B5CF6).withOpacity(0)
+      ];
       orbitColor = const Color(0xFF818CF8);
     } else {
-      orbColors = [const Color(0xFFF59E0B), const Color(0xFFEF4444), const Color(0xFFEC4899).withOpacity(0)];
+      orbColors = [
+        const Color(0xFFF59E0B),
+        const Color(0xFFEF4444),
+        const Color(0xFFEC4899).withOpacity(0)
+      ];
       orbitColor = const Color(0xFFFBBF24);
     }
 
@@ -1225,12 +1662,13 @@ class GenerativeArtPainter extends CustomPainter {
       ..color = orbitColor.withOpacity(0.6)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.5;
-    
+
     canvas.save();
     canvas.translate(center.dx, center.dy);
     canvas.rotate(-0.4);
     canvas.drawOval(
-      Rect.fromCenter(center: Offset.zero, width: radius * 2.8, height: radius * 0.6),
+      Rect.fromCenter(
+          center: Offset.zero, width: radius * 2.8, height: radius * 0.6),
       orbitPaint,
     );
     canvas.restore();
@@ -1239,8 +1677,11 @@ class GenerativeArtPainter extends CustomPainter {
     canvas.translate(center.dx, center.dy);
     canvas.rotate(0.3);
     canvas.drawOval(
-      Rect.fromCenter(center: Offset.zero, width: radius * 2.4, height: radius * 0.5),
-      orbitPaint..color = Colors.white.withOpacity(0.7)..strokeWidth = 1.0,
+      Rect.fromCenter(
+          center: Offset.zero, width: radius * 2.4, height: radius * 0.5),
+      orbitPaint
+        ..color = Colors.white.withOpacity(0.7)
+        ..strokeWidth = 1.0,
     );
     canvas.restore();
 
@@ -1255,17 +1696,32 @@ class GenerativeArtPainter extends CustomPainter {
       ..shader = RadialGradient(
         colors: [Colors.white.withOpacity(0.55), Colors.white.withOpacity(0.0)],
         radius: 0.8,
-      ).createShader(Rect.fromCircle(center: Offset(center.dx - radius * 0.35, center.dy - radius * 0.35), radius: radius * 0.7));
-    canvas.drawCircle(Offset(center.dx - radius * 0.35, center.dy - radius * 0.35), radius * 0.6, specularPaint);
+      ).createShader(Rect.fromCircle(
+          center: Offset(center.dx - radius * 0.35, center.dy - radius * 0.35),
+          radius: radius * 0.7));
+    canvas.drawCircle(
+        Offset(center.dx - radius * 0.35, center.dy - radius * 0.35),
+        radius * 0.6,
+        specularPaint);
 
     final starPaint = Paint()..color = Colors.white.withOpacity(0.8);
-    canvas.drawCircle(Offset(center.dx + radius * 0.9, center.dy - radius * 0.8), 2.0, starPaint);
-    canvas.drawCircle(Offset(center.dx - radius * 1.0, center.dy + radius * 0.7), 1.5, starPaint);
-    canvas.drawCircle(Offset(center.dx + radius * 0.5, center.dy + radius * 1.1), 2.2, starPaint);
+    canvas.drawCircle(
+        Offset(center.dx + radius * 0.9, center.dy - radius * 0.8),
+        2.0,
+        starPaint);
+    canvas.drawCircle(
+        Offset(center.dx - radius * 1.0, center.dy + radius * 0.7),
+        1.5,
+        starPaint);
+    canvas.drawCircle(
+        Offset(center.dx + radius * 0.5, center.dy + radius * 1.1),
+        2.2,
+        starPaint);
   }
 
   @override
-  bool shouldRepaint(covariant GenerativeArtPainter oldDelegate) => oldDelegate.grade != grade;
+  bool shouldRepaint(covariant GenerativeArtPainter oldDelegate) =>
+      oldDelegate.grade != grade;
 }
 
 class CurvedBackgroundPainter extends CustomPainter {

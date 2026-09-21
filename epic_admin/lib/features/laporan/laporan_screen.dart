@@ -1,3 +1,5 @@
+import 'package:epic_admin/core/utils/evaluation_report.dart';
+import 'package:epic_admin/features/evaluasi/widgets/response_detail_dialog.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:epic_admin/core/theme/admin_colors.dart';
 import 'package:epic_admin/core/utils/file_download_helper.dart';
@@ -48,7 +50,8 @@ class _LaporanScreenState extends State<LaporanScreen> {
   Future<void> _loadFilterData() async {
     try {
       // 1. Load classes from 'kelas' collection
-      final classSnap = await FirebaseFirestore.instance.collection('kelas').get();
+      final classSnap =
+          await FirebaseFirestore.instance.collection('kelas').get();
       final List<String> classes = ['Semua Kelas'];
       for (var doc in classSnap.docs) {
         final data = doc.data();
@@ -59,12 +62,15 @@ class _LaporanScreenState extends State<LaporanScreen> {
       }
 
       // 2. Load unique schools from 'users' collection
-      final userSnap = await FirebaseFirestore.instance.collection('users').get();
+      final userSnap =
+          await FirebaseFirestore.instance.collection('users').get();
       final List<String> schools = ['Semua Sekolah'];
       for (var doc in userSnap.docs) {
         final data = doc.data();
         final school = data['sekolah'];
-        if (school != null && school.toString().trim().isNotEmpty && !schools.contains(school.toString().trim())) {
+        if (school != null &&
+            school.toString().trim().isNotEmpty &&
+            !schools.contains(school.toString().trim())) {
           schools.add(school.toString().trim());
         }
       }
@@ -99,13 +105,32 @@ class _LaporanScreenState extends State<LaporanScreen> {
       final List<Map<String, dynamic>> results = [];
 
       // 1. Fetch collections
-      final usersSnap = await FirebaseFirestore.instance.collection('users').get();
-      final artworksSnap = await FirebaseFirestore.instance.collection('artworks').get();
-      final kelasSnap = await FirebaseFirestore.instance.collection('kelas').get();
+      final usersSnap =
+          await FirebaseFirestore.instance.collection('users').get();
+      final artworksSnap =
+          await FirebaseFirestore.instance.collection('artworks').get();
+      final kelasSnap =
+          await FirebaseFirestore.instance.collection('kelas').get();
+      final userMap = <String, Map<String, dynamic>>{};
+      for (final userDoc in usersSnap.docs) {
+        final profile = userDoc.data();
+        userMap[userDoc.id] = profile;
+        final uid = profile['uid']?.toString().trim() ?? '';
+        if (uid.isNotEmpty) userMap[uid] = profile;
+      }
+      String firstNonEmpty(Iterable<dynamic> values, String fallback) {
+        for (final value in values) {
+          final text = value?.toString().trim() ?? '';
+          if (text.isNotEmpty) return text;
+        }
+        return fallback;
+      }
 
       // Normalize date filters to midnight starts/ends
-      final fromMidnight = DateTime(_fromDate.year, _fromDate.month, _fromDate.day, 0, 0, 0);
-      final toMidnight = DateTime(_toDate.year, _toDate.month, _toDate.day, 23, 59, 59);
+      final fromMidnight =
+          DateTime(_fromDate.year, _fromDate.month, _fromDate.day, 0, 0, 0);
+      final toMidnight =
+          DateTime(_toDate.year, _toDate.month, _toDate.day, 23, 59, 59);
 
       debugPrint('--- DEBUG REPORT LOAD ---');
       debugPrint('Selected report: $_selectedReportType');
@@ -127,12 +152,15 @@ class _LaporanScreenState extends State<LaporanScreen> {
           final sData = studentDoc.data() as Map<String, dynamic>;
           final uid = studentDoc.id;
           final String sSchool = sData['sekolah']?.toString() ?? '-';
-          final String sName = sData['namaLengkap'] ?? sData['nama'] ?? 'Tanpa Nama';
+          final String sName =
+              sData['namaLengkap'] ?? sData['nama'] ?? 'Tanpa Nama';
           final String sUsername = sData['username'] ?? sData['email'] ?? '-';
-          final int sPoin = (sData['poin'] is num) ? (sData['poin'] as num).toInt() : 0;
+          final int sPoin =
+              (sData['poin'] is num) ? (sData['poin'] as num).toInt() : 0;
 
           // Apply school filter
-          if (_selectedSchoolFilter != 'Semua Sekolah' && sSchool.trim() != _selectedSchoolFilter.trim()) {
+          if (_selectedSchoolFilter != 'Semua Sekolah' &&
+              sSchool.trim() != _selectedSchoolFilter.trim()) {
             continue;
           }
 
@@ -141,7 +169,8 @@ class _LaporanScreenState extends State<LaporanScreen> {
             final hasClass = kelasSnap.docs.any((cDoc) {
               final cData = cDoc.data() as Map<String, dynamic>;
               final name = cData['namaKelas'] ?? cData['nama'];
-              final List<dynamic> muridIds = cData['muridIds'] is List ? cData['muridIds'] : [];
+              final List<dynamic> muridIds =
+                  cData['muridIds'] is List ? cData['muridIds'] : [];
               return name == _selectedClassFilter && muridIds.contains(uid);
             });
             if (!hasClass) continue;
@@ -183,13 +212,16 @@ class _LaporanScreenState extends State<LaporanScreen> {
         }
 
         // 1. Calculate ranks based on total points descending
-        results.sort((a, b) => ((b['poin'] as num?) ?? 0).compareTo((a['poin'] as num?) ?? 0));
+        results.sort((a, b) =>
+            ((b['poin'] as num?) ?? 0).compareTo((a['poin'] as num?) ?? 0));
         for (int i = 0; i < results.length; i++) {
           results[i]['rank'] = i + 1;
         }
 
         // 2. Sort students alphabetically A - Z by student name
-        results.sort((a, b) => (a['nama'] as String).toLowerCase().compareTo((b['nama'] as String).toLowerCase()));
+        results.sort((a, b) => (a['nama'] as String)
+            .toLowerCase()
+            .compareTo((b['nama'] as String).toLowerCase()));
       } else if (_selectedReportType == 'Aktivitas Guru') {
         // Guru report
         final guruList = usersSnap.docs.where((d) {
@@ -203,11 +235,13 @@ class _LaporanScreenState extends State<LaporanScreen> {
           final tData = teacherDoc.data() as Map<String, dynamic>;
           final uid = teacherDoc.id;
           final String tSchool = tData['sekolah']?.toString() ?? '-';
-          final String tName = tData['namaLengkap'] ?? tData['nama'] ?? 'Tanpa Nama';
+          final String tName =
+              tData['namaLengkap'] ?? tData['nama'] ?? 'Tanpa Nama';
           final String tNip = tData['nip'] ?? tData['email'] ?? '-';
 
           // Apply school filter
-          if (_selectedSchoolFilter != 'Semua Sekolah' && tSchool.trim() != _selectedSchoolFilter.trim()) {
+          if (_selectedSchoolFilter != 'Semua Sekolah' &&
+              tSchool.trim() != _selectedSchoolFilter.trim()) {
             continue;
           }
 
@@ -228,7 +262,8 @@ class _LaporanScreenState extends State<LaporanScreen> {
           if (_selectedClassFilter != 'Semua Kelas') {
             final hasClass = tClasses.any((c) {
               final cData = c.data() as Map<String, dynamic>;
-              return (cData['namaKelas'] ?? cData['nama']) == _selectedClassFilter;
+              return (cData['namaKelas'] ?? cData['nama']) ==
+                  _selectedClassFilter;
             });
             if (!hasClass) continue;
           }
@@ -250,11 +285,13 @@ class _LaporanScreenState extends State<LaporanScreen> {
           final int verifCount = tArtworks.length;
 
           // Format last active time
-          final dynamic lastActiveVal = tData['lastActiveAt'] ?? tData['nyawaLastReset'];
+          final dynamic lastActiveVal =
+              tData['lastActiveAt'] ?? tData['nyawaLastReset'];
           String activeStr = 'Belum aktif';
           final dt = _parseDateTime(lastActiveVal);
           if (dt != null) {
-            activeStr = '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year}';
+            activeStr =
+                '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year}';
           }
 
           results.add({
@@ -267,7 +304,91 @@ class _LaporanScreenState extends State<LaporanScreen> {
         }
 
         // Sort teachers alphabetically A - Z by teacher name
-        results.sort((a, b) => (a['nama'] as String).toLowerCase().compareTo((b['nama'] as String).toLowerCase()));
+        results.sort((a, b) => (a['nama'] as String)
+            .toLowerCase()
+            .compareTo((b['nama'] as String).toLowerCase()));
+      } else if (_selectedReportType == 'Respons Evaluasi Siswa') {
+        // Query evaluasi penalaran matematis siswa
+        final evalSnap = await FirebaseFirestore.instance
+            .collection('student_evaluations')
+            .get();
+        debugPrint('Found ${evalSnap.docs.length} student evaluations');
+
+        for (var doc in evalSnap.docs) {
+          final data = doc.data();
+          final profile = userMap[data['studentId']?.toString() ?? ''] ?? {};
+          final sSchool = firstNonEmpty(
+            [profile['sekolah'], data['sekolah']],
+            '-',
+          );
+          final sClass = EvaluationReport.schoolGrade(profile, data);
+          final sName = firstNonEmpty(
+            [profile['namaLengkap'], data['studentName']],
+            'Tanpa Nama',
+          );
+          final cat = data['categoryId']?.toString() ?? '-';
+          final lvl = data['levelId'] ?? 1;
+          final dynamic subVal = data['submittedAt'];
+          final dt = _parseDateTime(subVal) ?? DateTime.now();
+
+          // Date filter
+          if (!dt.isAfter(fromMidnight) || !dt.isBefore(toMidnight)) continue;
+
+          // School filter
+          if (_selectedSchoolFilter != 'Semua Sekolah' &&
+              sSchool.trim() != _selectedSchoolFilter.trim()) {
+            continue;
+          }
+
+          // Class filter
+          if (_selectedClassFilter != 'Semua Kelas' &&
+              !kelasSnap.docs.any((c) =>
+                  (c.data()['namaKelas'] ?? c.data()['nama']) ==
+                      _selectedClassFilter &&
+                  ((c.data()['muridIds'] as List? ?? [])
+                          .contains(data['studentId']) ||
+                      (data['kelasIds'] as List? ?? []).contains(c.id)))) {
+            continue;
+          }
+
+          // Parse emotion
+          final emotionMap = data['emotion'] is Map<String, dynamic>
+              ? data['emotion'] as Map<String, dynamic>
+              : {};
+          final emotionIcon = emotionMap['icon']?.toString() ?? '🤩';
+          final emotionLabel = emotionMap['label']?.toString() ?? 'Bangga';
+          final emotionNote = emotionMap['note']?.toString() ?? '';
+
+          // Parse responses
+          final rawResp = data['responses'];
+          List<Map<String, dynamic>> respList = [];
+          if (rawResp is List) {
+            for (var r in rawResp) {
+              if (r is Map) {
+                respList.add(Map<String, dynamic>.from(r));
+              }
+            }
+          }
+
+          results.add({
+            'nama': sName,
+            'sekolah': sSchool,
+            'username': profile['username'] ?? '-',
+            'email': profile['email'] ?? '-',
+            'kelas': sClass,
+            'kategori_level': '${cat.toUpperCase()} - Level $lvl',
+            'tanggal':
+                '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year}',
+            'emotikon': '$emotionIcon $emotionLabel',
+            'emotikon_note': emotionNote,
+            'responses': EvaluationReport.ordered(respList),
+            'submitted_dt': dt,
+          });
+        }
+
+        // Sort newest first
+        results.sort((a, b) => (b['submitted_dt'] as DateTime)
+            .compareTo(a['submitted_dt'] as DateTime));
       } else {
         // App usage report (Statistik Penggunaan App)
         final now = DateTime.now();
@@ -279,7 +400,8 @@ class _LaporanScreenState extends State<LaporanScreen> {
         int countToday(Iterable<QueryDocumentSnapshot> docs) {
           return docs.where((d) {
             final data = d.data() as Map<String, dynamic>;
-            final ts = data['createdAt'] ?? data['tanggal'] ?? data['nyawaLastReset'];
+            final ts =
+                data['createdAt'] ?? data['tanggal'] ?? data['nyawaLastReset'];
             final dt = _parseDateTime(ts);
             if (dt != null) {
               return dt.isAfter(startOfToday);
@@ -291,7 +413,8 @@ class _LaporanScreenState extends State<LaporanScreen> {
         int countWeek(Iterable<QueryDocumentSnapshot> docs) {
           return docs.where((d) {
             final data = d.data() as Map<String, dynamic>;
-            final ts = data['createdAt'] ?? data['tanggal'] ?? data['nyawaLastReset'];
+            final ts =
+                data['createdAt'] ?? data['tanggal'] ?? data['nyawaLastReset'];
             final dt = _parseDateTime(ts);
             if (dt != null) {
               return dt.isAfter(startOfWeek);
@@ -303,7 +426,8 @@ class _LaporanScreenState extends State<LaporanScreen> {
         int countMonth(Iterable<QueryDocumentSnapshot> docs) {
           return docs.where((d) {
             final data = d.data() as Map<String, dynamic>;
-            final ts = data['createdAt'] ?? data['tanggal'] ?? data['nyawaLastReset'];
+            final ts =
+                data['createdAt'] ?? data['tanggal'] ?? data['nyawaLastReset'];
             final dt = _parseDateTime(ts);
             if (dt != null) {
               return dt.isAfter(startOfMonth);
@@ -323,7 +447,8 @@ class _LaporanScreenState extends State<LaporanScreen> {
           });
           filteredArtworks = filteredArtworks.where((a) {
             final aData = a.data() as Map<String, dynamic>;
-            final matchingUsers = usersSnap.docs.where((u) => u.id == aData['uid']);
+            final matchingUsers =
+                usersSnap.docs.where((u) => u.id == aData['uid']);
             if (matchingUsers.isEmpty) return false;
             final userDoc = matchingUsers.first;
             final uData = userDoc.data() as Map<String, dynamic>;
@@ -340,10 +465,12 @@ class _LaporanScreenState extends State<LaporanScreen> {
             final data = c.data() as Map<String, dynamic>;
             return (data['namaKelas'] ?? data['nama']) == _selectedClassFilter;
           });
-          final classDoc = matchingClasses.isNotEmpty ? matchingClasses.first : null;
+          final classDoc =
+              matchingClasses.isNotEmpty ? matchingClasses.first : null;
           if (classDoc != null) {
             final cData = classDoc.data() as Map<String, dynamic>;
-            final List<dynamic> muridIds = cData['muridIds'] is List ? cData['muridIds'] : [];
+            final List<dynamic> muridIds =
+                cData['muridIds'] is List ? cData['muridIds'] : [];
             filteredUsers = filteredUsers.where((u) => muridIds.contains(u.id));
             filteredArtworks = filteredArtworks.where((a) {
               final data = a.data() as Map<String, dynamic>;
@@ -466,7 +593,8 @@ class _LaporanScreenState extends State<LaporanScreen> {
     if (_previewData.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Tidak ada data untuk diekspor. Klik "Tampilkan Preview" terlebih dahulu.'),
+          content: Text(
+              'Tidak ada data untuk diekspor. Klik "Tampilkan Preview" terlebih dahulu.'),
           backgroundColor: Color(0xFFEF4444),
           behavior: SnackBarBehavior.floating,
         ),
@@ -500,7 +628,8 @@ class _LaporanScreenState extends State<LaporanScreen> {
       body: SafeArea(
         child: SingleChildScrollView(
           physics: const BouncingScrollPhysics(),
-          padding: EdgeInsets.symmetric(horizontal: isMobile ? 14 : 32, vertical: isMobile ? 16 : 24),
+          padding: EdgeInsets.symmetric(
+              horizontal: isMobile ? 14 : 32, vertical: isMobile ? 16 : 24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -522,7 +651,10 @@ class _LaporanScreenState extends State<LaporanScreen> {
                   const SizedBox(height: 4),
                   const Text(
                     'Analisis metrik murid, aktivitas verifikasi guru, serta rekap data penggunaan platform EPIC.',
-                    style: TextStyle(fontSize: 13, color: Color(0xFF64748B), fontWeight: FontWeight.normal),
+                    style: TextStyle(
+                        fontSize: 13,
+                        color: Color(0xFF64748B),
+                        fontWeight: FontWeight.normal),
                   ),
                 ],
               ).animate().fadeIn(duration: 350.ms),
@@ -582,7 +714,11 @@ class _LaporanScreenState extends State<LaporanScreen> {
               SizedBox(width: 8),
               Text(
                 'FILTER LAPORAN',
-                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: Color(0xFF0F172A), letterSpacing: 0.5),
+                style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 13,
+                    color: Color(0xFF0F172A),
+                    letterSpacing: 0.5),
               ),
             ],
           ),
@@ -597,11 +733,19 @@ class _LaporanScreenState extends State<LaporanScreen> {
               value: _selectedReportType,
               isExpanded: true,
               underline: const SizedBox(),
-              icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 20, color: Color(0xFF64748B)),
+              icon: const Icon(Icons.keyboard_arrow_down_rounded,
+                  size: 20, color: Color(0xFF64748B)),
               items: const [
-                DropdownMenuItem(value: 'Nilai Semua User', child: Text('Nilai Semua User')),
-                DropdownMenuItem(value: 'Aktivitas Guru', child: Text('Aktivitas Guru')),
-                DropdownMenuItem(value: 'Penggunaan App', child: Text('Statistik Penggunaan App')),
+                DropdownMenuItem(
+                    value: 'Nilai Semua User', child: Text('Nilai Semua User')),
+                DropdownMenuItem(
+                    value: 'Aktivitas Guru', child: Text('Aktivitas Guru')),
+                DropdownMenuItem(
+                    value: 'Respons Evaluasi Siswa',
+                    child: Text('Respons Evaluasi Siswa (Penalaran)')),
+                DropdownMenuItem(
+                    value: 'Penggunaan App',
+                    child: Text('Statistik Penggunaan App')),
               ],
               onChanged: (val) {
                 if (val != null) {
@@ -625,7 +769,8 @@ class _LaporanScreenState extends State<LaporanScreen> {
                   onTap: () => _selectDate(context, true),
                   borderRadius: BorderRadius.circular(12),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+                    padding: const EdgeInsets.symmetric(
+                        vertical: 12, horizontal: 12),
                     decoration: BoxDecoration(
                       color: const Color(0xFFF8FAFC),
                       border: Border.all(color: const Color(0xFFCBD5E1)),
@@ -633,15 +778,24 @@ class _LaporanScreenState extends State<LaporanScreen> {
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.calendar_month_rounded, size: 16, color: Color(0xFF64748B)),
+                        const Icon(Icons.calendar_month_rounded,
+                            size: 16, color: Color(0xFF64748B)),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text('Dari:', style: TextStyle(fontSize: 9, color: Color(0xFF64748B), fontWeight: FontWeight.bold)),
+                              const Text('Dari:',
+                                  style: TextStyle(
+                                      fontSize: 9,
+                                      color: Color(0xFF64748B),
+                                      fontWeight: FontWeight.bold)),
                               const SizedBox(height: 2),
-                              Text(_formatDate(_fromDate), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Color(0xFF0F172A))),
+                              Text(_formatDate(_fromDate),
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 11,
+                                      color: Color(0xFF0F172A))),
                             ],
                           ),
                         ),
@@ -656,7 +810,8 @@ class _LaporanScreenState extends State<LaporanScreen> {
                   onTap: () => _selectDate(context, false),
                   borderRadius: BorderRadius.circular(12),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+                    padding: const EdgeInsets.symmetric(
+                        vertical: 12, horizontal: 12),
                     decoration: BoxDecoration(
                       color: const Color(0xFFF8FAFC),
                       border: Border.all(color: const Color(0xFFCBD5E1)),
@@ -664,15 +819,24 @@ class _LaporanScreenState extends State<LaporanScreen> {
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.calendar_month_rounded, size: 16, color: Color(0xFF64748B)),
+                        const Icon(Icons.calendar_month_rounded,
+                            size: 16, color: Color(0xFF64748B)),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text('Sampai:', style: TextStyle(fontSize: 9, color: Color(0xFF64748B), fontWeight: FontWeight.bold)),
+                              const Text('Sampai:',
+                                  style: TextStyle(
+                                      fontSize: 9,
+                                      color: Color(0xFF64748B),
+                                      fontWeight: FontWeight.bold)),
                               const SizedBox(height: 2),
-                              Text(_formatDate(_toDate), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Color(0xFF0F172A))),
+                              Text(_formatDate(_toDate),
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 11,
+                                      color: Color(0xFF0F172A))),
                             ],
                           ),
                         ),
@@ -694,8 +858,11 @@ class _LaporanScreenState extends State<LaporanScreen> {
               value: _selectedClassFilter,
               isExpanded: true,
               underline: const SizedBox(),
-              icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 20, color: Color(0xFF64748B)),
-              items: _classesList.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
+              icon: const Icon(Icons.keyboard_arrow_down_rounded,
+                  size: 20, color: Color(0xFF64748B)),
+              items: _classesList
+                  .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+                  .toList(),
               onChanged: (val) {
                 if (val != null) {
                   setState(() {
@@ -717,8 +884,11 @@ class _LaporanScreenState extends State<LaporanScreen> {
               value: _selectedSchoolFilter,
               isExpanded: true,
               underline: const SizedBox(),
-              icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 20, color: Color(0xFF64748B)),
-              items: _schoolsList.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
+              icon: const Icon(Icons.keyboard_arrow_down_rounded,
+                  size: 20, color: Color(0xFF64748B)),
+              items: _schoolsList
+                  .map((s) => DropdownMenuItem(value: s, child: Text(s)))
+                  .toList(),
               onChanged: (val) {
                 if (val != null) {
                   setState(() {
@@ -737,14 +907,20 @@ class _LaporanScreenState extends State<LaporanScreen> {
             child: ElevatedButton.icon(
               onPressed: _isLoading ? null : _triggerPreviewUpdate,
               icon: _isLoading
-                  ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  ? const SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white))
                   : const Icon(Icons.search_rounded, size: 16),
-              label: const Text('Tampilkan Preview', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+              label: const Text('Tampilkan Preview',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF2563EB),
                 foregroundColor: Colors.white,
                 elevation: 0,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
                 padding: const EdgeInsets.symmetric(vertical: 14),
               ),
             ),
@@ -775,7 +951,11 @@ class _LaporanScreenState extends State<LaporanScreen> {
           // Row 1: Header Title & Subtitle
           const Text(
             'PREVIEW DATA LAPORAN',
-            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: Color(0xFF0F172A), letterSpacing: 0.5),
+            style: TextStyle(
+                fontWeight: FontWeight.w800,
+                fontSize: 13,
+                color: Color(0xFF0F172A),
+                letterSpacing: 0.5),
           ),
           const SizedBox(height: 4),
           const Text(
@@ -801,9 +981,12 @@ class _LaporanScreenState extends State<LaporanScreen> {
                         runSpacing: 6,
                         crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
-                          _buildStatusBadge(Icons.analytics_outlined, _selectedReportType),
-                          _buildStatusBadge(Icons.class_outlined, _selectedClassFilter),
-                          _buildStatusBadge(Icons.calendar_month_outlined, '${_formatDate(_fromDate)} - ${_formatDate(_toDate)}'),
+                          _buildStatusBadge(
+                              Icons.analytics_outlined, _selectedReportType),
+                          _buildStatusBadge(
+                              Icons.class_outlined, _selectedClassFilter),
+                          _buildStatusBadge(Icons.calendar_month_outlined,
+                              '${_formatDate(_fromDate)} - ${_formatDate(_toDate)}'),
                         ],
                       ),
                       const SizedBox(height: 12),
@@ -812,13 +995,20 @@ class _LaporanScreenState extends State<LaporanScreen> {
                           Expanded(
                             child: OutlinedButton.icon(
                               onPressed: () => _startExportProcess('PDF'),
-                              icon: const Icon(Icons.picture_as_pdf_rounded, size: 14),
-                              label: const Text('Export PDF', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+                              icon: const Icon(Icons.picture_as_pdf_rounded,
+                                  size: 14),
+                              label: const Text('Export PDF',
+                                  style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 11)),
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: const Color(0xFFEF4444),
-                                side: const BorderSide(color: Color(0xFFFCA5A5)),
-                                padding: const EdgeInsets.symmetric(vertical: 10),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                side:
+                                    const BorderSide(color: Color(0xFFFCA5A5)),
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 10),
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10)),
                               ),
                             ),
                           ),
@@ -826,14 +1016,20 @@ class _LaporanScreenState extends State<LaporanScreen> {
                           Expanded(
                             child: ElevatedButton.icon(
                               onPressed: () => _startExportProcess('Excel'),
-                              icon: const Icon(Icons.table_chart_rounded, size: 14),
-                              label: const Text('Excel (.xlsx)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+                              icon: const Icon(Icons.table_chart_rounded,
+                                  size: 14),
+                              label: const Text('Excel (CSV)',
+                                  style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 11)),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: const Color(0xFF10B981),
                                 foregroundColor: Colors.white,
                                 elevation: 0,
-                                padding: const EdgeInsets.symmetric(vertical: 10),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 10),
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10)),
                               ),
                             ),
                           ),
@@ -851,9 +1047,12 @@ class _LaporanScreenState extends State<LaporanScreen> {
                           runSpacing: 8,
                           crossAxisAlignment: WrapCrossAlignment.center,
                           children: [
-                            _buildStatusBadge(Icons.analytics_outlined, _selectedReportType),
-                            _buildStatusBadge(Icons.class_outlined, _selectedClassFilter),
-                            _buildStatusBadge(Icons.calendar_month_outlined, '${_formatDate(_fromDate)} - ${_formatDate(_toDate)}'),
+                            _buildStatusBadge(
+                                Icons.analytics_outlined, _selectedReportType),
+                            _buildStatusBadge(
+                                Icons.class_outlined, _selectedClassFilter),
+                            _buildStatusBadge(Icons.calendar_month_outlined,
+                                '${_formatDate(_fromDate)} - ${_formatDate(_toDate)}'),
                           ],
                         ),
                       ),
@@ -864,26 +1063,34 @@ class _LaporanScreenState extends State<LaporanScreen> {
                         children: [
                           OutlinedButton.icon(
                             onPressed: () => _startExportProcess('PDF'),
-                            icon: const Icon(Icons.picture_as_pdf_rounded, size: 14),
-                            label: const Text('Export PDF', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                            icon: const Icon(Icons.picture_as_pdf_rounded,
+                                size: 14),
+                            label: const Text('Export PDF',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.bold, fontSize: 12)),
                             style: OutlinedButton.styleFrom(
                               foregroundColor: const Color(0xFFEF4444),
                               side: const BorderSide(color: Color(0xFFFCA5A5)),
                               fixedSize: const Size(125, 38),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10)),
                             ),
                           ),
                           const SizedBox(width: 12),
                           ElevatedButton.icon(
                             onPressed: () => _startExportProcess('Excel'),
-                            icon: const Icon(Icons.table_chart_rounded, size: 14),
-                            label: const Text('Excel (.xlsx)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                            icon:
+                                const Icon(Icons.table_chart_rounded, size: 14),
+                            label: const Text('Excel (CSV)',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.bold, fontSize: 12)),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: const Color(0xFF10B981),
                               foregroundColor: Colors.white,
                               elevation: 0,
                               fixedSize: const Size(135, 38),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10)),
                             ),
                           ),
                         ],
@@ -896,20 +1103,31 @@ class _LaporanScreenState extends State<LaporanScreen> {
           // Custom responsive data grid (wrapped in horizontal scroll on mobile)
           _isLoading
               ? _buildShimmerTable()
-              : SingleChildScrollView(
+              : isMobile && _selectedReportType == 'Respons Evaluasi Siswa'
+                  ? Column(
+                      children: _previewData
+                          .map((row) => EvaluationResponseCard(row: row))
+                          .toList())
+              : isMobile ? _buildCustomTable() : SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
-                  physics: const BouncingScrollPhysics(),
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(minWidth: isMobile ? 550 : 0),
-                    child: _buildCustomTable().animate().fadeIn(duration: 250.ms),
-                  ),
-                ),
+                      physics: const BouncingScrollPhysics(),
+                      child: ConstrainedBox(
+                        constraints:
+                            BoxConstraints(minWidth: isMobile ? 550 : 0),
+                        child: _buildCustomTable()
+                            .animate()
+                            .fadeIn(duration: 250.ms),
+                      ),
+                    ),
 
           const SizedBox(height: 20),
           Center(
             child: Text(
               'Menampilkan ${_previewData.length} baris rekaman...',
-              style: const TextStyle(color: Color(0xFF64748B), fontStyle: FontStyle.italic, fontSize: 12),
+              style: const TextStyle(
+                  color: Color(0xFF64748B),
+                  fontStyle: FontStyle.italic,
+                  fontSize: 12),
             ),
           ),
         ],
@@ -920,7 +1138,11 @@ class _LaporanScreenState extends State<LaporanScreen> {
   Widget _buildDropdownLabel(String label) {
     return Text(
       label.toUpperCase(),
-      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 10.5, color: Color(0xFF64748B), letterSpacing: 0.5),
+      style: const TextStyle(
+          fontWeight: FontWeight.bold,
+          fontSize: 10.5,
+          color: Color(0xFF64748B),
+          letterSpacing: 0.5),
     );
   }
 
@@ -973,14 +1195,67 @@ class _LaporanScreenState extends State<LaporanScreen> {
     List<int> flexes;
 
     if (_selectedReportType == 'Nilai Semua User') {
-      headers = ['Rank', 'Nama', 'Username', 'Total Poin', 'Rata-rata', 'Karya'];
+      headers = [
+        'Rank',
+        'Nama',
+        'Username',
+        'Total Poin',
+        'Rata-rata',
+        'Karya'
+      ];
       flexes = [1, 3, 2, 2, 2, 2];
     } else if (_selectedReportType == 'Aktivitas Guru') {
-      headers = ['Nama Guru', 'NIP', 'Kelas Diampu', 'Karya Diverifikasi', 'Terakhir Aktif'];
+      headers = [
+        'Nama Guru',
+        'NIP',
+        'Kelas Diampu',
+        'Karya Diverifikasi',
+        'Terakhir Aktif'
+      ];
       flexes = [3, 2, 2, 2, 2];
+    } else if (_selectedReportType == 'Respons Evaluasi Siswa') {
+      headers = [
+        'Nama Siswa',
+        'Kelas / Sekolah',
+        'Kategori & Level',
+        'Waktu',
+        'Perasaan',
+        'Jawaban Siswa'
+      ];
+      flexes = [3, 3, 2, 2, 2, 3];
     } else {
-      headers = ['Metrik Penggunaan', 'Hari Ini', 'Minggu Ini', 'Bulan Ini', 'Tren'];
+      headers = [
+        'Metrik Penggunaan',
+        'Hari Ini',
+        'Minggu Ini',
+        'Bulan Ini',
+        'Tren'
+      ];
       flexes = [3, 2, 2, 2, 2];
+    }
+
+    if (MediaQuery.sizeOf(context).width < 768) {
+      if (_previewData.isEmpty) return const Padding(
+        padding: EdgeInsets.all(16), child: Text('Belum ada data untuk filter ini.'));
+      return Column(children: List.generate(_previewData.length, (index) {
+        final cells = _getRowCells(index);
+        return Container(
+          width: double.infinity,
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(color: const Color(0xFFF8FAFC),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFFE2E8F0))),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start,
+            children: List.generate(headers.length, (i) => Padding(
+              padding: const EdgeInsets.symmetric(vertical: 5),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start,
+                children: [Text(headers[i], style: const TextStyle(
+                  fontSize: 11, color: Color(0xFF64748B))),
+                  const SizedBox(height: 3), cells[i]]))),
+          ),
+        );
+      }));
     }
 
     return Container(
@@ -1001,7 +1276,10 @@ class _LaporanScreenState extends State<LaporanScreen> {
                   color: Colors.white,
                   child: const Text(
                     'Tidak ada data pratinjau. Klik "Tampilkan Preview" untuk memuat data.',
-                    style: TextStyle(color: Color(0xFF64748B), fontSize: 13, fontWeight: FontWeight.w500),
+                    style: TextStyle(
+                        color: Color(0xFF64748B),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500),
                   ),
                 )
               : Column(
@@ -1080,13 +1358,22 @@ class _LaporanScreenState extends State<LaporanScreen> {
             ),
             child: Text(
               '#${row['rank'] ?? (index + 1)}',
-              style: const TextStyle(color: Color(0xFFB45309), fontWeight: FontWeight.w800, fontSize: 11),
+              style: const TextStyle(
+                  color: Color(0xFFB45309),
+                  fontWeight: FontWeight.w800,
+                  fontSize: 11),
             ),
           ),
         ),
-        Text(row['nama']?.toString() ?? '-', style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0F172A), fontSize: 13)),
-        Text(row['username']?.toString() ?? '-', style: const TextStyle(color: Color(0xFF64748B), fontSize: 13)),
-        Text('${row['poin'] ?? 0} Poin', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+        Text(row['nama']?.toString() ?? '-',
+            style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF0F172A),
+                fontSize: 13)),
+        Text(row['username']?.toString() ?? '-',
+            style: const TextStyle(color: Color(0xFF64748B), fontSize: 13)),
+        Text('${row['poin'] ?? 0} Poin',
+            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
         Align(
           alignment: Alignment.centerLeft,
           child: Container(
@@ -1097,7 +1384,10 @@ class _LaporanScreenState extends State<LaporanScreen> {
             ),
             child: Text(
               '${row['rata_rata'] ?? 0.0}',
-              style: const TextStyle(color: Color(0xFF2563EB), fontWeight: FontWeight.bold, fontSize: 11),
+              style: const TextStyle(
+                  color: Color(0xFF2563EB),
+                  fontWeight: FontWeight.bold,
+                  fontSize: 11),
             ),
           ),
         ),
@@ -1105,18 +1395,92 @@ class _LaporanScreenState extends State<LaporanScreen> {
       ];
     } else if (_selectedReportType == 'Aktivitas Guru') {
       return [
-        Text(row['nama']?.toString() ?? '-', style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0F172A), fontSize: 13)),
-        Text(row['nip']?.toString() ?? '-', style: const TextStyle(color: Color(0xFF64748B), fontSize: 13)),
-        Text(row['kelas']?.toString() ?? '-', style: const TextStyle(fontSize: 13)),
-        Text('${row['verif'] ?? 0} karya', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
-        Text(row['aktif']?.toString() ?? '-', style: const TextStyle(color: Color(0xFF10B981), fontWeight: FontWeight.w600, fontSize: 13)),
+        Text(row['nama']?.toString() ?? '-',
+            style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF0F172A),
+                fontSize: 13)),
+        Text(row['nip']?.toString() ?? '-',
+            style: const TextStyle(color: Color(0xFF64748B), fontSize: 13)),
+        Text(row['kelas']?.toString() ?? '-',
+            style: const TextStyle(fontSize: 13)),
+        Text('${row['verif'] ?? 0} karya',
+            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+        Text(row['aktif']?.toString() ?? '-',
+            style: const TextStyle(
+                color: Color(0xFF10B981),
+                fontWeight: FontWeight.w600,
+                fontSize: 13)),
+      ];
+    } else if (_selectedReportType == 'Respons Evaluasi Siswa') {
+      final respList = (row['responses'] as List?) ?? [];
+      final totalSoal = respList.length;
+
+      return [
+        Text(row['nama']?.toString() ?? '-',
+            style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF0F172A),
+                fontSize: 13)),
+        Text('${row['kelas']}\n${row['sekolah']}',
+            style: const TextStyle(color: Color(0xFF64748B), fontSize: 12)),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFFBEB),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: const Color(0xFFFDE68A)),
+            ),
+            child: Text(
+              row['kategori_level']?.toString() ?? '-',
+              style: const TextStyle(
+                  color: Color(0xFFB45309),
+                  fontWeight: FontWeight.bold,
+                  fontSize: 11),
+            ),
+          ),
+        ),
+        Text(row['tanggal']?.toString() ?? '-',
+            style: const TextStyle(fontSize: 12, color: Color(0xFF64748B))),
+        Tooltip(
+          message: (row['emotikon_note']?.toString().isNotEmpty ?? false)
+              ? row['emotikon_note'].toString()
+              : 'Tidak ada catatan emosi',
+          child: Text(row['emotikon']?.toString() ?? '-',
+              style:
+                  const TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
+        ),
+        OutlinedButton.icon(
+          onPressed: () => _showEvaluationDetailDialog(row),
+          icon: Icon(
+              Icons.visibility_rounded,
+              size: 14),
+          label: Text(
+              'Lihat ($totalSoal Soal)',
+              style: const TextStyle(fontSize: 11)),
+          style: OutlinedButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            visualDensity: VisualDensity.compact,
+            foregroundColor: AdminColors.primary,
+            side: BorderSide(color: AdminColors.primary.withOpacity(0.5)),
+          ),
+        ),
       ];
     } else {
       return [
-        Text(row['metrik']?.toString() ?? '-', style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0F172A), fontSize: 13)),
-        Text(row['hari']?.toString() ?? '-', style: const TextStyle(fontSize: 13)),
-        Text(row['minggu']?.toString() ?? '-', style: const TextStyle(fontSize: 13)),
-        Text(row['bulan']?.toString() ?? '-', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+        Text(row['metrik']?.toString() ?? '-',
+            style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF0F172A),
+                fontSize: 13)),
+        Text(row['hari']?.toString() ?? '-',
+            style: const TextStyle(fontSize: 13)),
+        Text(row['minggu']?.toString() ?? '-',
+            style: const TextStyle(fontSize: 13)),
+        Text(row['bulan']?.toString() ?? '-',
+            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
         Align(
           alignment: Alignment.centerLeft,
           child: Container(
@@ -1127,12 +1491,19 @@ class _LaporanScreenState extends State<LaporanScreen> {
             ),
             child: Text(
               row['tren']?.toString() ?? '-',
-              style: const TextStyle(color: Color(0xFF065F46), fontWeight: FontWeight.bold, fontSize: 11),
+              style: const TextStyle(
+                  color: Color(0xFF065F46),
+                  fontWeight: FontWeight.bold,
+                  fontSize: 11),
             ),
           ),
         ),
       ];
     }
+  }
+
+  void _showEvaluationDetailDialog(Map<String, dynamic> row) {
+    ResponseDetailDialog.show(context, row);
   }
 
   Widget _buildShimmerTable() {
@@ -1159,7 +1530,8 @@ class _LaporanScreenState extends State<LaporanScreen> {
             const SizedBox(height: 16),
             const Text(
               'Menyaring data...',
-              style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF475569)),
+              style: TextStyle(
+                  fontWeight: FontWeight.bold, color: Color(0xFF475569)),
             ),
             const SizedBox(height: 4),
             const Text(
@@ -1195,8 +1567,6 @@ class _ExportProgressDialog extends StatefulWidget {
 }
 
 class _ExportProgressDialogState extends State<_ExportProgressDialog> {
-  int _currentStep = 0;
-  double _progressValue = 0.0;
   bool _isSuccess = false;
   late String _currentMessage;
 
@@ -1216,66 +1586,59 @@ class _ExportProgressDialogState extends State<_ExportProgressDialog> {
   }
 
   void _runSimulator() {
-    Future.delayed(const Duration(milliseconds: 600), () {
-      if (mounted) {
-        setState(() {
-          _currentStep = 1;
-          _progressValue = 0.25;
-          _currentMessage = _steps[1];
-        });
-      }
-    });
+    _performExport();
+  }
 
-    Future.delayed(const Duration(milliseconds: 1200), () {
-      if (mounted) {
-        setState(() {
-          _currentStep = 2;
-          _progressValue = 0.50;
-          _currentMessage = _steps[2];
-        });
-      }
-    });
-
-    Future.delayed(const Duration(milliseconds: 2000), () {
-      if (mounted) {
-        setState(() {
-          _currentStep = 3;
-          _progressValue = 0.75;
-          _currentMessage = _steps[3];
-        });
-      }
-    });
-
-    Future.delayed(const Duration(milliseconds: 2700), () {
-      if (mounted) {
-        setState(() {
-          _currentStep = 4;
-          _progressValue = 1.0;
-          _currentMessage = _steps[4];
-        });
-      }
-    });
-
-    Future.delayed(const Duration(milliseconds: 3200), () {
-      if (mounted) {
-        setState(() {
-          _isSuccess = true;
-        });
-        _triggerActualDownload();
-      }
-    });
+  Future<void> _performExport() async {
+    try {
+      await _triggerActualDownload();
+      if (mounted) setState(() => _isSuccess = true);
+    } catch (error) {
+      if (!mounted) return;
+      final messenger = ScaffoldMessenger.of(context);
+      Navigator.of(context).pop();
+      messenger.showSnackBar(SnackBar(content: Text('Gagal menyiapkan laporan: $error')));
+    }
   }
 
   Future<void> _triggerActualDownload() async {
-    final cleanReportType = widget.reportType.toLowerCase().replaceAll(' ', '_');
-    final dateStr = '${DateTime.now().year}${DateTime.now().month.toString().padLeft(2, '0')}${DateTime.now().day.toString().padLeft(2, '0')}';
+    final cleanReportType =
+        widget.reportType.toLowerCase().replaceAll(' ', '_');
+    final dateStr =
+        '${DateTime.now().year}${DateTime.now().month.toString().padLeft(2, '0')}${DateTime.now().day.toString().padLeft(2, '0')}';
+
+    if (widget.reportType == 'Respons Evaluasi Siswa') {
+      if (widget.format == 'PDF') {
+        final bytes = await EvaluationReport.pdf(widget.previewData,
+            scope: widget.dateRange +
+                ' - ' +
+                widget.classFilter +
+                ' - ' +
+                widget.schoolFilter);
+        FileDownloadHelper.downloadBytes(
+            bytes, 'laporan_respons_$dateStr.pdf', 'application/pdf');
+      } else {
+        FileDownloadHelper.downloadFile(
+            EvaluationReport.csv(widget.previewData),
+            'laporan_respons_$dateStr.csv');
+      }
+      return;
+    }
 
     if (widget.format == 'Excel') {
-      final buffer = StringBuffer();
+      final buffer = StringBuffer('\uFEFF');
       List<String> headers;
 
       if (widget.reportType == 'Nilai Semua User') {
-        headers = ['No', 'Peringkat', 'Nama', 'Username', 'Total Poin', 'Rata-rata', 'Karya'];
+        headers = [
+          'No',
+          'Peringkat',
+          'Nama',
+          'Username',
+          'Total Poin',
+          'Rata-rata',
+          'Karya'
+        ];
         buffer.writeln(headers.map((h) => '"$h"').join(','));
         for (int i = 0; i < widget.previewData.length; i++) {
           final row = widget.previewData[i];
@@ -1290,7 +1653,14 @@ class _ExportProgressDialogState extends State<_ExportProgressDialog> {
           ].join(','));
         }
       } else if (widget.reportType == 'Aktivitas Guru') {
-        headers = ['No', 'Nama Guru', 'NIP', 'Kelas Diampu', 'Karya Diverifikasi', 'Terakhir Aktif'];
+        headers = [
+          'No',
+          'Nama Guru',
+          'NIP',
+          'Kelas Diampu',
+          'Karya Diverifikasi',
+          'Terakhir Aktif'
+        ];
         buffer.writeln(headers.map((h) => '"$h"').join(','));
         for (int i = 0; i < widget.previewData.length; i++) {
           final row = widget.previewData[i];
@@ -1304,7 +1674,14 @@ class _ExportProgressDialogState extends State<_ExportProgressDialog> {
           ].join(','));
         }
       } else {
-        headers = ['No', 'Metrik Penggunaan', 'Hari Ini', 'Minggu Ini', 'Bulan Ini', 'Tren'];
+        headers = [
+          'No',
+          'Metrik Penggunaan',
+          'Hari Ini',
+          'Minggu Ini',
+          'Bulan Ini',
+          'Tren'
+        ];
         buffer.writeln(headers.map((h) => '"$h"').join(','));
         for (int i = 0; i < widget.previewData.length; i++) {
           final row = widget.previewData[i];
@@ -1319,14 +1696,23 @@ class _ExportProgressDialogState extends State<_ExportProgressDialog> {
         }
       }
 
-      FileDownloadHelper.downloadFile(buffer.toString(), 'laporan_${cleanReportType}_$dateStr.csv');
+      FileDownloadHelper.downloadFile(
+          buffer.toString(), 'laporan_${cleanReportType}_$dateStr.csv');
     } else if (widget.format == 'PDF') {
       List<String> headers;
       List<double> widths;
       List<List<String>> rows = [];
 
       if (widget.reportType == 'Nilai Semua User') {
-        headers = ['No', 'Rank', 'Nama', 'Username', 'Total Poin', 'Rata-rata', 'Karya'];
+        headers = [
+          'No',
+          'Rank',
+          'Nama',
+          'Username',
+          'Total Poin',
+          'Rata-rata',
+          'Karya'
+        ];
         widths = [0.8, 1.0, 3.0, 2.5, 2.0, 2.0, 1.5];
         for (int i = 0; i < widget.previewData.length; i++) {
           final row = widget.previewData[i];
@@ -1341,7 +1727,14 @@ class _ExportProgressDialogState extends State<_ExportProgressDialog> {
           ]);
         }
       } else if (widget.reportType == 'Aktivitas Guru') {
-        headers = ['No', 'Nama Guru', 'NIP', 'Kelas Diampu', 'Karya Diverifikasi', 'Terakhir Aktif'];
+        headers = [
+          'No',
+          'Nama Guru',
+          'NIP',
+          'Kelas Diampu',
+          'Karya Diverifikasi',
+          'Terakhir Aktif'
+        ];
         widths = [1.0, 3.0, 2.0, 3.0, 2.0, 2.0];
         for (int i = 0; i < widget.previewData.length; i++) {
           final row = widget.previewData[i];
@@ -1355,7 +1748,14 @@ class _ExportProgressDialogState extends State<_ExportProgressDialog> {
           ]);
         }
       } else {
-        headers = ['No', 'Metrik Penggunaan', 'Hari Ini', 'Minggu Ini', 'Bulan Ini', 'Tren'];
+        headers = [
+          'No',
+          'Metrik Penggunaan',
+          'Hari Ini',
+          'Minggu Ini',
+          'Bulan Ini',
+          'Tren'
+        ];
         widths = [1.0, 3.5, 2.0, 2.0, 2.0, 1.5];
         for (int i = 0; i < widget.previewData.length; i++) {
           final row = widget.previewData[i];
@@ -1388,13 +1788,15 @@ class _ExportProgressDialogState extends State<_ExportProgressDialog> {
         );
       } catch (e) {
         debugPrint('Error generating report PDF: $e');
+        rethrow;
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final fileName = 'laporan_${widget.reportType.toLowerCase().replaceAll(' ', '_')}_${DateTime.now().year}${DateTime.now().month.toString().padLeft(2, '0')}.${widget.format.toLowerCase()}';
+    final fileName =
+        'laporan_${widget.reportType.toLowerCase().replaceAll(' ', '_')}_${DateTime.now().year}${DateTime.now().month.toString().padLeft(2, '0')}.${widget.format.toLowerCase()}';
 
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
@@ -1417,7 +1819,9 @@ class _ExportProgressDialogState extends State<_ExportProgressDialog> {
           ),
           child: AnimatedCrossFade(
             duration: const Duration(milliseconds: 300),
-            crossFadeState: _isSuccess ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+            crossFadeState: _isSuccess
+                ? CrossFadeState.showSecond
+                : CrossFadeState.showFirst,
             firstChild: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -1429,7 +1833,8 @@ class _ExportProgressDialogState extends State<_ExportProgressDialog> {
                         color: const Color(0xFFEFF6FF),
                         borderRadius: BorderRadius.circular(14),
                       ),
-                      child: const Icon(Icons.cloud_download_rounded, color: Color(0xFF2563EB), size: 24),
+                      child: const Icon(Icons.cloud_download_rounded,
+                          color: Color(0xFF2563EB), size: 24),
                     ),
                     const SizedBox(width: 16),
                     Expanded(
@@ -1438,11 +1843,15 @@ class _ExportProgressDialogState extends State<_ExportProgressDialog> {
                         children: [
                           Text(
                             'Ekspor ${widget.reportType}',
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF0F172A)),
+                            style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                                color: Color(0xFF0F172A)),
                           ),
                           Text(
                             'Format: ${widget.format}',
-                            style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                            style: const TextStyle(
+                                fontSize: 12, color: Color(0xFF64748B)),
                           ),
                         ],
                       ),
@@ -1450,35 +1859,41 @@ class _ExportProgressDialogState extends State<_ExportProgressDialog> {
                   ],
                 ),
                 const SizedBox(height: 32),
-
                 ClipRRect(
                   borderRadius: BorderRadius.circular(4),
                   child: LinearProgressIndicator(
-                    value: _progressValue,
+                    value: null,
                     minHeight: 6,
                     backgroundColor: const Color(0xFFF1F5F9),
-                    valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF2563EB)),
+                    valueColor:
+                        const AlwaysStoppedAnimation<Color>(Color(0xFF2563EB)),
                   ),
                 ),
                 const SizedBox(height: 20),
-
                 Row(
                   children: [
                     const SizedBox(
                       width: 14,
                       height: 14,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF2563EB)),
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Color(0xFF2563EB)),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
                         _currentMessage,
-                        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Color(0xFF334155)),
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                            color: Color(0xFF334155)),
                       ),
                     ),
                     Text(
-                      '${(_progressValue * 100).toInt()}%',
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF2563EB)),
+                      'Memproses',
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                          color: Color(0xFF2563EB)),
                     ),
                   ],
                 ),
@@ -1493,25 +1908,29 @@ class _ExportProgressDialogState extends State<_ExportProgressDialog> {
                     color: Color(0xFFD1FAE5),
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 48),
+                  child: const Icon(Icons.check_circle_rounded,
+                      color: Color(0xFF10B981), size: 48),
                 ).animate().scale(duration: 400.ms, curve: Curves.elasticOut),
                 const SizedBox(height: 24),
-
                 const Text(
                   'Ekspor Berhasil!',
-                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18, color: Color(0xFF0F172A)),
+                  style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 18,
+                      color: Color(0xFF0F172A)),
                 ),
                 const SizedBox(height: 8),
                 Text(
                   'Berkas Laporan Anda berhasil diunduh dan disimpan.',
                   textAlign: TextAlign.center,
-                  style: const TextStyle(color: Color(0xFF64748B), fontSize: 12.5),
+                  style:
+                      const TextStyle(color: Color(0xFF64748B), fontSize: 12.5),
                 ),
                 const SizedBox(height: 16),
-
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   decoration: BoxDecoration(
                     color: const Color(0xFFF8FAFC),
                     border: Border.all(color: const Color(0xFFE2E8F0)),
@@ -1520,15 +1939,23 @@ class _ExportProgressDialogState extends State<_ExportProgressDialog> {
                   child: Row(
                     children: [
                       Icon(
-                        widget.format == 'Excel' ? Icons.table_chart_rounded : Icons.picture_as_pdf_rounded,
-                        color: widget.format == 'Excel' ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+                        widget.format == 'Excel'
+                            ? Icons.table_chart_rounded
+                            : Icons.picture_as_pdf_rounded,
+                        color: widget.format == 'Excel'
+                            ? const Color(0xFF10B981)
+                            : const Color(0xFFEF4444),
                         size: 20,
                       ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
                           fileName,
-                          style: const TextStyle(fontFamily: 'monospace', fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF334155)),
+                          style: const TextStyle(
+                              fontFamily: 'monospace',
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF334155)),
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
@@ -1536,7 +1963,6 @@ class _ExportProgressDialogState extends State<_ExportProgressDialog> {
                   ),
                 ),
                 const SizedBox(height: 28),
-
                 Row(
                   children: [
                     Expanded(
@@ -1555,10 +1981,12 @@ class _ExportProgressDialogState extends State<_ExportProgressDialog> {
                         style: OutlinedButton.styleFrom(
                           foregroundColor: const Color(0xFF475569),
                           side: const BorderSide(color: Color(0xFFCBD5E1)),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
                           padding: const EdgeInsets.symmetric(vertical: 16),
                         ),
-                        child: const Text('Buka File', style: TextStyle(fontWeight: FontWeight.bold)),
+                        child: const Text('Buka File',
+                            style: TextStyle(fontWeight: FontWeight.bold)),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -1569,10 +1997,12 @@ class _ExportProgressDialogState extends State<_ExportProgressDialog> {
                           backgroundColor: const Color(0xFF2563EB),
                           foregroundColor: Colors.white,
                           elevation: 0,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
                           padding: const EdgeInsets.symmetric(vertical: 16),
                         ),
-                        child: const Text('Selesai', style: TextStyle(fontWeight: FontWeight.bold)),
+                        child: const Text('Selesai',
+                            style: TextStyle(fontWeight: FontWeight.bold)),
                       ),
                     ),
                   ],

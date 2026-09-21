@@ -14,6 +14,7 @@ class AdminHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDesktop = MediaQuery.of(context).size.width >= 1024;
+    final isCompact = MediaQuery.of(context).size.width < 480;
     final currentRoute = GoRouterState.of(context).uri.path;
     final user = FirebaseAuth.instance.currentUser;
 
@@ -72,38 +73,37 @@ class AdminHeader extends StatelessWidget {
       child: Row(
         children: [
           if (!isDesktop)
-            if (isSubDetailRoute)
-              IconButton(
-                icon: const Icon(Icons.arrow_back_rounded, color: AdminColors.textPrimary),
-                tooltip: 'Kembali',
-                onPressed: () {
-                  if (context.canPop()) {
-                    context.pop();
-                  } else {
-                    if (currentRoute.startsWith('/users')) {
-                      context.go('/users');
-                    } else if (currentRoute.startsWith('/verifikasi')) {
-                      context.go('/verifikasi');
-                    } else if (currentRoute.startsWith('/kelas')) {
-                      context.go('/kelas');
-                    } else if (currentRoute.startsWith('/konten')) {
-                      context.go('/konten');
-                    } else {
-                      context.go('/');
-                    }
-                  }
-                },
-              )
-            else
-              IconButton(
-                icon: const Icon(Icons.menu_rounded, color: AdminColors.textPrimary),
-                tooltip: 'Buka Menu',
-                onPressed: onMenuPressed,
-              ),
-          if (!isDesktop) const SizedBox(width: 8),
+            IconButton(
+              icon: const Icon(Icons.menu_rounded,
+                  color: AdminColors.textPrimary),
+              tooltip: 'Buka Menu',
+              onPressed: onMenuPressed,
+            ),
+          if (!isDesktop && !isCompact && isSubDetailRoute)
+            IconButton(
+              icon: const Icon(Icons.arrow_back_rounded,
+                  color: AdminColors.textPrimary),
+              tooltip: 'Kembali',
+              onPressed: () {
+                if (context.canPop()) {
+                  context.pop();
+                } else if (currentRoute.startsWith('/users')) {
+                  context.go('/users');
+                } else if (currentRoute.startsWith('/verifikasi')) {
+                  context.go('/verifikasi');
+                } else if (currentRoute.startsWith('/kelas')) {
+                  context.go('/kelas');
+                } else if (currentRoute.startsWith('/konten')) {
+                  context.go('/konten');
+                } else {
+                  context.go('/');
+                }
+              },
+            ),
+          if (!isDesktop) SizedBox(width: isCompact ? 2 : 6),
 
           // Logo and Title
-          if (!isDesktop)
+          if (!isDesktop && !isCompact)
             Container(
               width: 32,
               height: 32,
@@ -119,18 +119,21 @@ class AdminHeader extends StatelessWidget {
                 child: Icon(Icons.shield_rounded, color: Colors.white, size: 18),
               ),
             ),
-          if (!isDesktop) const SizedBox(width: 10),
+          if (!isDesktop && !isCompact) const SizedBox(width: 10),
 
-          Text(
-            isDesktop ? 'EPIC Admin Panel' : pageTitle,
-            style: TextStyle(
-              fontSize: isDesktop ? 18 : 16,
-              fontWeight: FontWeight.bold,
-              color: const Color(0xFF0F172A),
-              letterSpacing: -0.3,
+          Expanded(
+            child: Text(
+              isDesktop ? 'EPIC Admin Panel' : pageTitle,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: isDesktop ? 18 : (isCompact ? 15 : 16),
+                fontWeight: FontWeight.bold,
+                color: const Color(0xFF0F172A),
+                letterSpacing: -0.3,
+              ),
             ),
           ),
-          const Spacer(),
 
           // Pending verification notification icon with live counter
           StreamBuilder<QuerySnapshot>(
@@ -166,7 +169,7 @@ class AdminHeader extends StatelessWidget {
               );
             },
           ),
-          const SizedBox(width: 8),
+          SizedBox(width: isCompact ? 2 : 8),
 
           // Admin Profile Avatar with Popup Menu
           PopupMenuButton<String>(

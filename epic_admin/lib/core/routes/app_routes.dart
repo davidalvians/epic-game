@@ -2,6 +2,7 @@ import 'package:epic_admin/features/ai_monitoring/ai_monitoring_screen.dart';
 import 'package:epic_admin/features/dashboard/dashboard_screen.dart';
 import 'package:epic_admin/features/kelas/kelas_list_screen.dart';
 import 'package:epic_admin/features/kelas/kelas_detail_screen.dart';
+import 'package:epic_admin/features/kelas/kelas_gallery_screen.dart';
 import 'package:epic_admin/features/konten/instrument_form_screen.dart';
 import 'package:epic_admin/features/konten/onboarding_form_screen.dart';
 import 'package:epic_admin/features/konten/konten_screen.dart';
@@ -9,6 +10,7 @@ import 'package:epic_admin/features/konten/misi_form_screen.dart';
 import 'package:epic_admin/features/konten/template_edit_screen.dart';
 import 'package:epic_admin/features/konten/template_upload_screen.dart';
 import 'package:epic_admin/features/laporan/laporan_screen.dart';
+import 'package:epic_admin/features/evaluasi/evaluasi_screen.dart';
 import 'package:epic_admin/features/settings/settings_screen.dart';
 import 'package:epic_admin/features/users/users_screen.dart';
 import 'package:epic_admin/features/users/murid_detail_screen.dart';
@@ -19,7 +21,6 @@ import 'package:epic_admin/shared/layout/admin_layout.dart';
 import 'package:epic_admin/core/services/auth_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:epic_admin/features/auth/admin_login_screen.dart';
@@ -71,7 +72,8 @@ class AppRoutes {
       if (user == null) {
         clearCache();
         if (isOnLoginPage) return null;
-        if (kDebugMode) debugPrint('[AppRoutes] 🔒 Belum login → redirect ke /login');
+        if (kDebugMode)
+          debugPrint('[AppRoutes] 🔒 Belum login → redirect ke /login');
         return '/login';
       }
 
@@ -80,7 +82,8 @@ class AppRoutes {
       if (_cachedUid == user.uid && _cachedIsAdmin != null) {
         isAdmin = _cachedIsAdmin!;
         if (kDebugMode) {
-          debugPrint('[AppRoutes] ⚡ Menggunakan cached admin role: $isAdmin untuk UID: ${user.uid}');
+          debugPrint(
+              '[AppRoutes] ⚡ Menggunakan cached admin role: $isAdmin untuk UID: ${user.uid}');
         }
       } else {
         // Validasi ke Firestore
@@ -88,13 +91,15 @@ class AppRoutes {
         _cachedUid = user.uid;
         _cachedIsAdmin = isAdmin;
         if (kDebugMode) {
-          debugPrint('[AppRoutes] 💾 Menyimpan admin role: $isAdmin untuk UID: ${user.uid} ke cache');
+          debugPrint(
+              '[AppRoutes] 💾 Menyimpan admin role: $isAdmin untuk UID: ${user.uid} ke cache');
         }
       }
 
       if (!isAdmin) {
         // Sudah login tapi bukan admin → logout paksa
-        if (kDebugMode) debugPrint('[AppRoutes] ❌ Bukan admin, logout → /login');
+        if (kDebugMode)
+          debugPrint('[AppRoutes] ❌ Bukan admin, logout → /login');
         clearCache();
         await _authService.signOut();
         return '/login';
@@ -102,7 +107,8 @@ class AppRoutes {
 
       // Sudah login sebagai admin tapi masih di /login → ke dashboard
       if (isOnLoginPage) {
-        if (kDebugMode) debugPrint('[AppRoutes] ✅ Admin terverifikasi → redirect ke /');
+        if (kDebugMode)
+          debugPrint('[AppRoutes] ✅ Admin terverifikasi → redirect ke /');
         return '/';
       }
 
@@ -130,11 +136,13 @@ class AppRoutes {
             routes: [
               GoRoute(
                 path: 'murid/:id',
-                builder: (context, state) => MuridDetailScreen(id: state.pathParameters['id']!),
+                builder: (context, state) =>
+                    MuridDetailScreen(id: state.pathParameters['id']!),
               ),
               GoRoute(
                 path: 'guru/:id',
-                builder: (context, state) => GuruDetailScreen(id: state.pathParameters['id']!),
+                builder: (context, state) =>
+                    GuruDetailScreen(id: state.pathParameters['id']!),
               ),
             ],
           ),
@@ -144,7 +152,8 @@ class AppRoutes {
             routes: [
               GoRoute(
                 path: ':id',
-                builder: (context, state) => VerifikasiDetailScreen(id: state.pathParameters['id']!),
+                builder: (context, state) =>
+                    VerifikasiDetailScreen(id: state.pathParameters['id']!),
               ),
             ],
           ),
@@ -154,7 +163,16 @@ class AppRoutes {
             routes: [
               GoRoute(
                 path: ':id',
-                builder: (context, state) => KelasDetailScreen(id: state.pathParameters['id']!),
+                builder: (context, state) =>
+                    KelasDetailScreen(id: state.pathParameters['id']!),
+                routes: [
+                  GoRoute(
+                    path: 'galeri',
+                    builder: (context, state) => KelasGalleryScreen(
+                      classId: state.pathParameters['id']!,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -172,15 +190,18 @@ class AppRoutes {
             routes: [
               GoRoute(
                 path: 'instrumen/:id',
-                builder: (context, state) => InstrumentFormScreen(id: state.pathParameters['id']!),
+                builder: (context, state) =>
+                    InstrumentFormScreen(id: state.pathParameters['id']!),
               ),
               GoRoute(
                 path: 'onboarding/:id',
-                builder: (context, state) => OnboardingFormScreen(id: state.pathParameters['id']!),
+                builder: (context, state) =>
+                    OnboardingFormScreen(id: state.pathParameters['id']!),
               ),
               GoRoute(
                 path: 'template/edit/:id',
-                builder: (context, state) => TemplateEditScreen(id: state.pathParameters['id']!),
+                builder: (context, state) =>
+                    TemplateEditScreen(id: state.pathParameters['id']!),
               ),
               GoRoute(
                 path: 'template/upload',
@@ -192,13 +213,18 @@ class AppRoutes {
               ),
               GoRoute(
                 path: 'misi/edit/:id',
-                builder: (context, state) => MisiFormScreen(id: state.pathParameters['id']!),
+                builder: (context, state) =>
+                    MisiFormScreen(id: state.pathParameters['id']!),
               ),
             ],
           ),
           GoRoute(
             path: '/laporan',
             builder: (context, state) => const LaporanScreen(),
+          ),
+          GoRoute(
+            path: '/evaluasi',
+            builder: (context, state) => const EvaluasiScreen(),
           ),
           GoRoute(
             path: '/settings',

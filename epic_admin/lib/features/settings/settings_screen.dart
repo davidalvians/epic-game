@@ -804,7 +804,7 @@ class _SettingsScreenState extends State<SettingsScreen> with SingleTickerProvid
 
   Widget _buildLevelsTabContent(String gameName, Color dotColor, bool isMobile) {
     return ListView(
-      physics: const NeverScrollableScrollPhysics(),
+      physics: const ClampingScrollPhysics(),
       children: List.generate(4, (index) {
         final level = index + 1;
         final isLast = level == 4;

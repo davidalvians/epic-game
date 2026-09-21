@@ -20,6 +20,8 @@ import 'package:epic_app/shared/controllers/session_controller.dart';
 import 'package:epic_app/features/games/menggambar/template_selector_sheet.dart';
 import 'package:epic_app/features/games/menggambar/stempel_painter.dart';
 import 'package:epic_app/shared/widgets/epic_transition_overlay.dart';
+import 'package:epic_app/core/services/student_evaluation_service.dart';
+import 'package:epic_app/shared/widgets/dialog_refleksi_penalaran.dart';
 
 // ─── Enum Tools ────────────────────────────────────────────────────────────────
 
@@ -2364,24 +2366,8 @@ class DrawingController extends GetxController with WidgetsBindingObserver {
     }
 
     activeStempelId.value = ''; // Deselect stempel so UI buttons hide
-    
-    // Tandai sudah submit SEBELUM async apapun, agar _persistState() tidak bisa
-    // menimpa draft kembali saat lifecycle change atau onClose() dipanggil.
-    _isSubmitted = true;
-    debugPrint('✅ [submitDrawing] _isSubmitted = true, draft tidak akan disimpan lagi.');
 
     await Future.delayed(const Duration(milliseconds: 100)); // Wait for UI update
-
-    // 🧹 Hapus draft secara instan dari list memori agar hilang dari UI home.
-    final uid = Get.find<SessionController>().currentUser.value?.uid ?? '';
-    try {
-      Get.find<DraftService>().clearDraftImmediately(uid, kategori, level);
-      // Null-kan _session agar _persistState() di onClose() tidak menimpa kembali.
-      _session = null;
-      debugPrint('✅ Session di-null untuk kategori $kategori level $level');
-    } catch (e) {
-      debugPrint('Error deleting draft: $e');
-    }
 
     final waktuPengerjaan = waktuTerpakai.value;
 
@@ -2393,7 +2379,57 @@ class DrawingController extends GetxController with WidgetsBindingObserver {
         'Gagal Menyimpan',
         'Terjadi masalah saat mengambil gambar kanvas.',
       );
+      resumeTimer();
       return;
+    }
+
+    // ── Pengecekan Evaluasi Penalaran Matematis Siswa (One-Time per Level) ──
+    try {
+      final sessionCtrl = Get.find<SessionController>();
+      final user = sessionCtrl.currentUser.value;
+      if (user != null && user.isMurid) {
+        final evalService = StudentEvaluationService();
+        final hasSubmitted = await evalService.hasStudentSubmitted(
+          user.uid,
+          kategori,
+          level,
+        );
+        if (!hasSubmitted) {
+          final config = await evalService.fetchConfig(kategori, level);
+          if (config != null && config.shouldShowEvaluation) {
+            final activeCtx = Get.context;
+            if (activeCtx != null && activeCtx.mounted) {
+              final bool? didSubmitOrSkip = await DialogRefleksiPenalaran.show(
+                context: activeCtx,
+                config: config,
+                currentUser: user,
+                categoryId: kategori,
+                levelId: level,
+              );
+              // Jika siswa menekan tombol "Kembali" / X (membatalkan evaluasi),
+              // batalkan proses pengumpulan agar siswa tetap di canvas studio dengan draft aman!
+              if (didSubmitOrSkip != true) {
+                debugPrint('🛑 [submitDrawing] Siswa membatalkan evaluasi. Pengumpulan dibatalkan, draft tetap aman.');
+                resumeTimer();
+                return;
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('⚠️ [submitDrawing] Pengecekan evaluasi dilewati: $e');
+    }
+
+    // ✅ Setelah evaluasi selesai / dilewati, tandai submit dan bersihkan draft
+    _isSubmitted = true;
+    final uid = Get.find<SessionController>().currentUser.value?.uid ?? '';
+    try {
+      Get.find<DraftService>().clearDraftImmediately(uid, kategori, level);
+      _session = null;
+      debugPrint('✅ Session di-null untuk kategori $kategori level $level');
+    } catch (e) {
+      debugPrint('Error deleting draft: $e');
     }
 
     debugPrint('🚀 [submitDrawing] Berhasil capture. Pindah ke DrawingResultScreen...');

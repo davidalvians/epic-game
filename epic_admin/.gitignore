@@ -33,6 +33,10 @@ migrate_working_dir/
 /build/
 /coverage/
 
+# Generated report previews and temporary verification files
+/output/
+/tmp/
+
 # Symbolication related
 app.*.symbols
 

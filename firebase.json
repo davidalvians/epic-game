@@ -1,4 +1,10 @@
 {
+  "firestore": {
+    "rules": "epic_app/firestore.rules"
+  },
+  "storage": {
+    "rules": "epic_app/storage.rules"
+  },
   "functions": {
     "source": "functions"
   },

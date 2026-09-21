@@ -1,5 +1,4 @@
 import 'package:epic_admin/core/theme/admin_colors.dart';
-import 'package:epic_admin/shared/layout/admin_bottom_navbar.dart';
 import 'package:epic_admin/shared/layout/admin_header.dart';
 import 'package:epic_admin/shared/layout/admin_sidebar.dart';
 import 'package:flutter/material.dart';
@@ -33,7 +32,6 @@ class _AdminLayoutState extends State<AdminLayout> {
                 child: AdminSidebar(),
               ),
             ),
-      bottomNavigationBar: isDesktop ? null : const AdminBottomNavBar(),
       body: Row(
         children: [
           if (isDesktop) const AdminSidebar(),
@@ -50,10 +48,20 @@ class _AdminLayoutState extends State<AdminLayout> {
                   child: Container(
                     color: AdminColors.background,
                     padding: EdgeInsets.symmetric(
-                      horizontal: isDesktop ? 28.0 : 16.0,
-                      vertical: isDesktop ? 24.0 : 12.0,
+                      horizontal: isDesktop
+                          ? 28.0
+                          : screenWidth < 480
+                              ? 10.0
+                              : 16.0,
+                      vertical: isDesktop ? 24.0 : 10.0,
                     ),
-                    child: widget.child,
+                    child: LayoutBuilder(
+                      builder: (context, constraints) => MediaQuery(
+                        data: MediaQuery.of(context).copyWith(size: Size(
+                          constraints.maxWidth, constraints.maxHeight)),
+                        child: widget.child,
+                      ),
+                    ),
                   ),
                 ),
               ],

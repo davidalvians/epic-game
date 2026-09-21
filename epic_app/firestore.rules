@@ -282,6 +282,19 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // ─── EVALUATION_CONFIGS Collection ────────────────────────────────────
+    match /evaluation_configs/{configId} {
+      allow read: if isLoggedIn();
+      allow write: if isAdmin();
+    }
+
+    // ─── STUDENT_EVALUATIONS Collection ──────────────────────────────────
+    match /student_evaluations/{evalId} {
+      allow read: if isAdmin() || (isLoggedIn() && isOwner(resource.data.studentId));
+      allow create, update: if isLoggedIn();
+      allow delete: if isAdmin();
+    }
+
     // ─── ADMINS Collection ────────────────────────────────────────────────
     match /admins/{uid} {
       allow read: if isLoggedIn();

@@ -362,6 +362,7 @@ class AuthRepository {
       'namaPanggilan': user.namaPanggilan,
       'avatarUrl': user.avatarUrl,
       'sekolah': user.sekolah,
+      'kelas': user.kelas,
       'provinsi': user.provinsi,
       'kabupaten': user.kabupaten,
       'kecamatan': user.kecamatan,
