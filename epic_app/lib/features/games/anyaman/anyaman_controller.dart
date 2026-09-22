@@ -300,8 +300,12 @@ class AnyamanController extends GetxController with WidgetsBindingObserver {
 
   // ─── Grid Config ─────────────────────────────────────────────────────────
 
-  // Ukuran grid per level (makin besar makin kompleks)
-  static const _gridSizes = {1: 8, 2: 10, 3: 12, 4: 14};
+  // Level 2 memakai 6 x 6 blok. Setiap blok terdiri dari 4 bilah yang
+  // masing-masing menutupi 4 sel logis, sehingga backing grid-nya 24 x 24.
+  static const _gridSizes = {1: 8, 2: 24, 3: 12, 4: 14};
+
+  static const int level2BlockCount = 6;
+  static const int level2StripsPerBlock = 4;
 
   late final RxInt currentGridSize;
   int get gridSize => currentGridSize.value;
@@ -718,6 +722,58 @@ class AnyamanController extends GetxController with WidgetsBindingObserver {
     }
   }
 
+  /// Mewarnai satu bilah persegi panjang pada pola khusus Level 2.
+  ///
+  /// Blok dengan indeks genap berisi bilah vertikal, sedangkan blok ganjil
+  /// berisi bilah horizontal. Keempat sel logis di bawah satu bilah selalu
+  /// diberi warna yang sama agar penyimpanan draft tetap memakai format grid.
+  void paintLevel2Strip(int blockRow, int blockCol, int stripIndex) {
+    if (level != 2 || isPaused.value || isTimeUp.value) return;
+    if (blockRow < 0 ||
+        blockRow >= level2BlockCount ||
+        blockCol < 0 ||
+        blockCol >= level2BlockCount ||
+        stripIndex < 0 ||
+        stripIndex >= level2StripsPerBlock) {
+      return;
+    }
+
+    final isVertical = (blockRow + blockCol).isEven;
+    final startRow = blockRow * level2StripsPerBlock;
+    final startCol = blockCol * level2StripsPerBlock;
+    final sampleRow = startRow + (isVertical ? 0 : stripIndex);
+    final sampleCol = startCol + (isVertical ? stripIndex : 0);
+
+    if (isEyedropper.value) {
+      final stripColor = grid[sampleRow][sampleCol].value;
+      if (stripColor != null) {
+        activeColor.value = stripColor;
+        isEraser.value = false;
+        EpicNotification.custom(
+          'Warna Disalin',
+          'Berhasil mengambil warna dari bilah anyaman!',
+          color: stripColor,
+          icon: Icons.colorize_rounded,
+          duration: const Duration(seconds: 2),
+        );
+      } else {
+        EpicNotification.warning(
+          'Bilah Kosong',
+          'Bilah yang disentuh belum memiliki warna!',
+        );
+      }
+      isEyedropper.value = false;
+      return;
+    }
+
+    final targetColor = isEraser.value ? null : activeColor.value;
+    for (int offset = 0; offset < level2StripsPerBlock; offset++) {
+      final row = startRow + (isVertical ? offset : stripIndex);
+      final col = startCol + (isVertical ? stripIndex : offset);
+      _setCellColor(row, col, targetColor);
+    }
+  }
+
   void _setCellColor(int r, int c, Color? color) {
     if (r >= 0 && r < gridSize && c >= 0 && c < gridSize) {
       grid[r][c].value = color;
@@ -792,6 +848,17 @@ class AnyamanController extends GetxController with WidgetsBindingObserver {
   int get totalCells => gridSize * gridSize;
 
   double get fillPercentage => totalCells == 0 ? 0 : filledCells / totalCells;
+
+  int get usedColorCount {
+    final colors = <int>{};
+    for (final row in grid) {
+      for (final cell in row) {
+        final color = cell.value;
+        if (color != null) colors.add(color.toARGB32());
+      }
+    }
+    return colors.length;
+  }
 
   // ─── Persist ─────────────────────────────────────────────────────────────
 
@@ -936,6 +1003,10 @@ class AnyamanController extends GetxController with WidgetsBindingObserver {
               waktuPengerjaan: waktuPengerjaan.clamp(0, _timerDurasi * 4),
               strokeCount: filledCells,
               imageBytes: imageBytes,
+              scoringMetadata: {
+                'uniqueColorCount': usedColorCount,
+                'fillPercentage': fillPercentage,
+              },
             ),
             transition: Transition.fadeIn,
           );
@@ -950,6 +1021,10 @@ class AnyamanController extends GetxController with WidgetsBindingObserver {
           waktuPengerjaan: waktuPengerjaan.clamp(0, _timerDurasiDetik * 4),
           strokeCount: filledCells,
           imageBytes: imageBytes,
+          scoringMetadata: {
+            'uniqueColorCount': usedColorCount,
+            'fillPercentage': fillPercentage,
+          },
         ),
         transition: Transition.fadeIn,
       );

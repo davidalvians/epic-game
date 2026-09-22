@@ -27,6 +27,7 @@ class DrawingResultScreen extends StatefulWidget {
   final int strokeCount;
   final Uint8List? imageBytes;
   final String? templateId;
+  final Map<String, dynamic>? scoringMetadata;
 
   const DrawingResultScreen({
     super.key,
@@ -37,6 +38,7 @@ class DrawingResultScreen extends StatefulWidget {
     required this.strokeCount,
     this.imageBytes,
     this.templateId,
+    this.scoringMetadata,
   });
 
   @override
@@ -265,6 +267,7 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
         level: widget.level,
         strokeCount: widget.strokeCount,
         waktuPengerjaan: widget.waktuPengerjaan,
+        scoringMetadata: widget.scoringMetadata,
       );
 
       final elapsedMs = DateTime.now().difference(startTime).inMilliseconds;
@@ -303,6 +306,7 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
             poinDapat: _poinDapat,
             feedback: _aiFeedback,
             detailPenilaian: {
+              ...result.detailPenilaian,
               'modelUsed': _modelUsed,
             },
             modelAI: _modelUsed,

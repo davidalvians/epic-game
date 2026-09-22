@@ -102,7 +102,7 @@ if (!isDummyCreds) {
  * Helper: Build strict scoring prompt from instrument data.
  * Menggunakan kriteria dinamis dari Firestore instrument.
  */
-function buildScoringPrompt(instrumentData, waktuPengerjaan) {
+function buildScoringPrompt(instrumentData, waktuPengerjaan, scoringMetadata = null) {
   const instructions = instrumentData.systemInstruction || instrumentData.konteksBudaya || "Seni budaya Madura.";
   const materiMatematika = instrumentData.materiMatematika || "Konsep matematika dasar.";
 
@@ -120,6 +120,24 @@ function buildScoringPrompt(instrumentData, waktuPengerjaan) {
     if (!criteriaBuffer) criteriaBuffer = "1. Ketepatan Konsep (Bobot: 40%)\n2. Kreativitas (Bobot: 30%)\n3. Estetika (Bobot: 30%)\n";
   }
 
+  const isAnyamanLevel2 = String(instrumentData.kategori || "").toLowerCase() === "anyaman" && Number(instrumentData.level) === 2;
+  const levelSpecificRubric = isAnyamanLevel2 ? `
+RUBRIK KHUSUS ANYAMAN LEVEL 2 (WAJIB):
+- Nilai kualitas POLA WARNA dari ritme, pengulangan, keseimbangan, dan hubungan warna antarbilah; bentuk grid bawaan aplikasi bukan bukti kreativitas siswa.
+- Satu warna yang dipakai seragam tanpa variasi atau motif: skor kualitas pola warna 10-30 dan kreativitas warna 10-30. Walaupun rapi dan penuh, nilai akhir maksimal 55.
+- Dua atau lebih warna yang hanya ditempatkan acak tidak otomatis kreatif: skor kreativitas maksimal 50.
+- Skor 60-79 membutuhkan pola warna yang sengaja disusun, berulang, cukup seimbang, dan rapi.
+- Skor 80-89 membutuhkan komposisi warna yang jelas harmonis/kontras, pola yang berkembang, seimbang, dan hampir seluruh bilah rapi.
+- Skor 90-100 hanya untuk karya yang sangat orisinal, kompleks tetapi teratur, harmonis, lengkap, dan nyaris tanpa kesalahan; kategori ini harus sangat jarang.
+- Bedakan penilaian setiap kriteria. Jangan memberi skor kreativitas tinggi hanya karena seluruh bilah telah diwarnai.
+` : "";
+  const objectiveData = isAnyamanLevel2 && scoringMetadata ? `
+DATA OBJEKTIF DARI GRID (lebih akurat daripada perkiraan gambar):
+- Jumlah warna yang benar-benar digunakan: ${Number(scoringMetadata.uniqueColorCount) || 0}
+- Persentase bilah yang terisi: ${Math.round((Number(scoringMetadata.fillPercentage) || 0) * 100)}%
+Gunakan data ini sebagai fakta saat menilai variasi warna dan kelengkapan.
+` : "";
+
   return `Anda adalah juri kurator seni etnomatematika Madura yang profesional, jujur, namun mendidik dan komunikatif kepada anak SD (menyapa dengan panggilan "kamu").
 
 WAKTU PENGERJAAN: ${waktuPengerjaan || 0} detik. (Beri toleransi dan apresiasi sewajarnya sesuai waktu pengerjaan).
@@ -132,6 +150,8 @@ ${materiMatematika}
 
 KRITERIA PENILAIAN:
 ${criteriaBuffer}
+${levelSpecificRubric}
+${objectiveData}
 
 INSTRUKSI PENILAIAN YANG WAJIB DIIKUTI:
 - Analisis gambar karya siswa yang diberikan dengan SANGAT SEKSAMA dan OBJEKTIF.
@@ -145,7 +165,7 @@ INSTRUKSI PENILAIAN YANG WAJIB DIIKUTI:
 - Jika karya SEMPURNA (jarang sekali): skor 90-100.
 - Jangan gunakan sistem poin minus. Hanya nilai rentang 0-100.
 - Hitung total skor akhir (0-100) berdasarkan bobot kriteria di atas secara matematis.
-- Tentukan grade: S (90-100), A (75-89), B (60-74), C (45-59), D (0-44).
+- Tentukan grade: S (90-100), A (80-89), B (70-79), C (60-69), D (50-59), E (0-49).
 - Feedback harus memuat 3 bagian dalam 2-3 kalimat yang ramah namun JUJUR:
   1. Apresiasi: Bagian goresan atau perpaduan warna yang sudah baik (jika ada).
   2. Koreksi Jujur: Kesalahan konsep atau letak objek yang salah secara spesifik.
@@ -243,12 +263,12 @@ function getDefaultInstrument(kategori, level) {
     case "anyaman_2":
       return {
         kategori, level, modelAI: "gemini-2.5-flash-lite",
-        konteksBudaya: "Anyaman Madura - Desain ornamen dengan variasi warna yang lebih kaya.",
-        materiMatematika: "Kombinasi warna dan eksplorasi spasial. Warnai grid 10x10 secara bebas menggunakan minimal 3 warna berbeda.",
+        konteksBudaya: "Anyaman Madura tersusun dari bilah-bilah yang saling bersilang untuk membentuk pola geometris yang teratur.",
+        materiMatematika: "Pola spasial dan orientasi. Warnai pola 6x6 blok anyaman; setiap blok terdiri dari 4 bilah persegi panjang dengan arah vertikal dan horizontal yang bergantian.",
         criteria: [
-          { name: "Penggunaan warna (minimal menggunakan 3 warna berbeda pada grid)", weight: 40 },
-          { name: "Kreativitas desain (keunikan motif atau bentuk anyaman yang dibuat)", weight: 30 },
-          { name: "Kerapihan penataan warna keseluruhan", weight: 30 }
+          { name: "Kualitas pola warna anyaman (ritme, pengulangan, dan keseimbangan antarbilah)", weight: 35 },
+          { name: "Kreativitas komposisi warna (variasi, harmoni, kontras, dan orisinalitas)", weight: 40 },
+          { name: "Kerapihan dan kelengkapan pewarnaan setiap bilah", weight: 25 }
         ]
       };
     case "anyaman_3":
@@ -826,7 +846,7 @@ exports.evaluateArtwork = functions
       );
     }
 
-    const { imageBase64, kategori, level, waktuPengerjaan } = data;
+    const { imageBase64, kategori, level, waktuPengerjaan, scoringMetadata } = data;
     if (!imageBase64 || !kategori || !level) {
       throw new functions.https.HttpsError(
         "invalid-argument",
@@ -845,10 +865,11 @@ exports.evaluateArtwork = functions
         .doc(`${kategori}_${level}`)
         .get();
 
-      const instrumentData = instrumentDoc.exists ? instrumentDoc.data() : getDefaultInstrument(kategori, level);
+      const storedInstrument = instrumentDoc.exists ? instrumentDoc.data() : getDefaultInstrument(kategori, level);
+      const instrumentData = { ...storedInstrument, kategori, level };
       const modelName = instrumentData?.modelAI || "gemini-2.5-flash-lite";
 
-      const prompt = buildScoringPrompt(instrumentData, waktuPengerjaan || 0);
+      const prompt = buildScoringPrompt(instrumentData, waktuPengerjaan || 0, scoringMetadata);
 
       // Client fallback ke Cloud Function → gunakan Server API Key.
       // Catatan: Path utama scoring murid dilakukan di client-side (kuota murid sendiri).
@@ -862,8 +883,34 @@ exports.evaluateArtwork = functions
         : parseInt(geminiResult.skor) || 0;
       finalSkor = Math.max(0, Math.min(100, finalSkor));
 
-      const finalGrade = geminiResult.grade || calculateGrade(finalSkor);
-      const finalFeedback = geminiResult.feedback || "Karya sudah dinilai oleh AI.";
+      const objectiveNotes = [];
+      if (String(kategori).toLowerCase() === "anyaman" && Number(level) === 2 && scoringMetadata) {
+        const uniqueColorCount = Number(scoringMetadata.uniqueColorCount);
+        const fillPercentage = Number(scoringMetadata.fillPercentage);
+
+        if (Number.isFinite(uniqueColorCount) && uniqueColorCount <= 1) {
+          finalSkor = Math.min(finalSkor, 55);
+          objectiveNotes.push("Komposisi masih menggunakan satu warna sehingga variasi dan kreativitas warnanya belum terlihat kuat.");
+        }
+        if (Number.isFinite(fillPercentage)) {
+          if (fillPercentage < 0.25) {
+            finalSkor = Math.min(finalSkor, 35);
+            objectiveNotes.push("Bilah yang diwarnai masih kurang dari seperempat pola.");
+          } else if (fillPercentage < 0.50) {
+            finalSkor = Math.min(finalSkor, 50);
+            objectiveNotes.push("Bilah yang diwarnai belum mencapai setengah pola.");
+          } else if (fillPercentage < 0.75) {
+            finalSkor = Math.min(finalSkor, 70);
+            objectiveNotes.push("Pewarnaan pola belum cukup lengkap.");
+          }
+        }
+      }
+
+      const finalGrade = calculateGrade(finalSkor);
+      const aiFeedback = geminiResult.feedback || "Karya sudah dinilai oleh AI.";
+      const finalFeedback = objectiveNotes.length > 0
+        ? `${aiFeedback} ${objectiveNotes.join(" ")}`
+        : aiFeedback;
 
       return {
         success: true,

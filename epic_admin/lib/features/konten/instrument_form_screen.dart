@@ -32,6 +32,37 @@ class _InstrumentFormScreenState extends State<InstrumentFormScreen> {
   Map<String, dynamic>? _sandboxResult;
   final ImagePicker _picker = ImagePicker();
 
+  Map<String, dynamic> _getDefaultInstrumentValues() {
+    if (widget.id.toLowerCase() == 'anyaman_2') {
+      return {
+        'systemInstruction': '''Anda adalah juri Anyaman Level 2. Nilai kualitas pola warna, kreativitas komposisi warna, serta kerapihan dan kelengkapan bilah secara terpisah. Satu warna seragam tanpa variasi atau motif hanya boleh memperoleh skor 10-30 pada kualitas pola dan kreativitas warna, dengan nilai akhir maksimal 55 meskipun rapi dan penuh. Dua atau lebih warna yang ditempatkan acak tidak otomatis kreatif. Nilai 80 ke atas hanya untuk komposisi yang sengaja disusun, harmonis atau kontras, seimbang, lengkap, dan rapi; nilai 90-100 harus sangat jarang.''',
+        'criteria': <Map<String, dynamic>>[
+          {
+            'name': 'Kualitas pola warna anyaman (ritme, pengulangan, dan keseimbangan antarbilah)',
+            'weight': 35,
+          },
+          {
+            'name': 'Kreativitas komposisi warna (variasi, harmoni, kontras, dan orisinalitas)',
+            'weight': 40,
+          },
+          {
+            'name': 'Kerapihan dan kelengkapan pewarnaan setiap bilah',
+            'weight': 25,
+          },
+        ],
+      };
+    }
+
+    return {
+      'systemInstruction': '',
+      'criteria': <Map<String, dynamic>>[
+        {'name': 'Pola & Motif', 'weight': 40},
+        {'name': 'Simetri', 'weight': 30},
+        {'name': 'Kreativitas Warna', 'weight': 30},
+      ],
+    };
+  }
+
   @override
   void initState() {
     super.initState();
@@ -77,6 +108,7 @@ class _InstrumentFormScreenState extends State<InstrumentFormScreen> {
   }
 
   Future<void> _loadInstrumentData() async {
+    final defaults = _getDefaultInstrumentValues();
     try {
       final doc = await FirebaseFirestore.instance
           .collection('app_config')
@@ -89,7 +121,10 @@ class _InstrumentFormScreenState extends State<InstrumentFormScreen> {
         final data = doc.data()!;
         setState(() {
           _selectedModel = data['modelAI'] ?? 'gemini-2.5-flash-lite';
-          _promptController.text = data['systemInstruction'] ?? '';
+          final savedInstruction = data['systemInstruction']?.toString() ?? '';
+          _promptController.text = savedInstruction.trim().isNotEmpty
+              ? savedInstruction
+              : defaults['systemInstruction'] as String;
           _criteriaList.clear();
           
           if (data['criteria'] != null && data['criteria'] is List) {
@@ -118,11 +153,10 @@ class _InstrumentFormScreenState extends State<InstrumentFormScreen> {
           
           // If no criteria, fill defaults
           if (_criteriaList.isEmpty) {
-            _criteriaList.addAll([
-              {'name': 'Pola & Motif', 'weight': 40},
-              {'name': 'Simetri', 'weight': 30},
-              {'name': 'Kreativitas Warna', 'weight': 30},
-            ]);
+            _criteriaList.addAll(
+              (defaults['criteria'] as List<Map<String, dynamic>>)
+                  .map((item) => Map<String, dynamic>.from(item)),
+            );
           }
           _syncControllers();
           _isLoading = false;
@@ -131,12 +165,14 @@ class _InstrumentFormScreenState extends State<InstrumentFormScreen> {
         final parts = widget.id.split('_');
         final categoryName = parts.isNotEmpty ? parts[0] : 'Karya';
         setState(() {
-          _promptController.text = 'Anda adalah juri ahli $categoryName tradisional Indonesia. Tugas Anda adalah menilai karya mewarnai anak SD berdasarkan pola, simetri, dan kreativitas perpaduan warna.';
-          _criteriaList.addAll([
-            {'name': 'Pola & Motif', 'weight': 40},
-            {'name': 'Simetri', 'weight': 30},
-            {'name': 'Kreativitas Warna', 'weight': 30},
-          ]);
+          final defaultInstruction = defaults['systemInstruction'] as String;
+          _promptController.text = defaultInstruction.isNotEmpty
+              ? defaultInstruction
+              : 'Anda adalah juri ahli $categoryName tradisional Indonesia. Tugas Anda adalah menilai karya mewarnai anak SD berdasarkan pola, simetri, dan kreativitas perpaduan warna.';
+          _criteriaList.addAll(
+            (defaults['criteria'] as List<Map<String, dynamic>>)
+                .map((item) => Map<String, dynamic>.from(item)),
+          );
           _syncControllers();
           _isLoading = false;
         });
@@ -166,6 +202,20 @@ class _InstrumentFormScreenState extends State<InstrumentFormScreen> {
   }
 
   bool get _isValid => _totalWeight == 100;
+
+  void _applyLatestDefaults() {
+    final defaults = _getDefaultInstrumentValues();
+    setState(() {
+      _promptController.text = defaults['systemInstruction'] as String;
+      _criteriaList
+        ..clear()
+        ..addAll(
+          (defaults['criteria'] as List<Map<String, dynamic>>)
+              .map((item) => Map<String, dynamic>.from(item)),
+        );
+      _syncControllers();
+    });
+  }
 
   void _addCriteria() {
     setState(() {
@@ -298,6 +348,7 @@ class _InstrumentFormScreenState extends State<InstrumentFormScreen> {
                     'bobot2': _criteriaList.length > 1 ? _criteriaList[1]['weight'] : 0,
                     'kriteria3': _criteriaList.length > 2 ? _criteriaList[2]['name'] : '',
                     'bobot3': _criteriaList.length > 2 ? _criteriaList[2]['weight'] : 0,
+                    'updatedAt': FieldValue.serverTimestamp(),
                   };
 
                   await FirebaseFirestore.instance
@@ -612,6 +663,19 @@ class _InstrumentFormScreenState extends State<InstrumentFormScreen> {
               ),
             ],
           ),
+          if (widget.id.toLowerCase() == 'anyaman_2') ...[
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: _applyLatestDefaults,
+              icon: const Icon(Icons.auto_fix_high_rounded, size: 16),
+              label: const Text('Gunakan Default Level 2 Terbaru'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFF059669),
+                side: const BorderSide(color: Color(0xFF10B981)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+            ),
+          ],
           const SizedBox(height: 16),
           
           SizedBox(

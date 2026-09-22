@@ -412,6 +412,18 @@ class _AnyamanGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     final availableWidth = MediaQuery.of(context).size.width - 48; // padding
 
+    if (controller.level == 2) {
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final availableHeight = constraints.maxHeight;
+          final boardSize = availableHeight.isFinite && availableHeight < availableWidth
+              ? availableHeight
+              : availableWidth;
+          return _buildLevel2Grid(boardSize);
+        },
+      );
+    }
+
     return Obx(() {
       final size = controller.gridSize;
       final cellSize = availableWidth > 0 ? (availableWidth / size) - 1.0 : 32.0; // kurangi 1.0 untuk kompensasi margin 0.5 per sisi
@@ -472,6 +484,174 @@ class _AnyamanGrid extends StatelessWidget {
           ),
       );
     });
+  }
+
+  Widget _buildLevel2Grid(double availableBoardSize) {
+    const blockCount = AnyamanController.level2BlockCount;
+    final boardSize = availableBoardSize > 0 ? availableBoardSize : 320.0;
+    final blockSize = boardSize / blockCount;
+
+    return InteractiveViewer(
+      panEnabled: false,
+      scaleEnabled: true,
+      minScale: 0.5,
+      maxScale: 4.0,
+      child: Center(
+        child: GestureDetector(
+          onPanStart: (details) => _handleLevel2Touch(details.localPosition, blockSize),
+          onPanUpdate: (details) => _handleLevel2Touch(details.localPosition, blockSize),
+          onTapDown: (details) => _handleLevel2Touch(details.localPosition, blockSize),
+          child: Container(
+            width: boardSize,
+            height: boardSize,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.07),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            foregroundDecoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: const Color(0xFF475569).withValues(alpha: 0.7),
+                width: 0.8,
+              ),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: Column(
+                children: List.generate(blockCount, (blockRow) {
+                  return Row(
+                    children: List.generate(blockCount, (blockCol) {
+                      return _buildLevel2Block(blockRow, blockCol, blockSize);
+                    }),
+                  );
+                }),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLevel2Block(int blockRow, int blockCol, double blockSize) {
+    const stripsPerBlock = AnyamanController.level2StripsPerBlock;
+    final isVertical = (blockRow + blockCol).isEven;
+    final startRow = blockRow * stripsPerBlock;
+    final startCol = blockCol * stripsPerBlock;
+
+    final strips = List.generate(stripsPerBlock, (stripIndex) {
+      final row = startRow + (isVertical ? 0 : stripIndex);
+      final col = startCol + (isVertical ? stripIndex : 0);
+
+      return Expanded(
+        child: GetBuilder<AnyamanController>(
+          init: controller,
+          global: false,
+          id: 'grid_${row}_$col',
+          builder: (ctrl) {
+            final color = ctrl.grid[row][col].value;
+            return _buildLevel2Strip(
+              color,
+              isVertical,
+              isLastStrip: stripIndex == stripsPerBlock - 1,
+            );
+          },
+        ),
+      );
+    });
+
+    return Container(
+      width: blockSize,
+      height: blockSize,
+      decoration: BoxDecoration(
+        border: Border(
+          right: blockCol < AnyamanController.level2BlockCount - 1
+              ? BorderSide(
+                  color: const Color(0xFF475569).withValues(alpha: 0.7),
+                  width: 0.8,
+                )
+              : BorderSide.none,
+          bottom: blockRow < AnyamanController.level2BlockCount - 1
+              ? BorderSide(
+                  color: const Color(0xFF475569).withValues(alpha: 0.7),
+                  width: 0.8,
+                )
+              : BorderSide.none,
+        ),
+      ),
+      child: isVertical ? Row(children: strips) : Column(children: strips),
+    );
+  }
+
+  Widget _buildLevel2Strip(
+    Color? color,
+    bool isVertical, {
+    required bool isLastStrip,
+  }) {
+    final baseColor = color ?? const Color(0xFFF8FAFC);
+    final dividerSide = BorderSide(
+      color: const Color(0xFF475569).withValues(alpha: 0.7),
+      width: 0.8,
+    );
+
+    return SizedBox.expand(
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: baseColor,
+          border: Border(
+            right: isVertical && !isLastStrip
+                ? dividerSide
+                : BorderSide.none,
+            bottom: !isVertical && !isLastStrip
+                ? dividerSide
+                : BorderSide.none,
+          ),
+        ),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: isVertical ? Alignment.centerLeft : Alignment.topCenter,
+              end: isVertical ? Alignment.centerRight : Alignment.bottomCenter,
+              colors: [
+                Colors.white.withValues(alpha: 0.10),
+                Colors.transparent,
+                Colors.black.withValues(alpha: 0.04),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _handleLevel2Touch(Offset position, double blockSize) {
+    const blockCount = AnyamanController.level2BlockCount;
+    const stripsPerBlock = AnyamanController.level2StripsPerBlock;
+    final blockCol = (position.dx / blockSize).floor();
+    final blockRow = (position.dy / blockSize).floor();
+    if (blockRow < 0 ||
+        blockRow >= blockCount ||
+        blockCol < 0 ||
+        blockCol >= blockCount) {
+      return;
+    }
+
+    final isVertical = (blockRow + blockCol).isEven;
+    final localX = position.dx - (blockCol * blockSize);
+    final localY = position.dy - (blockRow * blockSize);
+    final stripExtent = blockSize / stripsPerBlock;
+    final stripIndex = ((isVertical ? localX : localY) / stripExtent)
+        .floor()
+        .clamp(0, stripsPerBlock - 1)
+        .toInt();
+    controller.paintLevel2Strip(blockRow, blockCol, stripIndex);
   }
 
   void _handleTouch(Offset position, double cellSize) {

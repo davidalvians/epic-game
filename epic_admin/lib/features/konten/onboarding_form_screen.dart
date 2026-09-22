@@ -62,8 +62,8 @@ class _OnboardingFormScreenState extends State<OnboardingFormScreen> {
         };
       case 'anyaman_2':
         return {
-          'konteksBudaya': 'Anyaman Madura - Desain ornamen dengan variasi warna yang lebih kaya.',
-          'materiMatematika': 'Kombinasi warna dan eksplorasi spasial. Warnai grid 10x10 secara bebas menggunakan minimal 3 warna berbeda.',
+          'konteksBudaya': 'Anyaman Madura tersusun dari bilah-bilah yang saling bersilang untuk membentuk pola geometris yang teratur.',
+          'materiMatematika': 'Pola spasial dan orientasi. Warnai pola 6x6 blok anyaman; setiap blok terdiri dari 4 bilah persegi panjang dengan arah vertikal dan horizontal yang bergantian.',
         };
       case 'anyaman_3':
         return {
@@ -101,6 +101,31 @@ class _OnboardingFormScreenState extends State<OnboardingFormScreen> {
           'materiMatematika': 'Konsep matematika dasar.',
         };
     }
+  }
+
+  List<Map<String, dynamic>> _getDefaultCriteria(String id) {
+    if (id.toLowerCase() == 'anyaman_2') {
+      return [
+        {
+          'name': 'Kualitas pola warna anyaman (ritme, pengulangan, dan keseimbangan antarbilah)',
+          'weight': 35,
+        },
+        {
+          'name': 'Kreativitas komposisi warna (variasi, harmoni, kontras, dan orisinalitas)',
+          'weight': 40,
+        },
+        {
+          'name': 'Kerapihan dan kelengkapan pewarnaan setiap bilah',
+          'weight': 25,
+        },
+      ];
+    }
+
+    return [
+      {'name': 'Kepatuhan Konsep', 'weight': 40},
+      {'name': 'Kreativitas', 'weight': 30},
+      {'name': 'Kerapihan', 'weight': 30},
+    ];
   }
 
   void _loadOnboardingData() async {
@@ -152,11 +177,7 @@ class _OnboardingFormScreenState extends State<OnboardingFormScreen> {
       }
 
       if (_criteriaList.isEmpty) {
-        _criteriaList.addAll([
-          {'name': 'Kepatuhan Konsep', 'weight': 40},
-          {'name': 'Kreativitas', 'weight': 30},
-          {'name': 'Kerapihan', 'weight': 30},
-        ]);
+        _criteriaList.addAll(_getDefaultCriteria(widget.id));
       }
     } catch (e) {
       debugPrint('Error loading onboarding config: $e');

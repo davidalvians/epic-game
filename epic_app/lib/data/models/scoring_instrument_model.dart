@@ -72,13 +72,38 @@ class ScoringInstrumentModel {
   /// Build prompt AI lengkap dari instrumen ini.
   /// Prompt dirancang sangat ketat agar AI memberikan penilaian OBJEKTIF,
   /// tidak selalu memuji, dan memberikan skor rendah untuk karya yang memang jelek.
-  String buildPrompt(int waktuPengerjaan) {
+  String buildPrompt(
+    int waktuPengerjaan, {
+    Map<String, dynamic>? scoringMetadata,
+  }) {
     final StringBuffer criteriaBuffer = StringBuffer();
     for (int i = 0; i < criteria.length; i++) {
       criteriaBuffer.writeln('${i + 1}. ${criteria[i].name} (Bobot: ${criteria[i].weight}%)');
     }
 
     final instructions = systemInstruction.isNotEmpty ? systemInstruction : konteksBudaya;
+    final levelSpecificRubric = kategori.toLowerCase() == 'anyaman' && level == 2
+        ? '''
+RUBRIK KHUSUS ANYAMAN LEVEL 2 (WAJIB):
+- Nilai kualitas POLA WARNA dari ritme, pengulangan, keseimbangan, dan hubungan warna antarbilah; bentuk grid bawaan aplikasi bukan bukti kreativitas siswa.
+- Satu warna yang dipakai seragam tanpa variasi atau motif: skor kualitas pola warna 10-30 dan kreativitas warna 10-30. Walaupun rapi dan penuh, nilai akhir maksimal 55.
+- Dua atau lebih warna yang hanya ditempatkan acak tidak otomatis kreatif: skor kreativitas maksimal 50.
+- Skor 60-79 membutuhkan pola warna yang sengaja disusun, berulang, cukup seimbang, dan rapi.
+- Skor 80-89 membutuhkan komposisi warna yang jelas harmonis/kontras, pola yang berkembang, seimbang, dan hampir seluruh bilah rapi.
+- Skor 90-100 hanya untuk karya yang sangat orisinal, kompleks tetapi teratur, harmonis, lengkap, dan nyaris tanpa kesalahan; kategori ini harus sangat jarang.
+- Bedakan penilaian setiap kriteria. Jangan memberi skor kreativitas tinggi hanya karena seluruh bilah telah diwarnai.
+'''
+        : '';
+    final objectiveData = kategori.toLowerCase() == 'anyaman' &&
+            level == 2 &&
+            scoringMetadata != null
+        ? '''
+DATA OBJEKTIF DARI GRID (lebih akurat daripada perkiraan gambar):
+- Jumlah warna yang benar-benar digunakan: ${scoringMetadata['uniqueColorCount'] ?? 0}
+- Persentase bilah yang terisi: ${(((scoringMetadata['fillPercentage'] as num?) ?? 0) * 100).round()}%
+Gunakan data ini sebagai fakta saat menilai variasi warna dan kelengkapan.
+'''
+        : '';
 
     return '''
 Anda adalah juri kurator seni etnomatematika Madura yang profesional, jujur, namun mendidik dan komunikatif kepada anak SD (menyapa dengan panggilan "kamu").
@@ -93,6 +118,8 @@ $materiMatematika
 
 KRITERIA PENILAIAN:
 $criteriaBuffer
+$levelSpecificRubric
+$objectiveData
 
 INSTRUKSI PENILAIAN YANG WAJIB DIIKUTI SECARA KETAT:
 1. Analisis gambar yang diberikan secara SANGAT SEKSAMA dan OBJEKTIF.
@@ -225,11 +252,14 @@ Hanya berikan JSON, tanpa teks atau format markdown tambahan lainnya.
         return ScoringInstrumentModel(
           kategori: kategori,
           level: level,
-          konteksBudaya: 'Anyaman Madura - Desain ornamen dengan variasi warna yang lebih kaya.',
-          materiMatematika: 'Kombinasi warna dan eksplorasi spasial. Warnai grid 10x10 secara bebas menggunakan minimal 3 warna berbeda.',
-          kriteria1: 'Penggunaan warna (minimal menggunakan 3 warna berbeda pada grid)',
-          kriteria2: 'Kreativitas desain (keunikan motif atau bentuk anyaman yang dibuat)',
-          kriteria3: 'Kerapihan penataan warna keseluruhan',
+          konteksBudaya: 'Anyaman Madura tersusun dari bilah-bilah yang saling bersilang untuk membentuk pola geometris yang teratur.',
+          materiMatematika: 'Pola spasial dan orientasi. Warnai pola 6x6 blok anyaman; setiap blok terdiri dari 4 bilah persegi panjang dengan arah vertikal dan horizontal yang bergantian.',
+          kriteria1: 'Kualitas pola warna anyaman (ritme, pengulangan, dan keseimbangan antarbilah)',
+          bobot1: 35,
+          kriteria2: 'Kreativitas komposisi warna (variasi, harmoni, kontras, dan orisinalitas)',
+          bobot2: 40,
+          kriteria3: 'Kerapihan dan kelengkapan pewarnaan setiap bilah',
+          bobot3: 25,
         );
       case 'anyaman_3':
         return ScoringInstrumentModel(

@@ -56,6 +56,7 @@ class AIScoringService extends GetxService {
     required int level,
     int? strokeCount,
     int? waktuPengerjaan,
+    Map<String, dynamic>? scoringMetadata,
   }) async {
     // Kompres gambar ke max 512x512, quality 70%
     final compressedImage = await _compressImage(imageBytes);
@@ -65,21 +66,79 @@ class AIScoringService extends GetxService {
 
     try {
       // Coba scoring via Gemini dengan retry logic secara langsung di sisi client
-      return await _retryEvaluate(
+      final result = await _retryEvaluate(
         compressedImage,
         instrument,
         waktuPengerjaan,
+        scoringMetadata: scoringMetadata,
         maxRetries: 2,
       );
+      return _applyObjectiveRules(result, instrument, scoringMetadata);
     } catch (e) {
       debugPrint('⚠️ Client-side scoring failed: $e. Falling back to Cloud Function...');
       // Fallback ke Cloud Function yang memiliki akses ke Server API Key baru
-      return await _scoreWithCloudFunction(
+      final result = await _scoreWithCloudFunction(
         compressedImage,
         instrument,
         waktuPengerjaan,
+        scoringMetadata,
+      );
+      return _applyObjectiveRules(result, instrument, scoringMetadata);
+    }
+  }
+
+  AIScoringResult _applyObjectiveRules(
+    AIScoringResult result,
+    ScoringInstrumentModel instrument,
+    Map<String, dynamic>? scoringMetadata,
+  ) {
+    if (instrument.kategori.toLowerCase() != 'anyaman' ||
+        instrument.level != 2 ||
+        scoringMetadata == null) {
+      return result;
+    }
+
+    final uniqueColorCount =
+        (scoringMetadata['uniqueColorCount'] as num?)?.toInt();
+    final fillPercentage =
+        (scoringMetadata['fillPercentage'] as num?)?.toDouble();
+    var adjustedScore = result.skor;
+    final objectiveNotes = <String>[];
+
+    if (uniqueColorCount != null && uniqueColorCount <= 1) {
+      adjustedScore = adjustedScore.clamp(0, 55).toInt();
+      objectiveNotes.add(
+        'Komposisi masih menggunakan satu warna sehingga variasi dan kreativitas warnanya belum terlihat kuat.',
       );
     }
+
+    if (fillPercentage != null) {
+      if (fillPercentage < 0.25) {
+        adjustedScore = adjustedScore.clamp(0, 35).toInt();
+        objectiveNotes.add('Bilah yang diwarnai masih kurang dari seperempat pola.');
+      } else if (fillPercentage < 0.50) {
+        adjustedScore = adjustedScore.clamp(0, 50).toInt();
+        objectiveNotes.add('Bilah yang diwarnai belum mencapai setengah pola.');
+      } else if (fillPercentage < 0.75) {
+        adjustedScore = adjustedScore.clamp(0, 70).toInt();
+        objectiveNotes.add('Pewarnaan pola belum cukup lengkap.');
+      }
+    }
+
+    return AIScoringResult(
+      skor: adjustedScore,
+      grade: _calculateGrade(adjustedScore),
+      feedback: objectiveNotes.isEmpty
+          ? result.feedback
+          : '${result.feedback} ${objectiveNotes.join(' ')}',
+      detailPenilaian: {
+        ...result.detailPenilaian,
+        'scoreBeforeObjectiveRules': result.skor,
+        'uniqueColorCount': uniqueColorCount,
+        'fillPercentage': fillPercentage,
+      },
+      modelUsed: result.modelUsed,
+    );
   }
 
   /// Retry dengan exponential backoff (1s, 2s, 4s).
@@ -88,12 +147,18 @@ class AIScoringService extends GetxService {
     Uint8List imageBytes,
     ScoringInstrumentModel instrument,
     int? waktuPengerjaan, {
+    Map<String, dynamic>? scoringMetadata,
     int maxRetries = 2,
   }) async {
     int attempt = 0;
     while (attempt <= maxRetries) {
       try {
-        return await _scoreWithGemini(imageBytes, instrument, waktuPengerjaan);
+        return await _scoreWithGemini(
+          imageBytes,
+          instrument,
+          waktuPengerjaan,
+          scoringMetadata,
+        );
       } on QuotaExhaustedException {
         // Quota error - jangan retry, rethrow langsung
         rethrow;
@@ -124,6 +189,7 @@ class AIScoringService extends GetxService {
     Uint8List imageBytes,
     ScoringInstrumentModel instrument,
     int? waktuPengerjaan,
+    Map<String, dynamic>? scoringMetadata,
   ) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
@@ -145,6 +211,7 @@ class AIScoringService extends GetxService {
         'kategori': instrument.kategori,
         'level': instrument.level,
         'waktuPengerjaan': waktuPengerjaan ?? 0,
+        if (scoringMetadata != null) 'scoringMetadata': scoringMetadata,
       });
 
       final result = response.data;
@@ -193,6 +260,7 @@ class AIScoringService extends GetxService {
     Uint8List imageBytes,
     ScoringInstrumentModel instrument,
     int? waktuPengerjaan,
+    Map<String, dynamic>? scoringMetadata,
   ) async {
     // Ambil access token
     final accessToken = await _tokenService.getAccessToken();
@@ -205,7 +273,10 @@ class AIScoringService extends GetxService {
     final url = Uri.parse('$_baseUrl/$modelName:generateContent');
 
     final base64Image = base64Encode(imageBytes);
-    final prompt = instrument.buildPrompt(waktuPengerjaan ?? 0);
+    final prompt = instrument.buildPrompt(
+      waktuPengerjaan ?? 0,
+      scoringMetadata: scoringMetadata,
+    );
 
     final requestBody = {
       'contents': [
@@ -336,7 +407,11 @@ class AIScoringService extends GetxService {
           .get();
 
       if (doc.exists && doc.data() != null) {
-        return ScoringInstrumentModel.fromJson(doc.data()!);
+        return ScoringInstrumentModel.fromJson({
+          ...doc.data()!,
+          'kategori': kategori,
+          'level': level,
+        });
       }
     } catch (e) {
       debugPrint('⚠️ Error ambil instrumen dari Firestore: $e');

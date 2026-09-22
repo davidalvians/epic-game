@@ -97,7 +97,7 @@ class _LevelSelectScreenState extends State<LevelSelectScreen> {
           case 1:
             return 'Grid 8x8 • Minimal 2 warna berbeda';
           case 2:
-            return 'Grid 10x10 • Minimal 3 warna berbeda';
+            return 'Pola 6x6 blok • 4 bilah persegi panjang';
           case 3:
             return 'Grid 12x12 • Minimal 4 warna berbeda';
           case 4:
