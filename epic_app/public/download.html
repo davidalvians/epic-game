@@ -194,6 +194,26 @@
             font-size: 16px;
         }
 
+        .upgrade-notice {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            margin-bottom: 18px;
+            padding: 14px 16px;
+            color: #FDE68A;
+            font-size: 13.5px;
+            line-height: 1.55;
+            text-align: left;
+            background: rgba(245, 158, 11, 0.1);
+            border: 1px solid rgba(245, 158, 11, 0.35);
+            border-radius: 14px;
+        }
+
+        .upgrade-notice i {
+            margin-top: 3px;
+            color: #F59E0B;
+        }
+
         .btn-download-primary {
             display: inline-flex;
             align-items: center;
@@ -543,12 +563,17 @@
                 </div>
                 <div class="meta-item">
                     <i class="fa-solid fa-tag"></i>
-                    <span>Versi Resmi Terbaru</span>
+                    <span>Versi 1.1.0</span>
                 </div>
                 <div class="meta-item">
                     <i class="fa-solid fa-file-zipper"></i>
                     <span>Installer APK</span>
                 </div>
+            </div>
+
+            <div class="upgrade-notice" role="note">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+                <span><strong>Khusus pengguna versi 1.0.2 atau lebih lama:</strong> hapus aplikasi EPIC lama satu kali sebelum memasang versi ini. Setelah itu, pembaruan berikutnya dapat dipasang langsung. Data akun dan progres yang tersimpan di cloud akan kembali setelah Anda login.</span>
             </div>
 
             <!-- Direct Download Button to GitHub Releases -->
