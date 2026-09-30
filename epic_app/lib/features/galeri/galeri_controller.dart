@@ -34,12 +34,11 @@ class GaleriController extends GetxController {
     try {
       isLoading.value = true;
       errorMessage.value = '';
-      
+
       final result = await _artworkRepo.getUserArtworks(user.uid);
       artworks.value = result;
-      
+
       _checkAndProcessPendingArtworks();
-      
     } catch (e) {
       errorMessage.value = 'Gagal memuat galeri.';
     } finally {
@@ -51,7 +50,10 @@ class GaleriController extends GetxController {
     if (selectedFilter.value == 'Semua') {
       return artworks;
     }
-    return artworks.where((art) => art.kategori.toLowerCase() == selectedFilter.value.toLowerCase()).toList();
+    return artworks
+        .where((art) =>
+            art.kategori.toLowerCase() == selectedFilter.value.toLowerCase())
+        .toList();
   }
 
   void setFilter(String filter) {
@@ -59,7 +61,13 @@ class GaleriController extends GetxController {
   }
 
   Future<void> _checkAndProcessPendingArtworks() async {
-    final pendingArtworks = artworks.where((a) => a.status == 'pending').toList();
+    final pendingArtworks = artworks
+        .where(
+          (artwork) =>
+              artwork.status == 'pending' &&
+              !ArtworkRepository.isScoringActive(artwork.idKarya),
+        )
+        .toList();
     if (pendingArtworks.isEmpty) return;
 
     final aiService = Get.find<AIScoringService>();
@@ -80,7 +88,8 @@ class GaleriController extends GetxController {
         }
 
         // Fetch image dengan timeout 30 detik
-        final response = await http.get(Uri.parse(artwork.imageUrl))
+        final response = await http
+            .get(Uri.parse(artwork.imageUrl))
             .timeout(const Duration(seconds: 30), onTimeout: () {
           throw TimeoutException('Pengambilan gambar timeout');
         });
@@ -89,17 +98,17 @@ class GaleriController extends GetxController {
           failureCount++;
           continue;
         }
-        
+
         final result = await aiService.evaluateArtwork(
           imageBytes: response.bodyBytes,
           kategori: artwork.kategori,
           level: artwork.level,
           waktuPengerjaan: artwork.waktuPengerjaan,
         );
-        
+
         final multiplier = _getMultiplier(artwork.level);
         final poinDapat = (result.skor * multiplier).round();
-        
+
         await _artworkRepo.updateArtworkScore(
           idKarya: artwork.idKarya,
           skorAI: result.skor,
@@ -124,20 +133,18 @@ class GaleriController extends GetxController {
         final index = artworks.indexWhere((a) => a.idKarya == artwork.idKarya);
         if (index != -1) {
           final updated = artwork.copyWith(
-             skorAI: result.skor,
-             poinDapat: poinDapat,
-             status: 'dinilai',
-             detailPenilaian: {
+              skorAI: result.skor,
+              poinDapat: poinDapat,
+              status: 'dinilai',
+              detailPenilaian: {
                 ...artwork.detailPenilaian,
                 'feedback': result.feedback,
                 'grade': result.grade,
                 'modelUsed': result.modelUsed,
-             }
-          );
+              });
           artworks[index] = updated;
         }
         successCount++;
-
       } on QuotaExhaustedException {
         debugPrint('Auto-scoring stopped: Kuota AI habis');
         break; // Stop processing other pending artworks
@@ -146,22 +153,28 @@ class GaleriController extends GetxController {
         failureCount++;
       }
     }
-    
+
     // Log hasil
     if (successCount > 0 || failureCount > 0) {
-      debugPrint('✅ Auto-retry result: $successCount berhasil, $failureCount gagal');
+      debugPrint(
+          '✅ Auto-retry result: $successCount berhasil, $failureCount gagal');
     }
-    
+
     await _session.refreshUser();
   }
 
   double _getMultiplier(int level) {
     switch (level) {
-      case 1: return 1.0;
-      case 2: return 1.5;
-      case 3: return 2.0;
-      case 4: return 3.0;
-      default: return 1.0;
+      case 1:
+        return 1.0;
+      case 2:
+        return 1.5;
+      case 3:
+        return 2.0;
+      case 4:
+        return 3.0;
+      default:
+        return 1.0;
     }
   }
 }

@@ -11,6 +11,21 @@ class ArtworkRepository {
   final StorageService _storage = Get.find<StorageService>();
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   static const String _collection = 'artworks';
+  static final Set<String> _activeScoringIds = <String>{};
+
+  /// Menandai karya yang masih dinilai oleh layar hasil pada proses aplikasi
+  /// ini. Galeri tidak boleh memulai retry paralel untuk ID yang sama.
+  static void markScoringActive(String artworkId) {
+    _activeScoringIds.add(artworkId);
+  }
+
+  static void markScoringFinished(String artworkId) {
+    _activeScoringIds.remove(artworkId);
+  }
+
+  static bool isScoringActive(String artworkId) {
+    return _activeScoringIds.contains(artworkId);
+  }
 
   /// Menyimpan karya gambar baru ke Storage (gambar) dan Firestore (metadata).
   Future<ArtworkModel> saveArtwork({
@@ -49,7 +64,8 @@ class ArtworkRepository {
         level: level,
         templateId: templateId,
         skorAI: skorAI,
-        grade: grade ?? (skorAI != null ? ArtworkModel.calculateGrade(skorAI) : '-'),
+        grade: grade ??
+            (skorAI != null ? ArtworkModel.calculateGrade(skorAI) : '-'),
         detailPenilaian: detailPenilaian,
         poinDapat: poinDapat,
         waktuPengerjaan: waktuPengerjaan,
@@ -75,8 +91,6 @@ class ArtworkRepository {
       throw Exception('Gagal menyimpan karya: $e');
     }
   }
-
-
 
   /// Mendapatkan detail karya seni berdasarkan ID karya.
   Future<ArtworkModel?> getArtwork(String artworkId) async {
@@ -113,24 +127,24 @@ class ArtworkRepository {
   /// Mendapatkan daftar karya milik beberapa murid sekaligus.
   Future<List<ArtworkModel>> getArtworksByMurids(List<String> muridIds) async {
     if (muridIds.isEmpty) return [];
-    
+
     final List<ArtworkModel> artworks = [];
     try {
       // Bagi ke dalam chunk berisi maksimal 30 item untuk menghindari batas query whereIn Firestore
       for (int i = 0; i < muridIds.length; i += 30) {
         final end = (i + 30 > muridIds.length) ? muridIds.length : i + 30;
         final batch = muridIds.sublist(i, end);
-        
+
         final query = await _db
             .collection(_collection)
             .where('uid', whereIn: batch)
             .get();
-            
+
         for (final doc in query.docs) {
           artworks.add(ArtworkModel.fromJson(doc.data()));
         }
       }
-      
+
       // Urutkan secara menurun berdasarkan tanggal buat (createdAt) secara lokal
       artworks.sort((a, b) => b.createdAt.compareTo(a.createdAt));
       return artworks;
@@ -144,7 +158,7 @@ class ArtworkRepository {
     if (muridIds.isEmpty) {
       return Stream.value(<ArtworkModel>[]).asBroadcastStream();
     }
-    
+
     // Bagi muridIds menjadi beberapa chunk berukuran maksimal 30 (limit whereIn Firestore)
     final List<List<String>> chunks = [];
     for (var i = 0; i < muridIds.length; i += 30) {
@@ -153,7 +167,8 @@ class ArtworkRepository {
     }
 
     late StreamController<List<ArtworkModel>> controller;
-    final List<StreamSubscription<QuerySnapshot<Map<String, dynamic>>>> subscriptions = [];
+    final List<StreamSubscription<QuerySnapshot<Map<String, dynamic>>>>
+        subscriptions = [];
     final Map<int, List<ArtworkModel>> latestData = {};
 
     void emitCombined() {
@@ -204,13 +219,16 @@ class ArtworkRepository {
   }
 
   /// Menghapus atau me-unlink karya dari Firestore dan Storage berdasarkan aturan peran Guru/Murid.
-  Future<void> deleteArtwork(ArtworkModel artwork, {required bool isGuru}) async {
+  Future<void> deleteArtwork(ArtworkModel artwork,
+      {required bool isGuru}) async {
     try {
       // Proteksi Kelas Terarsip: Jangan izinkan modifikasi atau penghapusan karya jika kelas terkait sudah diarsipkan
       if (artwork.kelasId != null) {
-        final classSnap = await _db.collection('kelas').doc(artwork.kelasId).get();
+        final classSnap =
+            await _db.collection('kelas').doc(artwork.kelasId).get();
         if (classSnap.exists && classSnap.data()?['status'] == 'arsip') {
-          throw Exception('Kelas Terarsip: Karya ini terkunci dan tidak dapat dihapus.');
+          throw Exception(
+              'Kelas Terarsip: Karya ini terkunci dan tidak dapat dihapus.');
         }
       }
 
@@ -226,13 +244,15 @@ class ArtworkRepository {
               debugPrint('File di storage gagal dihapus: $e');
             }
           }
-          debugPrint('🗑️ Karya ${artwork.idKarya} berlabel dihapus murid telah dihapus permanen oleh Guru');
+          debugPrint(
+              '🗑️ Karya ${artwork.idKarya} berlabel dihapus murid telah dihapus permanen oleh Guru');
         } else {
           // Aturan a: Guru menghapus karya di kelas -> Hanya UNLINK (kelasId = null), bukan dihapus beneran
           await _db.collection(_collection).doc(artwork.idKarya).update({
             'kelasId': null,
           });
-          debugPrint('✅ Karya ${artwork.idKarya} dilepas tautannya (unlinked) dari kelas oleh Guru');
+          debugPrint(
+              '✅ Karya ${artwork.idKarya} dilepas tautannya (unlinked) dari kelas oleh Guru');
         }
       } else {
         // Logika MURID:
@@ -246,13 +266,15 @@ class ArtworkRepository {
               debugPrint('File di storage gagal dihapus: $e');
             }
           }
-          debugPrint('🗑️ Karya pribadi ${artwork.idKarya} dihapus permanen oleh Murid');
+          debugPrint(
+              '🗑️ Karya pribadi ${artwork.idKarya} dihapus permanen oleh Murid');
         } else {
           // Aturan c: Murid menghapus karya yang terlink ke kelas -> Hanya hapus logis/di sisi murid (deletedByMurid = true)
           await _db.collection(_collection).doc(artwork.idKarya).update({
             'deletedByMurid': true,
           });
-          debugPrint('✅ Karya ${artwork.idKarya} ter-label dihapus murid (tetap tersimpan di kelas Guru)');
+          debugPrint(
+              '✅ Karya ${artwork.idKarya} ter-label dihapus murid (tetap tersimpan di kelas Guru)');
         }
       }
     } catch (e) {
@@ -261,7 +283,8 @@ class ArtworkRepository {
   }
 
   /// Menghapus link kelas pada karya gambar murid tertentu (mengubah kelasId menjadi null).
-  Future<void> removeKelasLinkFromMuridArtworks(String kelasId, String muridUid) async {
+  Future<void> removeKelasLinkFromMuridArtworks(
+      String kelasId, String muridUid) async {
     try {
       final snapshot = await _db
           .collection(_collection)
@@ -274,7 +297,8 @@ class ArtworkRepository {
         batch.update(doc.reference, {'kelasId': null});
       }
       await batch.commit();
-      debugPrint('✅ Membersihkan kelasId untuk ${snapshot.docs.length} karya milik murid $muridUid');
+      debugPrint(
+          '✅ Membersihkan kelasId untuk ${snapshot.docs.length} karya milik murid $muridUid');
     } catch (e) {
       throw Exception('Gagal menghapus link karya dari kelas: $e');
     }
@@ -287,7 +311,9 @@ class ArtworkRepository {
         .where('kelasId', isEqualTo: kelasId)
         .snapshots()
         .map((snapshot) {
-      final list = snapshot.docs.map((doc) => ArtworkModel.fromJson(doc.data())).toList();
+      final list = snapshot.docs
+          .map((doc) => ArtworkModel.fromJson(doc.data()))
+          .toList();
       // Urutkan secara menurun berdasarkan tanggal buat (createdAt) secara lokal
       list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
       return list;
@@ -299,7 +325,7 @@ class ArtworkRepository {
     if (kelasIds.isEmpty) {
       return Stream.value(<ArtworkModel>[]).asBroadcastStream();
     }
-    
+
     // Batasi ke 30 item pertama (batasan whereIn Firestore)
     final chunk = kelasIds.take(30).toList();
     return _db
@@ -307,7 +333,9 @@ class ArtworkRepository {
         .where('kelasId', whereIn: chunk)
         .snapshots()
         .map((snapshot) {
-      final list = snapshot.docs.map((doc) => ArtworkModel.fromJson(doc.data())).toList();
+      final list = snapshot.docs
+          .map((doc) => ArtworkModel.fromJson(doc.data()))
+          .toList();
       // Urutkan secara menurun berdasarkan tanggal buat (createdAt) secara lokal
       list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
       return list;

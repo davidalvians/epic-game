@@ -47,7 +47,6 @@ class DrawingResultScreen extends StatefulWidget {
 
 class _DrawingResultScreenState extends State<DrawingResultScreen>
     with TickerProviderStateMixin {
-  
   // Animation controllers
   late AnimationController _animCtrl;
   late Animation<double> _fadeAnim;
@@ -78,12 +77,11 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
   bool _isPending = false;
   String _pendingReason =
       'Limit penggunaan token AI saat ini sedang habis. Karya kamu telah berhasil disimpan dengan aman ke Galeri.\n\nSistem akan otomatis memberikan skor nanti saat limit token AI kembali tersedia. Jangan khawatir, kerjamu tidak sia-sia!';
-  
+
   int _poinDapat = 0;
   int _skorFinal = 0;
   String _aiFeedback = '';
   String _aiGrade = 'C';
-  String _modelUsed = '';
 
   // Scanning diagnostic stage steps
   int _currentDiagnosticStep = 0;
@@ -156,7 +154,8 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final user = Get.find<SessionController>().currentUser.value;
       if (user != null) {
-        Get.find<DraftService>().clearDraftImmediately(user.uid, widget.kategori, widget.level);
+        Get.find<DraftService>()
+            .clearDraftImmediately(user.uid, widget.kategori, widget.level);
       }
     });
 
@@ -166,7 +165,8 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
     }
 
     // Step cycle timer untuk live diagnostic steps
-    _diagnosticTimer = Timer.periodic(const Duration(milliseconds: 700), (timer) {
+    _diagnosticTimer =
+        Timer.periodic(const Duration(milliseconds: 700), (timer) {
       if (mounted && _isEvaluating) {
         setState(() {
           if (_currentDiagnosticStep < 3) {
@@ -223,7 +223,8 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
             .toList();
         if (activeClasses.isNotEmpty) {
           final savedId = session.activeKelasId.value;
-          if (savedId.isNotEmpty && activeClasses.any((k) => k.kelasId == savedId)) {
+          if (savedId.isNotEmpty &&
+              activeClasses.any((k) => k.kelasId == savedId)) {
             activeKelasId = savedId;
           }
         }
@@ -256,6 +257,13 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
     if (user == null) return;
 
     final pendingSaveFuture = _savePendingArtwork(user.uid);
+    unawaited(
+      pendingSaveFuture.then((artworkId) {
+        if (artworkId != null) {
+          ArtworkRepository.markScoringActive(artworkId);
+        }
+      }),
+    );
     final aiService = Get.find<AIScoringService>();
     final Uint8List imgData = widget.imageBytes ?? Uint8List(0);
     final startTime = DateTime.now();
@@ -276,40 +284,45 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
       }
 
       final savedId = await pendingSaveFuture;
+      final skorFinal = result.skor;
+      final aiFeedback = result.feedback;
+      final aiGrade = result.grade;
+      final modelUsed = result.modelUsed;
+      final poinDapat = (skorFinal * _getMultiplier(widget.level)).round();
 
-      if (!mounted) return;
+      // Kondisi mounted hanya mengatur tampilan. Penyimpanan skor di bawah
+      // harus tetap berjalan walaupun pengguna meninggalkan layar scanning.
+      if (mounted) {
+        if (Get.isRegistered<AudioService>()) {
+          Get.find<AudioService>().stopScanHum();
+          Get.find<AudioService>().playWhoosh();
+        }
 
-      // Hentikan suara scan
-      if (Get.isRegistered<AudioService>()) {
-        Get.find<AudioService>().stopScanHum();
-        Get.find<AudioService>().playWhoosh();
+        setState(() {
+          _skorFinal = skorFinal;
+          _aiFeedback = aiFeedback;
+          _aiGrade = aiGrade;
+          _poinDapat = poinDapat;
+          _isEvaluating = false;
+          _isPending = false;
+          _isSubmitted = true;
+        });
       }
-
-      setState(() {
-        _skorFinal = result.skor;
-        _aiFeedback = result.feedback;
-        _aiGrade = result.grade;
-        _modelUsed = result.modelUsed;
-        _poinDapat = (_skorFinal * _getMultiplier(widget.level)).round();
-        _isEvaluating = false;
-        _isPending = false;
-        _isSubmitted = true;
-      });
 
       // Update Artwork score di background
       if (savedId != null) {
         try {
           await _artworkRepo.updateArtworkScore(
             idKarya: savedId,
-            skorAI: _skorFinal,
-            grade: _aiGrade,
-            poinDapat: _poinDapat,
-            feedback: _aiFeedback,
+            skorAI: skorFinal,
+            grade: aiGrade,
+            poinDapat: poinDapat,
+            feedback: aiFeedback,
             detailPenilaian: {
               ...result.detailPenilaian,
-              'modelUsed': _modelUsed,
+              'modelUsed': modelUsed,
             },
-            modelAI: _modelUsed,
+            modelAI: modelUsed,
           );
         } catch (e) {
           debugPrint('⚠️ Gagal update artwork score: $e');
@@ -322,8 +335,8 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
           uid: user.uid,
           kategori: widget.kategori,
           level: widget.level,
-          skorBaru: _skorFinal,
-          poinBaru: _poinDapat,
+          skorBaru: skorFinal,
+          poinBaru: poinDapat,
         );
       } catch (e) {
         debugPrint('⚠️ Gagal simpan progress: $e');
@@ -342,8 +355,12 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
         final repo = MisiHarianRepository();
         await repo.incrementByType(uid: user.uid, tipe: 'play_game');
         await repo.incrementByType(uid: user.uid, tipe: 'submit_artwork');
-        await repo.incrementByType(uid: user.uid, tipe: 'earn_points', amount: _poinDapat);
-        if (_aiGrade == 'S') {
+        await repo.incrementByType(
+          uid: user.uid,
+          tipe: 'earn_points',
+          amount: poinDapat,
+        );
+        if (aiGrade == 'S') {
           await repo.incrementByType(uid: user.uid, tipe: 'achieve_grade_s');
         }
       } catch (e) {
@@ -353,8 +370,9 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
       await session.refreshUser();
 
       // ── Sequence Animasi Pembukaan Hasil (Grand Arcade Reveal) ──
-      _playRevealSequence();
-
+      if (mounted) {
+        _playRevealSequence();
+      }
     } on QuotaExhaustedException {
       await pendingSaveFuture;
       try {
@@ -414,6 +432,11 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
         userMessage,
         duration: const Duration(seconds: 4),
       );
+    } finally {
+      final savedId = await pendingSaveFuture;
+      if (savedId != null) {
+        ArtworkRepository.markScoringFinished(savedId);
+      }
     }
   }
 
@@ -471,23 +494,34 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
       return Get.find<AppConfigService>().getMultiplier(widget.kategori, level);
     }
     switch (level) {
-      case 1: return 1.0;
-      case 2: return 1.2;
-      case 3: return 1.5;
-      case 4: return 2.0;
-      default: return 1.0;
+      case 1:
+        return 1.0;
+      case 2:
+        return 1.2;
+      case 3:
+        return 1.5;
+      case 4:
+        return 2.0;
+      default:
+        return 1.0;
     }
   }
 
   // --- Grade Visual Themes (Mewah HSL & Cyber-Glow) ---
   Color get _themeColor {
     switch (_aiGrade) {
-      case 'S': return const Color(0xFFFFB800); // Royal Gold
-      case 'A': return const Color(0xFF10B981); // Emerald Green
-      case 'B': return const Color(0xFF38BDF8); // Cyber Cyan
-      case 'C': return const Color(0xFFFB923C); // Sunset Amber
-      case 'D': return const Color(0xFFF87171); // Soft Coral Red
-      default: return const Color(0xFF94A3B8);  // Slate Gray
+      case 'S':
+        return const Color(0xFFFFB800); // Royal Gold
+      case 'A':
+        return const Color(0xFF10B981); // Emerald Green
+      case 'B':
+        return const Color(0xFF38BDF8); // Cyber Cyan
+      case 'C':
+        return const Color(0xFFFB923C); // Sunset Amber
+      case 'D':
+        return const Color(0xFFF87171); // Soft Coral Red
+      default:
+        return const Color(0xFF94A3B8); // Slate Gray
     }
   }
 
@@ -528,12 +562,18 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
 
   String get _celebrationTitle {
     switch (_aiGrade) {
-      case 'S': return 'KARYA LEGENDA! 👑';
-      case 'A': return 'LUAR BIASA HEBAT! 🌟';
-      case 'B': return 'KARYA INDAH! 👍';
-      case 'C': return 'CUKUP BAGUS! 😊';
-      case 'D': return 'USAHA YANG BAIK! 💪';
-      default: return 'MARI COBA LAGI! 🔄';
+      case 'S':
+        return 'KARYA LEGENDA! 👑';
+      case 'A':
+        return 'LUAR BIASA HEBAT! 🌟';
+      case 'B':
+        return 'KARYA INDAH! 👍';
+      case 'C':
+        return 'CUKUP BAGUS! 😊';
+      case 'D':
+        return 'USAHA YANG BAIK! 💪';
+      default:
+        return 'MARI COBA LAGI! 🔄';
     }
   }
 
@@ -552,7 +592,8 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
             Positioned.fill(
               child: CustomPaint(
                 painter: _BatikNebulaPainter(
-                  themeColor: _isEvaluating ? const Color(0xFFF59E0B) : _themeColor,
+                  themeColor:
+                      _isEvaluating ? const Color(0xFFF59E0B) : _themeColor,
                   pulseValue: _scanCtrl.value,
                 ),
               ),
@@ -631,10 +672,11 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
           decoration: BoxDecoration(
             color: const Color(0xFFFFDFA0).withValues(alpha: 0.14),
             borderRadius: BorderRadius.circular(30),
-            border: Border.all(color: const Color(0xFFFFDFA0).withValues(alpha: 0.55)),
+            border: Border.all(
+                color: const Color(0xFFFFDFA0).withValues(alpha: 0.55)),
             boxShadow: [
               BoxShadow(
-              color: const Color(0xFFF59E0B).withValues(alpha: 0.2),
+                color: const Color(0xFFF59E0B).withValues(alpha: 0.2),
                 blurRadius: 12,
               ),
             ],
@@ -649,7 +691,10 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
                   color: Color(0xFFF59E0B),
                   shape: BoxShape.circle,
                   boxShadow: [
-                    BoxShadow(color: Color(0xFFF59E0B), blurRadius: 6, spreadRadius: 1),
+                    BoxShadow(
+                        color: Color(0xFFF59E0B),
+                        blurRadius: 6,
+                        spreadRadius: 1),
                   ],
                 ),
               ),
@@ -675,7 +720,9 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
             color: const Color(0xFFFFE1B5),
             letterSpacing: 0.3,
             shadows: [
-              Shadow(color: const Color(0xFFF59E0B).withValues(alpha: 0.25), blurRadius: 14),
+              Shadow(
+                  color: const Color(0xFFF59E0B).withValues(alpha: 0.25),
+                  blurRadius: 14),
             ],
           ),
         ),
@@ -742,8 +789,9 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
                       builder: (context, child) {
                         // laser sweeps from y = 0 to y = a4Height - 4
                         final beamY = _scanPosition.value * (a4Height - 4);
-                        final isMovingDown = _scanCtrl.status == AnimationStatus.forward;
-                        
+                        final isMovingDown =
+                            _scanCtrl.status == AnimationStatus.forward;
+
                         return Stack(
                           children: [
                             // Volumetric Directional Trail
@@ -755,11 +803,17 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
                               child: Container(
                                 decoration: BoxDecoration(
                                   gradient: LinearGradient(
-                                    begin: isMovingDown ? Alignment.topCenter : Alignment.bottomCenter,
-                                    end: isMovingDown ? Alignment.bottomCenter : Alignment.topCenter,
+                                    begin: isMovingDown
+                                        ? Alignment.topCenter
+                                        : Alignment.bottomCenter,
+                                    end: isMovingDown
+                                        ? Alignment.bottomCenter
+                                        : Alignment.topCenter,
                                     colors: [
-                                      const Color(0xFFFFDFA0).withValues(alpha: 0.0),
-                                      const Color(0xFFFFC15E).withValues(alpha: 0.42),
+                                      const Color(0xFFFFDFA0)
+                                          .withValues(alpha: 0.0),
+                                      const Color(0xFFFFC15E)
+                                          .withValues(alpha: 0.42),
                                     ],
                                   ),
                                 ),
@@ -803,8 +857,12 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
                                   color: Color(0xFFF59E0B),
                                   shape: BoxShape.circle,
                                   boxShadow: [
-                                    BoxShadow(color: Color(0xFFF59E0B), blurRadius: 8, spreadRadius: 2),
-                                    BoxShadow(color: Colors.white, blurRadius: 3),
+                                    BoxShadow(
+                                        color: Color(0xFFF59E0B),
+                                        blurRadius: 8,
+                                        spreadRadius: 2),
+                                    BoxShadow(
+                                        color: Colors.white, blurRadius: 3),
                                   ],
                                 ),
                               ),
@@ -821,8 +879,12 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
                                   color: Color(0xFFF59E0B),
                                   shape: BoxShape.circle,
                                   boxShadow: [
-                                    BoxShadow(color: Color(0xFFF59E0B), blurRadius: 8, spreadRadius: 2),
-                                    BoxShadow(color: Colors.white, blurRadius: 3),
+                                    BoxShadow(
+                                        color: Color(0xFFF59E0B),
+                                        blurRadius: 8,
+                                        spreadRadius: 2),
+                                    BoxShadow(
+                                        color: Colors.white, blurRadius: 3),
                                   ],
                                 ),
                               ),
@@ -841,14 +903,14 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(
-                          color: const Color(0xFFFFDFA0).withValues(alpha: 0.75),
+                          color:
+                              const Color(0xFFFFDFA0).withValues(alpha: 0.75),
                           width: 2,
                         ),
                       ),
                     ),
                   ),
                 ),
-
               ],
             ),
           ),
@@ -950,7 +1012,10 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
       {'title': 'Melihat detail karyamu', 'icon': Icons.visibility_rounded},
       {'title': 'Menemukan pola dan bentuk', 'icon': Icons.grid_view_rounded},
       {'title': 'Mengagumi warna dan budaya', 'icon': Icons.palette_rounded},
-      {'title': 'Menyiapkan apresiasi untukmu', 'icon': Icons.auto_awesome_rounded},
+      {
+        'title': 'Menyiapkan apresiasi untukmu',
+        'icon': Icons.auto_awesome_rounded
+      },
     ];
 
     return Container(
@@ -966,7 +1031,8 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
         children: [
           Row(
             children: [
-              const Icon(Icons.auto_awesome_rounded, size: 16, color: Color(0xFFF59E0B)),
+              const Icon(Icons.auto_awesome_rounded,
+                  size: 16, color: Color(0xFFF59E0B)),
               const SizedBox(width: 8),
               Text(
                 'PERJALANAN APRESIASI',
@@ -1009,19 +1075,22 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
                       ),
                       child: Center(
                         child: isDone
-                            ? const Icon(Icons.check, size: 14, color: Colors.white)
+                            ? const Icon(Icons.check,
+                                size: 14, color: Colors.white)
                             : isCurrent
                                 ? const SizedBox(
                                     width: 10,
                                     height: 10,
                                     child: CircularProgressIndicator(
                                       strokeWidth: 2,
-                                      valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFF59E0B)),
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                          Color(0xFFF59E0B)),
                                     ),
                                   )
                                 : Text(
                                     '${index + 1}',
-                                    style: const TextStyle(fontSize: 10, color: Colors.white38),
+                                    style: const TextStyle(
+                                        fontSize: 10, color: Colors.white38),
                                   ),
                       ),
                     ),
@@ -1031,7 +1100,9 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
                         steps[index]['title'] as String,
                         style: GoogleFonts.nunito(
                           fontSize: 12.5,
-                          fontWeight: isCurrent || isDone ? FontWeight.w800 : FontWeight.w600,
+                          fontWeight: isCurrent || isDone
+                              ? FontWeight.w800
+                              : FontWeight.w600,
                           color: isDone
                               ? Colors.white
                               : isCurrent
@@ -1056,7 +1127,8 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
       decoration: BoxDecoration(
         color: const Color(0xFF00F0FF).withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFF00F0FF).withValues(alpha: 0.2)),
+        border:
+            Border.all(color: const Color(0xFF00F0FF).withValues(alpha: 0.2)),
         boxShadow: const [
           BoxShadow(color: Colors.black26, blurRadius: 10),
         ],
@@ -1069,7 +1141,8 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
               color: const Color(0xFF00F0FF).withValues(alpha: 0.15),
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.psychology_rounded, color: Color(0xFF00F0FF), size: 22),
+            child: const Icon(Icons.psychology_rounded,
+                color: Color(0xFF00F0FF), size: 22),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -1098,7 +1171,8 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
     final themeColor = _themeColor;
     final minutes = widget.waktuPengerjaan ~/ 60;
     final seconds = widget.waktuPengerjaan % 60;
-    final timeStr = '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+    final timeStr =
+        '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
 
     return Container(
       key: const ValueKey('result_view'),
@@ -1191,7 +1265,8 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.02),
         border: Border(
-          bottom: BorderSide(color: Colors.white.withValues(alpha: 0.06), width: 1),
+          bottom:
+              BorderSide(color: Colors.white.withValues(alpha: 0.06), width: 1),
         ),
       ),
       child: Row(
@@ -1201,9 +1276,11 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
             decoration: BoxDecoration(
               color: themeColor.withValues(alpha: 0.12),
               shape: BoxShape.circle,
-              border: Border.all(color: themeColor.withValues(alpha: 0.35), width: 1.5),
+              border: Border.all(
+                  color: themeColor.withValues(alpha: 0.35), width: 1.5),
               boxShadow: [
-                BoxShadow(color: themeColor.withValues(alpha: 0.2), blurRadius: 8),
+                BoxShadow(
+                    color: themeColor.withValues(alpha: 0.2), blurRadius: 8),
               ],
             ),
             child: Text(
@@ -1273,7 +1350,8 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
               height: 146,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                border: Border.all(color: themeColor.withValues(alpha: 0.4), width: 3.0),
+                border: Border.all(
+                    color: themeColor.withValues(alpha: 0.4), width: 3.0),
                 boxShadow: [
                   BoxShadow(
                     color: themeColor.withValues(alpha: 0.35),
@@ -1291,7 +1369,8 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 gradient: _gradeGradient,
-                border: Border.all(color: Colors.white.withValues(alpha: 0.8), width: 3),
+                border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.8), width: 3),
                 boxShadow: const [
                   BoxShadow(
                     color: Colors.black54,
@@ -1311,7 +1390,8 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
                     height: 48,
                     child: Container(
                       decoration: BoxDecoration(
-                        borderRadius: const BorderRadius.vertical(top: Radius.circular(50)),
+                        borderRadius: const BorderRadius.vertical(
+                            top: Radius.circular(50)),
                         gradient: LinearGradient(
                           begin: Alignment.topCenter,
                           end: Alignment.bottomCenter,
@@ -1367,7 +1447,8 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
           AnimatedBuilder(
             animation: _scoreCounterAnim,
             builder: (context, child) {
-              final currentScore = (_scoreCounterAnim.value * _skorFinal).round();
+              final currentScore =
+                  (_scoreCounterAnim.value * _skorFinal).round();
               return Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.baseline,
@@ -1380,7 +1461,9 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
                       fontWeight: FontWeight.w900,
                       color: Colors.white,
                       shadows: [
-                        Shadow(color: themeColor.withValues(alpha: 0.5), blurRadius: 18),
+                        Shadow(
+                            color: themeColor.withValues(alpha: 0.5),
+                            blurRadius: 18),
                       ],
                     ),
                   ),
@@ -1448,7 +1531,8 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
     );
   }
 
-  Widget _buildMiniStatItem(String label, String value, IconData icon, Color color) {
+  Widget _buildMiniStatItem(
+      String label, String value, IconData icon, Color color) {
     return Column(
       children: [
         Row(
@@ -1515,7 +1599,8 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
               ),
               shape: BoxShape.circle,
               boxShadow: [
-                BoxShadow(color: Color(0xFFD97706), blurRadius: 12, spreadRadius: 2),
+                BoxShadow(
+                    color: Color(0xFFD97706), blurRadius: 12, spreadRadius: 2),
               ],
             ),
             child: const Center(
@@ -1543,7 +1628,8 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
                     ),
                     const Spacer(),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 2),
                       decoration: BoxDecoration(
                         color: const Color(0xFFFEF08A).withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(8),
@@ -1581,7 +1667,8 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
                         ),
                       )
                     else if (_isSubmitted)
-                      const Icon(Icons.check_circle_rounded, color: Color(0xFF34D399), size: 20),
+                      const Icon(Icons.check_circle_rounded,
+                          color: Color(0xFF34D399), size: 20),
                   ],
                 ),
                 Text(
@@ -1591,7 +1678,8 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
                   style: GoogleFonts.nunito(
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
-                    color: _isSubmitted ? const Color(0xFF34D399) : Colors.white70,
+                    color:
+                        _isSubmitted ? const Color(0xFF34D399) : Colors.white70,
                   ),
                 ),
               ],
@@ -1620,7 +1708,8 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
         children: [
           Row(
             children: [
-              const Icon(Icons.chat_bubble_outline_rounded, color: Colors.cyanAccent, size: 18),
+              const Icon(Icons.chat_bubble_outline_rounded,
+                  color: Colors.cyanAccent, size: 18),
               const SizedBox(width: 10),
               Text(
                 'CATATAN APRESIASI',
@@ -1675,7 +1764,8 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
       child: Column(
         children: [
           const SizedBox(height: 24),
-          Icon(Icons.hourglass_empty_rounded, size: 80, color: Colors.orange.shade300),
+          Icon(Icons.hourglass_empty_rounded,
+              size: 80, color: Colors.orange.shade300),
           const SizedBox(height: 20),
           Text(
             'PENILAIAN TERTUNDA',
@@ -1758,7 +1848,8 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
                   style: ElevatedButton.styleFrom(
                     backgroundColor: themeColor,
                     foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20)),
                     elevation: 0,
                   ),
                 ),
@@ -1783,8 +1874,10 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
             ),
             style: OutlinedButton.styleFrom(
               foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-              side: BorderSide(color: Colors.white.withValues(alpha: 0.18), width: 1.5),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20)),
+              side: BorderSide(
+                  color: Colors.white.withValues(alpha: 0.18), width: 1.5),
             ),
           ),
         ),
@@ -1897,7 +1990,8 @@ class _BatikNebulaPainter extends CustomPainter {
     const cell = 46.0;
     for (double y = -cell; y < size.height + cell; y += cell) {
       _drawBatikDiamond(canvas, Offset(24, y), 17, motifPaint);
-      _drawBatikDiamond(canvas, Offset(size.width - 24, y + 23), 17, motifPaint);
+      _drawBatikDiamond(
+          canvas, Offset(size.width - 24, y + 23), 17, motifPaint);
     }
 
     // Motif bunga/daun sederhana sebagai aksen, tidak mengganggu isi utama.

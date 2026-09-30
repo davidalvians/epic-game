@@ -28,7 +28,7 @@ class AIScoringResult {
   final String grade;
   final String feedback;
   final Map<String, dynamic> detailPenilaian;
-  final String modelUsed;    // Model AI yang digunakan
+  final String modelUsed; // Model AI yang digunakan
 
   AIScoringResult({
     required this.skor,
@@ -49,7 +49,7 @@ class AIScoringService extends GetxService {
 
   /// Evaluasi karya siswa menggunakan Gemini API.
   /// Jika quota habis (429), akan melempar QuotaExhaustedException.
-  /// Retry otomatis 2x untuk network error (timeout, connection error).
+  /// Retry otomatis sekali untuk token/network error sementara sebelum fallback.
   Future<AIScoringResult> evaluateArtwork({
     required Uint8List imageBytes,
     required String kategori,
@@ -71,11 +71,14 @@ class AIScoringService extends GetxService {
         instrument,
         waktuPengerjaan,
         scoringMetadata: scoringMetadata,
-        maxRetries: 2,
+        // Satu retry singkat menangani token OAuth yang baru siap setelah login
+        // tanpa membuat layar scanning menunggu beberapa menit.
+        maxRetries: 1,
       );
       return _applyObjectiveRules(result, instrument, scoringMetadata);
     } catch (e) {
-      debugPrint('⚠️ Client-side scoring failed: $e. Falling back to Cloud Function...');
+      debugPrint(
+          '⚠️ Client-side scoring failed: $e. Falling back to Cloud Function...');
       // Fallback ke Cloud Function yang memiliki akses ke Server API Key baru
       final result = await _scoreWithCloudFunction(
         compressedImage,
@@ -157,9 +160,9 @@ class AIScoringService extends GetxService {
     var adjustedScore = totalWeight <= 0
         ? 0
         : (List.generate(
-                    3,
-                    (index) => hybridCriteriaScores[index] * weights[index],
-                  ).fold<int>(0, (total, value) => total + value) /
+                  3,
+                  (index) => hybridCriteriaScores[index] * weights[index],
+                ).fold<int>(0, (total, value) => total + value) /
                 totalWeight)
             .round();
     final objectiveNotes = <String>[];
@@ -179,7 +182,8 @@ class AIScoringService extends GetxService {
         objectiveNotes.add('Bilah yang diwarnai masih sangat sedikit.');
       } else if (fillPercentage < 0.25) {
         adjustedScore = adjustedScore.clamp(0, 30).toInt();
-        objectiveNotes.add('Bilah yang diwarnai masih kurang dari seperempat pola.');
+        objectiveNotes
+            .add('Bilah yang diwarnai masih kurang dari seperempat pola.');
       } else if (fillPercentage < 0.50) {
         adjustedScore = adjustedScore.clamp(0, 50).toInt();
         objectiveNotes.add('Bilah yang diwarnai belum mencapai setengah pola.');
@@ -240,7 +244,8 @@ class AIScoringService extends GetxService {
       } on TimeoutException {
         attempt++;
         if (attempt > maxRetries) {
-          throw TimeoutException('AI tidak merespons setelah ${maxRetries + 1} kali coba.');
+          throw TimeoutException(
+              'AI tidak merespons setelah ${maxRetries + 1} kali coba.');
         }
         final delayMs = (1000 * (attempt)).toInt(); // 1s, 2s, 4s...
         debugPrint('⏰ Retry scoring attempt $attempt (delay ${delayMs}ms)');
@@ -275,11 +280,10 @@ class AIScoringService extends GetxService {
       final base64Image = base64Encode(imageBytes);
 
       // Panggil Firebase Cloud Function menggunakan SDK Resmi
-      final callable = FirebaseFunctions.instance
-          .httpsCallable(
-            'evaluateArtwork',
-            options: HttpsCallableOptions(timeout: const Duration(seconds: 120)),
-          );
+      final callable = FirebaseFunctions.instance.httpsCallable(
+        'evaluateArtwork',
+        options: HttpsCallableOptions(timeout: const Duration(seconds: 90)),
+      );
 
       final response = await callable.call({
         'imageBase64': base64Image,
@@ -300,7 +304,7 @@ class AIScoringService extends GetxService {
       if (skor == null) {
         throw Exception('Skor dari server tidak valid.');
       }
-      
+
       final grade = _calculateGrade(skor);
       final feedback = result['feedback']?.toString() ?? 'Karya yang bagus!';
       final modelUsed = result['modelUsed']?.toString() ?? instrument.modelAI;
@@ -319,13 +323,15 @@ class AIScoringService extends GetxService {
       );
     } on FirebaseFunctionsException catch (e) {
       final message = e.message ?? e.toString();
-      if (e.code == 'resource-exhausted' || message.contains('QUOTA_EXCEEDED') || message.contains('resource-exhausted')) {
+      if (e.code == 'resource-exhausted' ||
+          message.contains('QUOTA_EXCEEDED') ||
+          message.contains('resource-exhausted')) {
         throw QuotaExhaustedException();
       }
       throw Exception('Error dari server penilaian: $message');
     } catch (e) {
       if (e is TimeoutException) {
-        throw TimeoutException('Permintaan penilaian ke server timeout (>120s)');
+        throw TimeoutException('Permintaan penilaian ke server timeout (>90s)');
       }
       if (e is QuotaExhaustedException) {
         rethrow;
@@ -333,7 +339,6 @@ class AIScoringService extends GetxService {
       throw Exception('Gagal menghubungi server penilaian: $e');
     }
   }
-
 
   /// Scoring menggunakan Gemini API.
   Future<AIScoringResult> _scoreWithGemini(
@@ -343,9 +348,13 @@ class AIScoringService extends GetxService {
     Map<String, dynamic>? scoringMetadata,
   ) async {
     // Ambil access token
-    final accessToken = await _tokenService.getAccessToken();
+    final accessToken = await _tokenService.getAccessToken().timeout(
+          const Duration(seconds: 15),
+          onTimeout: () => null,
+        );
     if (accessToken == null) {
-      throw Exception('Gemini token tidak tersedia. User belum grant permission.');
+      throw Exception(
+          'Gemini token tidak tersedia. User belum grant permission.');
     }
 
     // Build request
@@ -391,19 +400,29 @@ class AIScoringService extends GetxService {
       },
     };
 
-    final response = await http.post(
+    final response = await http
+        .post(
       url,
       headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $accessToken',
       },
       body: jsonEncode(requestBody),
-    ).timeout(const Duration(seconds: 60), onTimeout: () {
-      throw TimeoutException('Permintaan ke AI timeout (>60s)');
+    )
+        .timeout(const Duration(seconds: 30), onTimeout: () {
+      throw TimeoutException('Permintaan ke AI timeout (>30s)');
     });
 
     if (response.statusCode == 429) {
       throw QuotaExhaustedException();
+    }
+
+    if (response.statusCode == 401 || response.statusCode == 403) {
+      // Token dapat stale tepat setelah restore/login. Buang cache agar satu
+      // retry terkontrol mengambil token baru, bukan mengulang token yang sama.
+      _tokenService.invalidateAccessToken();
+      throw Exception(
+          'Gemini OAuth ditolak (${response.statusCode}); token akan disegarkan.');
     }
 
     if (response.statusCode != 200) {
@@ -439,7 +458,7 @@ class AIScoringService extends GetxService {
     try {
       // Coba parse JSON langsung
       Map<String, dynamic> json;
-      
+
       // Bersihkan jika ada markdown code block
       String cleaned = text.trim();
       if (cleaned.startsWith('```json')) {
@@ -459,7 +478,8 @@ class AIScoringService extends GetxService {
           ? (json['skor'] as num).round()
           : int.tryParse(json['skor']?.toString() ?? '');
       if (skor == null) {
-        throw const FormatException('Respons AI tidak memiliki skor yang valid.');
+        throw const FormatException(
+            'Respons AI tidak memiliki skor yang valid.');
       }
 
       final criteriaScores = json['nilaiKriteria'] is List
@@ -479,9 +499,8 @@ class AIScoringService extends GetxService {
         detailPenilaian: {
           'ai_raw': json,
           'criteriaScores': criteriaScores,
-          'criteriaWeights': instrument.criteria
-              .map((criterion) => criterion.weight)
-              .toList(),
+          'criteriaWeights':
+              instrument.criteria.map((criterion) => criterion.weight).toList(),
           'model': modelName,
           'timestamp': DateTime.now().toIso8601String(),
         },

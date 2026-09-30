@@ -31,6 +31,7 @@ class GeminiTokenService {
   // In-memory cache — hanya hidup selama app berjalan, hilang saat app ditutup
   String? _cachedAccessToken;
   DateTime? _tokenExpiry;
+  Future<String?>? _refreshInFlight;
 
   /// Ambil access token untuk Gemini API.
   ///
@@ -45,25 +46,54 @@ class GeminiTokenService {
     if (_cachedAccessToken != null &&
         _tokenExpiry != null &&
         DateTime.now().isBefore(_tokenExpiry!)) {
-      debugPrint('✅ GeminiTokenService: Reusing cached token (expires: $_tokenExpiry)');
+      debugPrint(
+          '✅ GeminiTokenService: Reusing cached token (expires: $_tokenExpiry)');
       return _cachedAccessToken;
     }
 
+    // Beberapa layar dapat meminta token hampir bersamaan pada sesi baru.
+    // Gunakan satu proses refresh bersama agar Google Sign-In tidak dipanggil
+    // paralel dan menghasilkan token kosong/stale pada permintaan pertama.
+    final activeRefresh = _refreshInFlight;
+    if (activeRefresh != null) {
+      return activeRefresh;
+    }
+
+    final refresh = _refreshAccessToken();
+    _refreshInFlight = refresh;
+    try {
+      return await refresh;
+    } finally {
+      if (identical(_refreshInFlight, refresh)) {
+        _refreshInFlight = null;
+      }
+    }
+  }
+
+  Future<String?> _refreshAccessToken() async {
     try {
       // Refresh token secara silent (tanpa popup ke user)
       final googleUser = await _googleSignIn.signInSilently();
       if (googleUser == null) {
-        debugPrint('⚠️ GeminiTokenService: signInSilently() returned null — user mungkin belum grant scope');
+        debugPrint(
+            '⚠️ GeminiTokenService: signInSilently() returned null — user mungkin belum grant scope');
         return null;
       }
 
       final auth = await googleUser.authentication;
-      _cachedAccessToken = auth.accessToken;
+      final accessToken = auth.accessToken;
+      if (accessToken == null || accessToken.isEmpty) {
+        debugPrint(
+            '⚠️ GeminiTokenService: Google tidak mengembalikan access token');
+        return null;
+      }
+      _cachedAccessToken = accessToken;
 
       // Token Google OAuth2 valid ~1 jam. Set expiry 50 menit untuk safety margin.
       _tokenExpiry = DateTime.now().add(const Duration(minutes: 50));
 
-      debugPrint('✅ GeminiTokenService: Token di-refresh, valid hingga $_tokenExpiry');
+      debugPrint(
+          '✅ GeminiTokenService: Token di-refresh, valid hingga $_tokenExpiry');
       // CATATAN KEAMANAN: Token TIDAK disimpan ke Firestore.
       // Token hanya ada di RAM perangkat murid ini saja.
       return _cachedAccessToken;
@@ -75,16 +105,9 @@ class GeminiTokenService {
 
   /// Cek apakah user sudah grant Gemini scope.
   Future<bool> hasGeminiPermission() async {
-    try {
-      final googleUser = await _googleSignIn.signInSilently();
-      if (googleUser == null) return false;
-
-      // Coba ambil token — jika berhasil berarti scope ter-grant
-      final auth = await googleUser.authentication;
-      return auth.accessToken != null;
-    } catch (e) {
-      return false;
-    }
+    // Selain memverifikasi izin, simpan token yang sama ke cache RAM agar
+    // penilaian karya pertama tidak melakukan autentikasi kedua kalinya.
+    return await getAccessToken() != null;
   }
 
   /// Minta Gemini scope tambahan via Google Sign-In.
@@ -98,6 +121,16 @@ class GeminiTokenService {
       final granted = await _googleSignIn.requestScopes([_geminiScope]);
 
       if (granted) {
+        // Token sebelum persetujuan scope mungkin belum memuat izin Gemini.
+        // Segarkan dan cache token baru sebelum mengizinkan submit berlanjut.
+        invalidateAccessToken();
+        final accessToken = await getAccessToken();
+        if (accessToken == null) {
+          debugPrint(
+              '❌ Gemini permission diberikan, tetapi token baru belum tersedia');
+          return false;
+        }
+
         // Hanya update status boolean (bukan token!) ke Firestore
         final uid = FirebaseAuth.instance.currentUser?.uid;
         if (uid != null) {
@@ -117,8 +150,14 @@ class GeminiTokenService {
 
   /// Invalidate cached token (dipanggil saat logout).
   void clearCache() {
+    invalidateAccessToken();
+    debugPrint('🧹 GeminiTokenService: Cache token dihapus');
+  }
+
+  /// Buang token RAM tanpa mengubah sesi Google/Firebase. Digunakan ketika
+  /// Gemini menolak token lama agar retry berikutnya mengambil token segar.
+  void invalidateAccessToken() {
     _cachedAccessToken = null;
     _tokenExpiry = null;
-    debugPrint('🧹 GeminiTokenService: Cache token dihapus');
   }
 }
