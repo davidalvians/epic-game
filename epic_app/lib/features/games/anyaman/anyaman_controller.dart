@@ -17,6 +17,7 @@ import 'package:epic_app/features/games/menggambar/drawing_result_screen.dart';
 import 'package:epic_app/shared/widgets/epic_transition_overlay.dart';
 import 'package:epic_app/core/services/student_evaluation_service.dart';
 import 'package:epic_app/shared/widgets/dialog_refleksi_penalaran.dart';
+import 'package:epic_app/features/games/anyaman/level4_bunga_api_pattern.dart';
 
 /// Controller untuk game Anyaman — berbasis grid pattern
 class AnyamanController extends GetxController with WidgetsBindingObserver {
@@ -46,7 +47,14 @@ class AnyamanController extends GetxController with WidgetsBindingObserver {
           .get();
 
       if (doc.exists && doc.data() != null) {
-        instrument = ScoringInstrumentModel.fromJson(doc.data()!);
+        final loadedInstrument = ScoringInstrumentModel.fromJson({
+          ...doc.data()!,
+          'kategori': 'anyaman',
+          'level': level,
+        });
+        instrument = _isLegacyAnyamanInstrument(loadedInstrument)
+            ? ScoringInstrumentModel.getDefault('anyaman', level)
+            : loadedInstrument;
       } else {
         instrument = ScoringInstrumentModel.getDefault('anyaman', level);
       }
@@ -65,6 +73,12 @@ class AnyamanController extends GetxController with WidgetsBindingObserver {
       }
 
       final localDefault = ScoringInstrumentModel.getDefault('anyaman', level);
+      if (_containsLegacyAnyamanText(
+            '$onboardingKonteksBudaya $onboardingMateriMatematika',
+          )) {
+        onboardingKonteksBudaya = localDefault.konteksBudaya;
+        onboardingMateriMatematika = localDefault.materiMatematika;
+      }
       onboardingKonteksBudaya ??= localDefault.konteksBudaya;
       onboardingMateriMatematika ??= localDefault.materiMatematika;
     } catch (e) {
@@ -302,10 +316,19 @@ class AnyamanController extends GetxController with WidgetsBindingObserver {
 
   // Level 2 memakai 6 x 6 blok. Setiap blok terdiri dari 4 bilah yang
   // masing-masing menutupi 4 sel logis, sehingga backing grid-nya 24 x 24.
-  static const _gridSizes = {1: 8, 2: 24, 3: 12, 4: 14};
+  static const _gridSizes = {
+    1: 8,
+    2: 24,
+    3: 20,
+    4: level4BungaApiSize,
+  };
 
   static const int level2BlockCount = 6;
   static const int level2StripsPerBlock = 4;
+  static const int level3TileCount = 5;
+  static const int level3RingsPerTile = 3;
+  static const int level3SegmentsPerTile = 13;
+  static const int level3SlotsPerTile = 4;
 
   late final RxInt currentGridSize;
   int get gridSize => currentGridSize.value;
@@ -435,6 +458,7 @@ class AnyamanController extends GetxController with WidgetsBindingObserver {
   }
 
   void changeGridSize(int newSize) {
+    if (level == 4 && newSize != level4BungaApiSize) return;
     if (currentGridSize.value == newSize) return;
     currentGridSize.value = newSize;
     _initGrid();
@@ -722,6 +746,31 @@ class AnyamanController extends GetxController with WidgetsBindingObserver {
     }
   }
 
+  bool _isLegacyAnyamanInstrument(ScoringInstrumentModel value) {
+    return _containsLegacyAnyamanText([
+      value.konteksBudaya,
+      value.materiMatematika,
+      value.systemInstruction,
+      ...value.criteria.map((criterion) => criterion.name),
+    ].join(' '));
+  }
+
+  bool _containsLegacyAnyamanText(String value) {
+    final normalized = value.toLowerCase();
+    if (level == 3) {
+      return normalized.contains('grid 12x12') ||
+          normalized.contains('minimal 4 warna') ||
+          normalized.contains('minimal menggunakan 4 warna');
+    }
+    if (level == 4) {
+      return normalized.contains('grid 14x14') ||
+          normalized.contains('lebih dari 3 warna') ||
+          normalized.contains('anyaman bebas') ||
+          normalized.contains('asisten simetri');
+    }
+    return false;
+  }
+
   /// Mewarnai satu bilah persegi panjang pada pola khusus Level 2.
   ///
   /// Blok dengan indeks genap berisi bilah vertikal, sedangkan blok ganjil
@@ -774,6 +823,111 @@ class AnyamanController extends GetxController with WidgetsBindingObserver {
     }
   }
 
+  /// Mewarnai satu bilah pada motif spiral diagonal khusus Level 3.
+  void paintLevel3Segment(int tileRow, int tileCol, int segmentIndex) {
+    if (level != 3 || isPaused.value || isTimeUp.value) return;
+    if (tileRow < 0 ||
+        tileRow >= level3TileCount ||
+        tileCol < 0 ||
+        tileCol >= level3TileCount ||
+        segmentIndex < 0 ||
+        segmentIndex >= level3SegmentsPerTile) {
+      return;
+    }
+
+    final isCenter = segmentIndex == level3SegmentsPerTile - 1;
+    final row = tileRow * level3SlotsPerTile +
+        (isCenter ? level3SlotsPerTile - 1 : segmentIndex ~/ 4);
+    final col = tileCol * level3SlotsPerTile +
+        (isCenter ? level3SlotsPerTile - 1 : segmentIndex % 4);
+    if (row >= grid.length || col >= grid[row].length) return;
+
+    if (isEyedropper.value) {
+      final segmentColor = grid[row][col].value;
+      if (segmentColor != null) {
+        activeColor.value = segmentColor;
+        isEraser.value = false;
+        EpicNotification.custom(
+          'Warna Disalin',
+          'Berhasil mengambil warna dari bilah anyaman!',
+          color: segmentColor,
+          icon: Icons.colorize_rounded,
+          duration: const Duration(seconds: 2),
+        );
+      } else {
+        EpicNotification.warning(
+          'Bilah Kosong',
+          'Bilah yang disentuh belum memiliki warna!',
+        );
+      }
+      isEyedropper.value = false;
+      return;
+    }
+
+    _setCellColor(row, col, isEraser.value ? null : activeColor.value);
+    update(['level3_grid']);
+  }
+
+  /// Mewarnai satu bidang persegi panjang pada motif Kelarai Bunga Api.
+  void paintLevel4Region(int row, int col) {
+    if (level != 4 || isPaused.value || isTimeUp.value) return;
+    if (row < 0 ||
+        row >= level4BungaApiSize ||
+        col < 0 ||
+        col >= level4BungaApiSize) {
+      return;
+    }
+
+    if (isEyedropper.value) {
+      final regionColor = grid[row][col].value;
+      if (regionColor != null) {
+        activeColor.value = regionColor;
+        isEraser.value = false;
+        EpicNotification.custom(
+          'Warna Disalin',
+          'Berhasil mengambil warna dari bilah anyaman!',
+          color: regionColor,
+          icon: Icons.colorize_rounded,
+          duration: const Duration(seconds: 2),
+        );
+      } else {
+        EpicNotification.warning(
+          'Bilah Kosong',
+          'Bilah yang disentuh belum memiliki warna!',
+        );
+      }
+      isEyedropper.value = false;
+      return;
+    }
+
+    final targetColor = isEraser.value ? null : activeColor.value;
+    final targets = <Point<int>>{Point(col, row)};
+    final symmetry = activeSymmetry.value;
+    if (symmetry == 'vertical' || symmetry == 'both') {
+      targets.add(Point(level4BungaApiSize - 1 - col, row));
+    }
+    if (symmetry == 'horizontal' || symmetry == 'both') {
+      targets.add(Point(col, level4BungaApiSize - 1 - row));
+    }
+    if (symmetry == 'both') {
+      targets.add(Point(
+        level4BungaApiSize - 1 - col,
+        level4BungaApiSize - 1 - row,
+      ));
+    }
+
+    final paintedCells = <int>{};
+    for (final target in targets) {
+      for (final cell in level4BungaApiRegionForCell(target.y, target.x)) {
+        final key = cell.y * level4BungaApiSize + cell.x;
+        if (paintedCells.add(key)) {
+          _setCellColor(cell.y, cell.x, targetColor);
+        }
+      }
+    }
+    update(['level4_grid']);
+  }
+
   void _setCellColor(int r, int c, Color? color) {
     if (r >= 0 && r < gridSize && c >= 0 && c < gridSize) {
       grid[r][c].value = color;
@@ -797,6 +951,8 @@ class AnyamanController extends GetxController with WidgetsBindingObserver {
         update(['grid_${row}_$col']);
       }
     }
+    if (level == 3) update(['level3_grid']);
+    if (level == 4) update(['level4_grid']);
   }
 
   // --- Fitur Pola (Pattern) ---
@@ -811,23 +967,40 @@ class AnyamanController extends GetxController with WidgetsBindingObserver {
     final color5 = palette[5]; // Ungu
     final color6 = palette[6]; // Pink
 
+    Color? colorForCell(int row, int col) {
+      switch (patternType) {
+        case 'catur':
+          return ((row + col) % 2 == 0) ? color1 : color2;
+        case 'vertikal':
+          return (col % 2 == 0) ? color3 : color4;
+        case 'horizontal':
+          return (row % 2 == 0) ? color5 : color6;
+        case 'zigzag':
+          return ((row + col) % 3 == 0) ? palette[1] : palette[7];
+      }
+      return null;
+    }
+
+    if (level == 4) {
+      final visited = <int>{};
+      for (int row = 0; row < level4BungaApiSize; row++) {
+        for (int col = 0; col < level4BungaApiSize; col++) {
+          final key = row * level4BungaApiSize + col;
+          if (visited.contains(key)) continue;
+          final color = colorForCell(row, col);
+          for (final cell in level4BungaApiRegionForCell(row, col)) {
+            visited.add(cell.y * level4BungaApiSize + cell.x);
+            grid[cell.y][cell.x].value = color;
+          }
+        }
+      }
+      update(['level4_grid']);
+      return;
+    }
+
     for (int row = 0; row < gridSize; row++) {
       for (int col = 0; col < gridSize; col++) {
-        Color? selectedColor;
-        switch (patternType) {
-          case 'catur':
-            selectedColor = ((row + col) % 2 == 0) ? color1 : color2;
-            break;
-          case 'vertikal':
-            selectedColor = (col % 2 == 0) ? color3 : color4;
-            break;
-          case 'horizontal':
-            selectedColor = (row % 2 == 0) ? color5 : color6;
-            break;
-          case 'zigzag':
-            selectedColor = ((row + col) % 3 == 0) ? palette[1] : palette[7];
-            break;
-        }
+        final selectedColor = colorForCell(row, col);
         grid[row][col].value = selectedColor;
         update(['grid_${row}_$col']);
       }
@@ -836,6 +1009,29 @@ class AnyamanController extends GetxController with WidgetsBindingObserver {
 
   // Hitung jumlah sel yang terisi
   int get filledCells {
+    if (level == 4) {
+      return _level4RegionColors.whereType<Color>().length;
+    }
+
+    if (level == 3) {
+      int count = 0;
+      for (int tileRow = 0; tileRow < level3TileCount; tileRow++) {
+        for (int tileCol = 0; tileCol < level3TileCount; tileCol++) {
+          for (int segment = 0;
+              segment < level3SegmentsPerTile;
+              segment++) {
+            if (!_isLevel3SegmentVisible(tileRow, tileCol, segment)) {
+              continue;
+            }
+            if (_level3SegmentColor(tileRow, tileCol, segment) != null) {
+              count++;
+            }
+          }
+        }
+      }
+      return count;
+    }
+
     int count = 0;
     for (final row in grid) {
       for (final cell in row) {
@@ -845,12 +1041,53 @@ class AnyamanController extends GetxController with WidgetsBindingObserver {
     return count;
   }
 
-  int get totalCells => gridSize * gridSize;
+  int get totalCells {
+    if (level == 4) return level4BungaApiRegions.length;
+
+    if (level == 3) {
+      int count = 0;
+      for (int tileRow = 0; tileRow < level3TileCount; tileRow++) {
+        for (int tileCol = 0; tileCol < level3TileCount; tileCol++) {
+          for (int segment = 0;
+              segment < level3SegmentsPerTile;
+              segment++) {
+            if (_isLevel3SegmentVisible(tileRow, tileCol, segment)) {
+              count++;
+            }
+          }
+        }
+      }
+      return count;
+    }
+    return gridSize * gridSize;
+  }
 
   double get fillPercentage => totalCells == 0 ? 0 : filledCells / totalCells;
 
   int get usedColorCount {
     final colors = <int>{};
+    if (level == 4) {
+      for (final color in _level4RegionColors.whereType<Color>()) {
+        colors.add(color.toARGB32());
+      }
+      return colors.length;
+    }
+
+    if (level == 3) {
+      for (int tileRow = 0; tileRow < level3TileCount; tileRow++) {
+        for (int tileCol = 0; tileCol < level3TileCount; tileCol++) {
+          for (int segment = 0;
+              segment < level3SegmentsPerTile;
+              segment++) {
+            if (!_isLevel3SegmentVisible(tileRow, tileCol, segment)) continue;
+            final color = _level3SegmentColor(tileRow, tileCol, segment);
+            if (color != null) colors.add(color.toARGB32());
+          }
+        }
+      }
+      return colors.length;
+    }
+
     for (final row in grid) {
       for (final cell in row) {
         final color = cell.value;
@@ -858,6 +1095,309 @@ class AnyamanController extends GetxController with WidgetsBindingObserver {
       }
     }
     return colors.length;
+  }
+
+  Map<String, dynamic> get scoringMetadata {
+    final rows = _buildScoringRows();
+    final colorsForStatistics = level == 4
+        ? _level4RegionColors
+        : <Color?>[for (final row in rows) ...row];
+    final colorCounts = <int, int>{};
+    int filled = 0;
+
+    for (final color in colorsForStatistics) {
+      if (color == null) continue;
+      filled++;
+      final value = color.toARGB32();
+      colorCounts[value] = (colorCounts[value] ?? 0) + 1;
+    }
+
+    final uniqueColors = colorCounts.length;
+    final dominantColorRatio = filled == 0
+        ? 0.0
+        : colorCounts.values.reduce(max) / filled;
+    double colorBalance = 0;
+    if (uniqueColors > 1 && filled > 0) {
+      double entropy = 0;
+      for (final count in colorCounts.values) {
+        final probability = count / filled;
+        entropy -= probability * log(probability);
+      }
+      colorBalance = (entropy / log(uniqueColors)).clamp(0.0, 1.0);
+    }
+
+    final offsets = switch (level) {
+      2 => const <(int, int)>[(0, 1), (0, 2), (0, 4), (0, 8), (1, 0), (2, 0)],
+      3 => const <(int, int)>[(0, 1), (0, 13), (0, 26), (1, 0), (2, 0)],
+      _ => const <(int, int)>[(0, 1), (0, 2), (1, 0), (2, 0), (1, 1)],
+    };
+    final patternConsistency = level == 4
+        ? _level4PatternConsistency(rows, uniqueColors)
+        : _bestColorAgreement(rows, offsets);
+    final transitionRatio = _colorTransitionRatio(rows);
+    final colorRichness = uniqueColors <= 1
+        ? 0.0
+        : (0.65 + (uniqueColors - 2) * 0.10).clamp(0.0, 1.0);
+    final patternScore = (100 *
+            patternConsistency *
+            (0.2 + 0.8 * colorBalance))
+        .clamp(0.0, 100.0);
+    final creativityScore = (100 *
+            colorBalance *
+            colorRichness *
+            (0.3 + 0.7 * patternConsistency))
+        .clamp(0.0, 100.0);
+    final completenessScore = (fillPercentage * 100).clamp(0.0, 100.0);
+    final weights = level == 1
+        ? const [0.40, 0.30, 0.30]
+        : const [0.35, 0.40, 0.25];
+    final objectiveScore = (patternScore * weights[0] +
+            creativityScore * weights[1] +
+            completenessScore * weights[2])
+        .clamp(0.0, 100.0);
+
+    return {
+      'scoringVersion': level == 4
+          ? 'anyaman_level4_regions_v1'
+          : 'anyaman_hybrid_v2',
+      if (level == 4) 'filledRegions': filledCells,
+      if (level == 4) 'totalRegions': totalCells,
+      'uniqueColorCount': uniqueColors,
+      'fillPercentage': fillPercentage,
+      'dominantColorRatio': dominantColorRatio,
+      'colorBalance': colorBalance,
+      'colorRichness': colorRichness,
+      'patternConsistency': patternConsistency,
+      'transitionRatio': transitionRatio,
+      'objectivePatternScore': patternScore.round(),
+      'objectiveCreativityScore': creativityScore.round(),
+      'objectiveCompletenessScore': completenessScore.round(),
+      'objectiveScore': objectiveScore.round(),
+    };
+  }
+
+  List<List<Color?>> _buildScoringRows() {
+    if (level == 2) {
+      return List.generate(level2BlockCount, (blockRow) {
+        return <Color?>[
+          for (int blockCol = 0;
+              blockCol < level2BlockCount;
+              blockCol++)
+            for (int strip = 0; strip < level2StripsPerBlock; strip++)
+              _level2StripColor(blockRow, blockCol, strip),
+        ];
+      });
+    }
+
+    if (level == 3) {
+      return List.generate(level3TileCount, (tileRow) {
+        return <Color?>[
+          for (int tileCol = 0; tileCol < level3TileCount; tileCol++)
+            for (int segment = 0;
+                segment < level3SegmentsPerTile;
+                segment++)
+              _isLevel3SegmentVisible(tileRow, tileCol, segment)
+                  ? _level3SegmentColor(tileRow, tileCol, segment)
+                  : null,
+        ];
+      });
+    }
+
+    return [
+      for (final row in grid) [for (final cell in row) cell.value],
+    ];
+  }
+
+  List<Color?> get _level4RegionColors => [
+        for (final region in level4BungaApiRegions)
+          region.isEmpty ? null : grid[region.first.y][region.first.x].value,
+      ];
+
+  double _level4PatternConsistency(
+    List<List<Color?>> rows,
+    int uniqueColors,
+  ) {
+    if (uniqueColors <= 1 || rows.isEmpty) return 0;
+
+    double agreementFor(Color? Function(int row, int col) counterpart) {
+      int comparisons = 0;
+      int matches = 0;
+      for (int row = 0; row < rows.length; row++) {
+        for (int col = 0; col < rows[row].length; col++) {
+          final first = rows[row][col];
+          final second = counterpart(row, col);
+          if (first == null || second == null) continue;
+          comparisons++;
+          if (first.toARGB32() == second.toARGB32()) matches++;
+        }
+      }
+      return comparisons == 0 ? 0 : matches / comparisons;
+    }
+
+    final lastRow = rows.length - 1;
+    final lastColumn = rows.first.length - 1;
+    final rawAgreement = [
+      agreementFor((row, col) => rows[row][lastColumn - col]),
+      agreementFor((row, col) => rows[lastRow - row][col]),
+      agreementFor((row, col) => rows[lastRow - row][lastColumn - col]),
+    ].reduce(max);
+    final chanceAgreement = 1 / uniqueColors;
+    return ((rawAgreement - chanceAgreement) / (1 - chanceAgreement))
+        .clamp(0.0, 1.0);
+  }
+
+  Color? _level2StripColor(int blockRow, int blockCol, int stripIndex) {
+    final isVertical = (blockRow + blockCol).isEven;
+    final startRow = blockRow * level2StripsPerBlock;
+    final startCol = blockCol * level2StripsPerBlock;
+    final row = startRow + (isVertical ? 0 : stripIndex);
+    final col = startCol + (isVertical ? stripIndex : 0);
+    if (row >= grid.length || col >= grid[row].length) return null;
+    return grid[row][col].value;
+  }
+
+  double _bestColorAgreement(
+    List<List<Color?>> rows,
+    List<(int, int)> offsets,
+  ) {
+    double best = 0;
+    for (final (rowOffset, colOffset) in offsets) {
+      int comparisons = 0;
+      int matches = 0;
+      for (int row = 0; row < rows.length; row++) {
+        for (int col = 0; col < rows[row].length; col++) {
+          final otherRow = row + rowOffset;
+          final otherCol = col + colOffset;
+          if (otherRow >= rows.length ||
+              otherCol >= rows[otherRow].length) {
+            continue;
+          }
+          final first = rows[row][col];
+          final second = rows[otherRow][otherCol];
+          if (first == null || second == null) continue;
+          comparisons++;
+          if (first.toARGB32() == second.toARGB32()) matches++;
+        }
+      }
+      if (comparisons >= 4) {
+        best = max(best, matches / comparisons);
+      }
+    }
+    return best.clamp(0.0, 1.0);
+  }
+
+  double _colorTransitionRatio(List<List<Color?>> rows) {
+    int comparisons = 0;
+    int transitions = 0;
+    for (int row = 0; row < rows.length; row++) {
+      for (int col = 0; col < rows[row].length; col++) {
+        final current = rows[row][col];
+        if (current == null) continue;
+        for (final (rowOffset, colOffset) in const [(0, 1), (1, 0)]) {
+          final otherRow = row + rowOffset;
+          final otherCol = col + colOffset;
+          if (otherRow >= rows.length ||
+              otherCol >= rows[otherRow].length) {
+            continue;
+          }
+          final other = rows[otherRow][otherCol];
+          if (other == null) continue;
+          comparisons++;
+          if (current.toARGB32() != other.toARGB32()) transitions++;
+        }
+      }
+    }
+    return comparisons == 0 ? 0 : transitions / comparisons;
+  }
+
+  Color? level3SegmentColor(int tileRow, int tileCol, int segmentIndex) {
+    return _level3SegmentColor(tileRow, tileCol, segmentIndex);
+  }
+
+  Color? _level3SegmentColor(int tileRow, int tileCol, int segmentIndex) {
+    final isCenter = segmentIndex == level3SegmentsPerTile - 1;
+    final row = tileRow * level3SlotsPerTile +
+        (isCenter ? level3SlotsPerTile - 1 : segmentIndex ~/ 4);
+    final col = tileCol * level3SlotsPerTile +
+        (isCenter ? level3SlotsPerTile - 1 : segmentIndex % 4);
+    if (row >= grid.length || col >= grid[row].length) return null;
+    return grid[row][col].value;
+  }
+
+  /// Hanya bilah yang beririsan dengan bingkai kanvas yang ikut dihitung.
+  /// Kisi Level 3 diputar 45 derajat sehingga sebagian bilah di empat sudut
+  /// backing grid terpotong dan tidak dapat disentuh oleh pemain.
+  bool _isLevel3SegmentVisible(
+    int tileRow,
+    int tileCol,
+    int segmentIndex,
+  ) {
+    final latticeExtent = sqrt(2.0);
+    final tileSize = latticeExtent / level3TileCount;
+    final band = tileSize / 8;
+    final tileLeft = tileCol * tileSize;
+    final tileTop = tileRow * tileSize;
+
+    late final double left;
+    late final double top;
+    late final double right;
+    late final double bottom;
+
+    if (segmentIndex == level3SegmentsPerTile - 1) {
+      final inset = level3RingsPerTile * band;
+      left = tileLeft + inset;
+      top = tileTop + inset;
+      right = tileLeft + tileSize - inset;
+      bottom = tileTop + tileSize - inset;
+    } else {
+      final ring = segmentIndex ~/ 4;
+      final side = segmentIndex % 4;
+      final inset = ring * band;
+      final outerLeft = tileLeft + inset;
+      final outerTop = tileTop + inset;
+      final outerRight = tileLeft + tileSize - inset;
+      final outerBottom = tileTop + tileSize - inset;
+
+      switch (side) {
+        case 0:
+          left = outerLeft;
+          top = outerTop;
+          right = outerRight - band;
+          bottom = outerTop + band;
+        case 1:
+          left = outerRight - band;
+          top = outerTop;
+          right = outerRight;
+          bottom = outerBottom - band;
+        case 2:
+          left = outerLeft + band;
+          top = outerBottom - band;
+          right = outerRight;
+          bottom = outerBottom;
+        default:
+          left = outerLeft;
+          top = outerTop + band;
+          right = outerLeft + band;
+          bottom = outerBottom;
+      }
+    }
+
+    // Setelah rotasi, area kanvas berbentuk belah ketupat pada koordinat
+    // backing grid. Bilah harus mempunyai area nyata di dalam kanvas; delapan
+    // bilah yang hanya bersinggungan tepat pada garis tepi tidak ikut dihitung
+    // karena tidak memiliki area yang dapat disentuh pemain.
+    final center = latticeExtent / 2;
+    final dx = center < left
+        ? left - center
+        : center > right
+            ? center - right
+            : 0.0;
+    final dy = center < top
+        ? top - center
+        : center > bottom
+            ? center - bottom
+            : 0.0;
+    return dx + dy < center - 0.000000001;
   }
 
   // ─── Persist ─────────────────────────────────────────────────────────────
@@ -902,6 +1442,8 @@ class AnyamanController extends GetxController with WidgetsBindingObserver {
           }
         }
       }
+      if (level == 3) update(['level3_grid']);
+      if (level == 4) update(['level4_grid']);
     } catch (_) {
       // Jika gagal load, biarkan grid kosong
     }
@@ -1003,10 +1545,7 @@ class AnyamanController extends GetxController with WidgetsBindingObserver {
               waktuPengerjaan: waktuPengerjaan.clamp(0, _timerDurasi * 4),
               strokeCount: filledCells,
               imageBytes: imageBytes,
-              scoringMetadata: {
-                'uniqueColorCount': usedColorCount,
-                'fillPercentage': fillPercentage,
-              },
+              scoringMetadata: scoringMetadata,
             ),
             transition: Transition.fadeIn,
           );
@@ -1021,10 +1560,7 @@ class AnyamanController extends GetxController with WidgetsBindingObserver {
           waktuPengerjaan: waktuPengerjaan.clamp(0, _timerDurasiDetik * 4),
           strokeCount: filledCells,
           imageBytes: imageBytes,
-          scoringMetadata: {
-            'uniqueColorCount': usedColorCount,
-            'fillPercentage': fillPercentage,
-          },
+          scoringMetadata: scoringMetadata,
         ),
         transition: Transition.fadeIn,
       );

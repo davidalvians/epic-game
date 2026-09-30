@@ -681,7 +681,11 @@ class _VerifikasiDetailScreenState extends State<VerifikasiDetailScreen> {
                       ),
                       icon: const Icon(Icons.delete_forever_rounded, size: 18),
                       label: const Text('Hapus Permohonan & Berkas', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                      onPressed: () => _deleteRejectedVerification(context, widget.id, fileUrl, uid),
+                      onPressed: () => _deleteRejectedVerification(
+                        context,
+                        widget.id,
+                        fileUrl,
+                      ),
                     ),
                   ),
                 ],
@@ -943,7 +947,11 @@ class _VerifikasiDetailScreenState extends State<VerifikasiDetailScreen> {
     }
   }
 
-  void _deleteRejectedVerification(BuildContext context, String requestId, String fileUrl, String uid) {
+  void _deleteRejectedVerification(
+    BuildContext context,
+    String requestId,
+    String fileUrl,
+  ) {
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -951,7 +959,7 @@ class _VerifikasiDetailScreenState extends State<VerifikasiDetailScreen> {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           title: const Text('Konfirmasi Hapus Permohonan', style: TextStyle(fontWeight: FontWeight.bold)),
           content: const Text(
-            'Apakah Anda yakin ingin menghapus permohonan verifikasi ini beserta file bukti mengajarnya dari Firebase Storage?\n\nTindakan ini akan mereset status guru tersebut menjadi aktif kembali.\n\nTindakan ini permanen dan tidak dapat dibatalkan.'
+            'Apakah Anda yakin ingin menghapus permohonan verifikasi ini beserta file bukti mengajarnya dari Firebase Storage?\n\nAkun guru tidak akan dihapus dan guru tetap dapat mengirim permohonan baru.\n\nTindakan ini permanen dan tidak dapat dibatalkan.'
           ),
           actions: [
             TextButton(
@@ -983,52 +991,7 @@ class _VerifikasiDetailScreenState extends State<VerifikasiDetailScreen> {
                 );
 
                 try {
-                  // 1. If uid is provided, clean up and delete user document completely
-                  if (uid.isNotEmpty) {
-                    try {
-                      final userSnap = await FirebaseFirestore.instance.collection('users').doc(uid).get();
-                      String? username;
-                      String? avatarUrl;
-                      if (userSnap.exists) {
-                        final userData = userSnap.data() as Map<String, dynamic>?;
-                        username = userData?['username'] as String?;
-                        avatarUrl = userData?['avatarUrl'] as String?;
-                      }
-
-                      // Delete avatar image from Storage
-                      if (avatarUrl != null && avatarUrl.isNotEmpty && avatarUrl.contains('firebasestorage.googleapis.com')) {
-                        try {
-                          final ref = FirebaseStorage.instance.refFromURL(avatarUrl);
-                          await ref.delete();
-                        } catch (e) {
-                          debugPrint('Error deleting avatar: $e');
-                        }
-                      }
-
-                      // Delete username reservation
-                      if (username != null && username.isNotEmpty) {
-                        await FirebaseFirestore.instance.collection('usernames').doc(username.toLowerCase()).delete();
-                      }
-
-                      // Remove/delete classes associated with this teacher (if any)
-                      final classesSnap = await FirebaseFirestore.instance
-                          .collection('kelas')
-                          .where('guruUid', isEqualTo: uid)
-                          .get();
-                      if (classesSnap.docs.isNotEmpty) {
-                        for (var classDoc in classesSnap.docs) {
-                          await classDoc.reference.delete();
-                        }
-                      }
-
-                      // Delete user document
-                      await FirebaseFirestore.instance.collection('users').doc(uid).delete();
-                    } catch (e) {
-                      debugPrint('Error deleting teacher user: $e');
-                    }
-                  }
-
-                  // 2. Delete proof file from Firebase Storage
+                  // 1. Delete proof file from Firebase Storage.
                   if (fileUrl.isNotEmpty && fileUrl.contains('firebasestorage.googleapis.com')) {
                     try {
                       final ref = FirebaseStorage.instance.refFromURL(fileUrl);
@@ -1038,7 +1001,8 @@ class _VerifikasiDetailScreenState extends State<VerifikasiDetailScreen> {
                     }
                   }
 
-                  // 3. Delete Firestore verification doc
+                  // 2. Delete only the verification request. The teacher
+                  // account remains intact and may submit a new request.
                   await FirebaseFirestore.instance.collection('guru_verifikasi').doc(requestId).delete();
 
                   // Safely pop the loading spinner from the root navigator
@@ -1048,7 +1012,7 @@ class _VerifikasiDetailScreenState extends State<VerifikasiDetailScreen> {
 
                   scaffoldMessenger.showSnackBar(
                     const SnackBar(
-                      content: Text('Permohonan verifikasi dan akun guru berhasil dihapus.'),
+                      content: Text('Permohonan dan berkas verifikasi berhasil dihapus. Akun guru tetap aktif.'),
                       backgroundColor: AdminColors.success,
                     ),
                   );

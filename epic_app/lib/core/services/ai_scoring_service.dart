@@ -92,29 +92,93 @@ class AIScoringService extends GetxService {
     ScoringInstrumentModel instrument,
     Map<String, dynamic>? scoringMetadata,
   ) {
+    if (result.detailPenilaian['objectiveRulesApplied'] == true) {
+      return AIScoringResult(
+        skor: result.skor,
+        grade: _calculateGrade(result.skor),
+        feedback: result.feedback,
+        detailPenilaian: result.detailPenilaian,
+        modelUsed: result.modelUsed,
+      );
+    }
     if (instrument.kategori.toLowerCase() != 'anyaman' ||
-        instrument.level != 2 ||
+        instrument.level < 1 ||
+        instrument.level > 4 ||
         scoringMetadata == null) {
-      return result;
+      return AIScoringResult(
+        skor: result.skor,
+        grade: _calculateGrade(result.skor),
+        feedback: result.feedback,
+        detailPenilaian: result.detailPenilaian,
+        modelUsed: result.modelUsed,
+      );
     }
 
     final uniqueColorCount =
         (scoringMetadata['uniqueColorCount'] as num?)?.toInt();
     final fillPercentage =
         (scoringMetadata['fillPercentage'] as num?)?.toDouble();
-    var adjustedScore = result.skor;
+    final objectiveScores = <int>[
+      ((scoringMetadata['objectivePatternScore'] as num?) ?? 0)
+          .round()
+          .clamp(0, 100),
+      ((scoringMetadata['objectiveCreativityScore'] as num?) ?? 0)
+          .round()
+          .clamp(0, 100),
+      ((scoringMetadata['objectiveCompletenessScore'] as num?) ?? 0)
+          .round()
+          .clamp(0, 100),
+    ];
+    final rawCriteriaScores = result.detailPenilaian['criteriaScores'];
+    final aiCriteriaScores = <int>[
+      for (int index = 0; index < 3; index++)
+        rawCriteriaScores is List &&
+                index < rawCriteriaScores.length &&
+                rawCriteriaScores[index] is num
+            ? (rawCriteriaScores[index] as num).round().clamp(0, 100)
+            : result.skor,
+    ];
+    final hybridCriteriaScores = <int>[
+      for (int index = 0; index < 3; index++)
+        (objectiveScores[index] * 0.75 + aiCriteriaScores[index] * 0.25)
+            .round()
+            .clamp(0, 100),
+    ];
+    final fallbackWeights = instrument.level == 1
+        ? const <int>[40, 30, 30]
+        : const <int>[35, 40, 25];
+    final weights = <int>[
+      for (int index = 0; index < 3; index++)
+        index < instrument.criteria.length
+            ? instrument.criteria[index].weight
+            : fallbackWeights[index],
+    ];
+    final totalWeight = weights.fold<int>(0, (total, weight) => total + weight);
+    var adjustedScore = totalWeight <= 0
+        ? 0
+        : (List.generate(
+                    3,
+                    (index) => hybridCriteriaScores[index] * weights[index],
+                  ).fold<int>(0, (total, value) => total + value) /
+                totalWeight)
+            .round();
     final objectiveNotes = <String>[];
 
     if (uniqueColorCount != null && uniqueColorCount <= 1) {
-      adjustedScore = adjustedScore.clamp(0, 55).toInt();
       objectiveNotes.add(
         'Komposisi masih menggunakan satu warna sehingga variasi dan kreativitas warnanya belum terlihat kuat.',
       );
     }
 
     if (fillPercentage != null) {
-      if (fillPercentage < 0.25) {
-        adjustedScore = adjustedScore.clamp(0, 35).toInt();
+      if (fillPercentage <= 0) {
+        adjustedScore = 0;
+        objectiveNotes.add('Bidang anyaman belum diwarnai.');
+      } else if (fillPercentage < 0.10) {
+        adjustedScore = adjustedScore.clamp(0, 15).toInt();
+        objectiveNotes.add('Bilah yang diwarnai masih sangat sedikit.');
+      } else if (fillPercentage < 0.25) {
+        adjustedScore = adjustedScore.clamp(0, 30).toInt();
         objectiveNotes.add('Bilah yang diwarnai masih kurang dari seperempat pola.');
       } else if (fillPercentage < 0.50) {
         adjustedScore = adjustedScore.clamp(0, 50).toInt();
@@ -133,9 +197,20 @@ class AIScoringService extends GetxService {
           : '${result.feedback} ${objectiveNotes.join(' ')}',
       detailPenilaian: {
         ...result.detailPenilaian,
+        'objectiveRulesApplied': true,
+        'scoringVersion': scoringMetadata['scoringVersion'],
         'scoreBeforeObjectiveRules': result.skor,
+        'aiCriteriaScores': aiCriteriaScores,
+        'objectiveCriteriaScores': objectiveScores,
+        'hybridCriteriaScores': hybridCriteriaScores,
+        'criteriaWeights': weights,
         'uniqueColorCount': uniqueColorCount,
         'fillPercentage': fillPercentage,
+        'dominantColorRatio': scoringMetadata['dominantColorRatio'],
+        'colorBalance': scoringMetadata['colorBalance'],
+        'colorRichness': scoringMetadata['colorRichness'],
+        'patternConsistency': scoringMetadata['patternConsistency'],
+        'transitionRatio': scoringMetadata['transitionRatio'],
       },
       modelUsed: result.modelUsed,
     );
@@ -219,11 +294,14 @@ class AIScoringService extends GetxService {
         throw Exception('Hasil penilaian kosong atau tidak valid.');
       }
 
-      final skor = result['skor'] is int
-          ? result['skor'] as int
-          : int.tryParse(result['skor'].toString()) ?? 70;
+      final skor = result['skor'] is num
+          ? (result['skor'] as num).round()
+          : int.tryParse(result['skor']?.toString() ?? '');
+      if (skor == null) {
+        throw Exception('Skor dari server tidak valid.');
+      }
       
-      final grade = result['grade']?.toString() ?? _calculateGrade(skor);
+      final grade = _calculateGrade(skor);
       final feedback = result['feedback']?.toString() ?? 'Karya yang bagus!';
       final modelUsed = result['modelUsed']?.toString() ?? instrument.modelAI;
 
@@ -232,6 +310,8 @@ class AIScoringService extends GetxService {
         grade: grade,
         feedback: feedback,
         detailPenilaian: {
+          if (result['detailPenilaian'] is Map)
+            ...Map<String, dynamic>.from(result['detailPenilaian'] as Map),
           'modelUsed': modelUsed,
           'scoredAt': DateTime.now().toIso8601String(),
         },
@@ -300,9 +380,13 @@ class AIScoringService extends GetxService {
           'properties': {
             'skor': {'type': 'INTEGER'},
             'grade': {'type': 'STRING'},
+            'nilaiKriteria': {
+              'type': 'ARRAY',
+              'items': {'type': 'INTEGER'},
+            },
             'feedback': {'type': 'STRING'}
           },
-          'required': ['skor', 'grade', 'feedback']
+          'required': ['skor', 'grade', 'nilaiKriteria', 'feedback']
         }
       },
     };
@@ -343,11 +427,15 @@ class AIScoringService extends GetxService {
     final text = parts[0]['text']?.toString() ?? '';
 
     // Parse JSON dari respons Gemini
-    return _parseGeminiResponse(text, instrument.modelAI);
+    return _parseGeminiResponse(text, instrument.modelAI, instrument);
   }
 
   /// Parse respons JSON dari Gemini.
-  AIScoringResult _parseGeminiResponse(String text, String modelName) {
+  AIScoringResult _parseGeminiResponse(
+    String text,
+    String modelName,
+    ScoringInstrumentModel instrument,
+  ) {
     try {
       // Coba parse JSON langsung
       Map<String, dynamic> json;
@@ -367,13 +455,20 @@ class AIScoringService extends GetxService {
 
       json = jsonDecode(cleaned);
 
-      final skor = (json['skor'] is int)
-          ? json['skor'] as int
-          : (json['skor'] is double)
-              ? (json['skor'] as double).round()
-              : 70;
+      final skor = json['skor'] is num
+          ? (json['skor'] as num).round()
+          : int.tryParse(json['skor']?.toString() ?? '');
+      if (skor == null) {
+        throw const FormatException('Respons AI tidak memiliki skor yang valid.');
+      }
 
-      final grade = json['grade']?.toString() ?? _calculateGrade(skor);
+      final criteriaScores = json['nilaiKriteria'] is List
+          ? (json['nilaiKriteria'] as List)
+              .whereType<num>()
+              .map((score) => score.round().clamp(0, 100))
+              .toList()
+          : <int>[];
+      final grade = _calculateGrade(skor);
       final feedback =
           json['feedback']?.toString() ?? 'Karya yang bagus! Terus berlatih!';
 
@@ -383,6 +478,10 @@ class AIScoringService extends GetxService {
         feedback: feedback,
         detailPenilaian: {
           'ai_raw': json,
+          'criteriaScores': criteriaScores,
+          'criteriaWeights': instrument.criteria
+              .map((criterion) => criterion.weight)
+              .toList(),
           'model': modelName,
           'timestamp': DateTime.now().toIso8601String(),
         },
@@ -407,11 +506,15 @@ class AIScoringService extends GetxService {
           .get();
 
       if (doc.exists && doc.data() != null) {
-        return ScoringInstrumentModel.fromJson({
+        final loadedInstrument = ScoringInstrumentModel.fromJson({
           ...doc.data()!,
           'kategori': kategori,
           'level': level,
         });
+        if (_usesLegacyAnyamanScoringValues(loadedInstrument)) {
+          return ScoringInstrumentModel.getDefault(kategori, level);
+        }
+        return loadedInstrument;
       }
     } catch (e) {
       debugPrint('⚠️ Error ambil instrumen dari Firestore: $e');
@@ -419,6 +522,29 @@ class AIScoringService extends GetxService {
 
     // Fallback ke default
     return ScoringInstrumentModel.getDefault(kategori, level);
+  }
+
+  bool _usesLegacyAnyamanScoringValues(ScoringInstrumentModel instrument) {
+    if (instrument.kategori.toLowerCase() != 'anyaman' ||
+        instrument.level < 1 ||
+        instrument.level > 4) {
+      return false;
+    }
+    final normalized = [
+      instrument.konteksBudaya,
+      instrument.materiMatematika,
+      instrument.systemInstruction,
+      ...instrument.criteria.map((criterion) => criterion.name),
+    ].join(' ').toLowerCase();
+    return normalized.contains('grid 12x12') ||
+        normalized.contains('grid 14x14') ||
+        normalized.contains('minimal 4 warna') ||
+        normalized.contains('minimal menggunakan 4 warna') ||
+        normalized.contains('lebih dari 3 warna') ||
+        normalized.contains('anyaman bebas') ||
+        normalized.contains('asisten simetri') ||
+        normalized.contains('nilai akhir maksimal 55') ||
+        normalized.contains('skor 10-30 pada kualitas pola');
   }
 
   /// Kompres gambar ke max 512x512px.

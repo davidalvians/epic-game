@@ -1713,6 +1713,15 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
   }
 
   /// Shimmering Action Buttons
+  void _returnToLevelCard(int targetLevel) {
+    if (Get.isRegistered<AudioService>()) {
+      Get.find<AudioService>().playButtonClick();
+    }
+
+    Get.back(); // Tutup DrawingResultScreen.
+    Get.back(result: targetLevel); // Tutup game dan beri target ke kartu level.
+  }
+
   Widget _buildResultActionButtons(Color themeColor) {
     return Column(
       children: [
@@ -1736,13 +1745,7 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
                   ],
                 ),
                 child: ElevatedButton.icon(
-                  onPressed: () {
-                    if (Get.isRegistered<AudioService>()) {
-                      Get.find<AudioService>().playButtonClick();
-                    }
-                    Get.back(); // Pop DrawingResultScreen
-                    Get.back(); // Pop DrawingScreen
-                  },
+                  onPressed: () => _returnToLevelCard(widget.level + 1),
                   icon: const Icon(Icons.arrow_forward_rounded, size: 22),
                   label: Text(
                     'LANJUT LEVEL ${widget.level + 1}',
@@ -1768,13 +1771,7 @@ class _DrawingResultScreenState extends State<DrawingResultScreen>
           width: double.infinity,
           height: 54,
           child: OutlinedButton.icon(
-            onPressed: () {
-              if (Get.isRegistered<AudioService>()) {
-                Get.find<AudioService>().playButtonClick();
-              }
-              Get.back();
-              Get.back();
-            },
+            onPressed: () => _returnToLevelCard(widget.level),
             icon: const Icon(Icons.refresh_rounded, size: 20),
             label: Text(
               'COBA LAGI LEVEL INI',

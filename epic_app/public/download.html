@@ -226,6 +226,188 @@
             font-size: 20px;
         }
 
+        .btn-download-guide {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            width: 100%;
+            margin-top: 14px;
+            padding: 16px 28px;
+            background: rgba(139, 92, 246, 0.12);
+            color: #C4B5FD;
+            font-family: var(--font-body);
+            font-size: 16px;
+            font-weight: 700;
+            border: 1px solid rgba(139, 92, 246, 0.45);
+            border-radius: 16px;
+            cursor: pointer;
+            transition: all 0.25s ease;
+        }
+
+        .btn-download-guide:hover {
+            color: #FFFFFF;
+            background: rgba(139, 92, 246, 0.22);
+            border-color: var(--secondary);
+            transform: translateY(-2px);
+            box-shadow: 0 10px 24px var(--secondary-glow);
+        }
+
+        .btn-download-guide:active {
+            transform: translateY(0);
+        }
+
+        .btn-download-guide:focus-visible {
+            outline: 3px solid rgba(196, 181, 253, 0.55);
+            outline-offset: 3px;
+        }
+
+        .btn-download-guide i {
+            font-size: 19px;
+        }
+
+        /* Guide Availability Modal */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            background: rgba(8, 8, 12, 0.78);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.25s ease, visibility 0.25s ease;
+        }
+
+        .modal-overlay.is-open {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .guide-modal {
+            position: relative;
+            width: min(100%, 430px);
+            padding: 34px 30px 28px;
+            overflow: hidden;
+            text-align: center;
+            background: linear-gradient(145deg, rgba(39, 35, 51, 0.98), rgba(25, 25, 31, 0.98));
+            border: 1px solid rgba(196, 181, 253, 0.22);
+            border-radius: 26px;
+            box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55), 0 0 45px rgba(139, 92, 246, 0.12);
+            transform: translateY(18px) scale(0.96);
+            transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
+
+        .guide-modal::before {
+            content: '';
+            position: absolute;
+            width: 190px;
+            height: 190px;
+            top: -110px;
+            left: 50%;
+            border-radius: 50%;
+            background: rgba(139, 92, 246, 0.2);
+            filter: blur(35px);
+            transform: translateX(-50%);
+            pointer-events: none;
+        }
+
+        .modal-overlay.is-open .guide-modal {
+            transform: translateY(0) scale(1);
+        }
+
+        .modal-close {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-muted);
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .modal-close:hover {
+            color: #FFFFFF;
+            background: rgba(255, 255, 255, 0.12);
+            transform: rotate(8deg);
+        }
+
+        .modal-icon {
+            position: relative;
+            width: 76px;
+            height: 76px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 20px;
+            color: #DDD6FE;
+            font-size: 31px;
+            background: linear-gradient(145deg, rgba(139, 92, 246, 0.3), rgba(255, 117, 0, 0.16));
+            border: 1px solid rgba(196, 181, 253, 0.3);
+            border-radius: 23px;
+            box-shadow: 0 14px 35px rgba(139, 92, 246, 0.2);
+        }
+
+        .guide-modal h2 {
+            position: relative;
+            margin-bottom: 10px;
+            color: #FFFFFF;
+            font-family: var(--font-display);
+            font-size: 24px;
+            font-weight: 800;
+            line-height: 1.25;
+        }
+
+        .guide-modal p {
+            position: relative;
+            margin: 0 auto 25px;
+            color: var(--text-muted);
+            font-size: 14px;
+            line-height: 1.65;
+        }
+
+        .modal-confirm {
+            position: relative;
+            width: 100%;
+            padding: 14px 22px;
+            color: #FFFFFF;
+            font-family: var(--font-body);
+            font-size: 15px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #9B6AF7 0%, #7C3AED 100%);
+            border: 0;
+            border-radius: 14px;
+            box-shadow: 0 10px 24px rgba(124, 58, 237, 0.3);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .modal-confirm:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 14px 30px rgba(124, 58, 237, 0.42);
+        }
+
+        .modal-close:focus-visible,
+        .modal-confirm:focus-visible {
+            outline: 3px solid rgba(196, 181, 253, 0.55);
+            outline-offset: 3px;
+        }
+
+        body.modal-open {
+            overflow: hidden;
+        }
+
         .security-badge {
             display: flex;
             align-items: center;
@@ -377,6 +559,12 @@
                 <span>Download File APK Sekarang</span>
             </a>
 
+            <!-- Google Drive guide link will replace this temporary action -->
+            <button type="button" class="btn-download-guide" id="btnDownloadGuide">
+                <i class="fa-solid fa-book-open"></i>
+                <span>Unduh Panduan Aplikasi</span>
+            </button>
+
             <div class="security-badge">
                 <i class="fa-solid fa-shield-halved"></i>
                 <span>Aman, Bebas Virus, dan Terverifikasi</span>
@@ -426,6 +614,57 @@
             &copy; 2026 EPIC - Ecocultural Pattern Innovation Creator.
         </div>
     </footer>
+
+    <div class="modal-overlay" id="guideModal" aria-hidden="true">
+        <div class="guide-modal" role="dialog" aria-modal="true" aria-labelledby="guideModalTitle" aria-describedby="guideModalDescription">
+            <button type="button" class="modal-close" id="closeGuideModal" aria-label="Tutup pemberitahuan">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+            <div class="modal-icon" aria-hidden="true">
+                <i class="fa-solid fa-book-open"></i>
+            </div>
+            <h2 id="guideModalTitle">Panduan Segera Hadir</h2>
+            <p id="guideModalDescription">
+                Buku panduan aplikasi sedang kami persiapkan agar lebih lengkap dan mudah dipahami. Silakan periksa kembali nanti.
+            </p>
+            <button type="button" class="modal-confirm" id="confirmGuideModal">Baik, Saya Mengerti</button>
+        </div>
+    </div>
+
+    <script>
+        const guideButton = document.getElementById('btnDownloadGuide');
+        const guideModal = document.getElementById('guideModal');
+        const closeModalButton = document.getElementById('closeGuideModal');
+        const confirmModalButton = document.getElementById('confirmGuideModal');
+
+        function openGuideModal() {
+            guideModal.classList.add('is-open');
+            guideModal.setAttribute('aria-hidden', 'false');
+            document.body.classList.add('modal-open');
+            closeModalButton.focus();
+        }
+
+        function closeGuideModal() {
+            guideModal.classList.remove('is-open');
+            guideModal.setAttribute('aria-hidden', 'true');
+            document.body.classList.remove('modal-open');
+            guideButton.focus();
+        }
+
+        guideButton.addEventListener('click', openGuideModal);
+        closeModalButton.addEventListener('click', closeGuideModal);
+        confirmModalButton.addEventListener('click', closeGuideModal);
+
+        guideModal.addEventListener('click', function (event) {
+            if (event.target === guideModal) closeGuideModal();
+        });
+
+        document.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape' && guideModal.classList.contains('is-open')) {
+                closeGuideModal();
+            }
+        });
+    </script>
 
 </body>
 </html>

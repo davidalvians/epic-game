@@ -67,13 +67,13 @@ class _OnboardingFormScreenState extends State<OnboardingFormScreen> {
         };
       case 'anyaman_3':
         return {
-          'konteksBudaya': 'Anyaman tradisional Madura dengan anyaman multi-warna yang kompleks.',
-          'materiMatematika': 'Eksplorasi geometri dan warna. Warnai grid 12x12 secara bebas menggunakan minimal 4 warna berbeda.',
+          'konteksBudaya': 'Anyaman Madura dapat disusun dari bilah-bilah diagonal yang berulang membentuk motif geometris menyerupai spiral dan persegi bertingkat.',
+          'materiMatematika': 'Pola geometri diagonal, rotasi, pengulangan, dan keseimbangan. Warnai setiap bilah untuk membentuk komposisi warna yang teratur dan kreatif.',
         };
       case 'anyaman_4':
         return {
-          'konteksBudaya': 'Anyaman bebas Madura - Tingkat mahir dengan kreativitas tanpa batas.',
-          'materiMatematika': 'Desain etnomatematika tingkat lanjut. Warnai grid 14x14 menggunakan multi-warna (lebih dari 3 warna berbeda).',
+          'konteksBudaya': 'Motif Kelarai Bunga Api menyusun bilah-bilah anyaman horizontal dan vertikal secara bertingkat hingga membentuk komposisi geometris yang memancar dari pusat.',
+          'materiMatematika': 'Pola geometri ortogonal, pengulangan, keseimbangan, dan hubungan spasial. Warnai setiap bidang Kelarai Bunga Api untuk membentuk komposisi warna yang teratur dan kreatif.',
         };
       case 'keris_1':
         return {
@@ -121,11 +121,62 @@ class _OnboardingFormScreenState extends State<OnboardingFormScreen> {
       ];
     }
 
+    if (id.toLowerCase() == 'anyaman_3') {
+      return [
+        {
+          'name': 'Kualitas pola warna anyaman diagonal (ritme, pengulangan, dan keseimbangan antarbilah)',
+          'weight': 35,
+        },
+        {
+          'name': 'Kreativitas komposisi warna (variasi, harmoni, kontras, dan orisinalitas)',
+          'weight': 40,
+        },
+        {
+          'name': 'Kerapihan dan kelengkapan pewarnaan setiap bilah',
+          'weight': 25,
+        },
+      ];
+    }
+
+    if (id.toLowerCase() == 'anyaman_4') {
+      return [
+        {
+          'name': 'Kualitas pola warna Kelarai Bunga Api (ritme, pengulangan, keseimbangan, dan hubungan antarbidang)',
+          'weight': 35,
+        },
+        {
+          'name': 'Kreativitas komposisi warna (variasi, harmoni, kontras, dan orisinalitas)',
+          'weight': 40,
+        },
+        {
+          'name': 'Kerapihan dan kelengkapan pewarnaan setiap bidang anyaman',
+          'weight': 25,
+        },
+      ];
+    }
+
     return [
       {'name': 'Kepatuhan Konsep', 'weight': 40},
       {'name': 'Kreativitas', 'weight': 30},
       {'name': 'Kerapihan', 'weight': 30},
     ];
+  }
+
+  bool _usesLegacyAnyamanValues(Map<String, dynamic> data) {
+    final id = widget.id.toLowerCase();
+    final normalized = data.values.join(' ').toLowerCase();
+    if (id == 'anyaman_3') {
+      return normalized.contains('grid 12x12') ||
+          normalized.contains('minimal 4 warna') ||
+          normalized.contains('minimal menggunakan 4 warna');
+    }
+    if (id == 'anyaman_4') {
+      return normalized.contains('grid 14x14') ||
+          normalized.contains('lebih dari 3 warna') ||
+          normalized.contains('anyaman bebas') ||
+          normalized.contains('asisten simetri');
+    }
+    return false;
   }
 
   void _loadOnboardingData() async {
@@ -148,7 +199,10 @@ class _OnboardingFormScreenState extends State<OnboardingFormScreen> {
       final defaults = _getDefaultValues(widget.id);
 
       if (doc.exists && doc.data() != null) {
-        final data = doc.data()!;
+        final rawData = doc.data()!;
+        final data = _usesLegacyAnyamanValues(rawData)
+            ? <String, dynamic>{...rawData, ...defaults}
+            : rawData;
         setState(() {
           _konteksBudayaController.text = data['konteksBudaya'] ?? defaults['konteksBudaya'] ?? '';
           _materiMatematikaController.text = data['materiMatematika'] ?? defaults['materiMatematika'] ?? '';
@@ -162,7 +216,13 @@ class _OnboardingFormScreenState extends State<OnboardingFormScreen> {
 
       _criteriaList.clear();
       if (instrDoc.exists && instrDoc.data() != null) {
-        final data = instrDoc.data()!;
+        final rawData = instrDoc.data()!;
+        final data = _usesLegacyAnyamanValues(rawData)
+            ? <String, dynamic>{
+                ...rawData,
+                'criteria': _getDefaultCriteria(widget.id),
+              }
+            : rawData;
         if (data['criteria'] != null && data['criteria'] is List) {
           final list = data['criteria'] as List;
           for (var item in list) {

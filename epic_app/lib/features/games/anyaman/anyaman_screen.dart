@@ -1,8 +1,11 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:get/get.dart';
 import 'package:epic_app/core/utils/helpers.dart';
 import 'package:epic_app/features/games/anyaman/anyaman_controller.dart';
+import 'package:epic_app/features/games/anyaman/level4_bunga_api_pattern.dart';
 
 /// Layar utama game Anyaman — canvas berupa grid interaktif
 class AnyamanScreen extends StatefulWidget {
@@ -15,10 +18,13 @@ class AnyamanScreen extends StatefulWidget {
 
 class _AnyamanScreenState extends State<AnyamanScreen> {
   late final AnyamanController controller;
+  late final TransformationController _canvasTransformationController;
+  bool _isZoomMode = false;
 
   @override
   void initState() {
     super.initState();
+    _canvasTransformationController = TransformationController();
     final tag = 'anyaman_${widget.level}';
 
     if (Get.isRegistered<AnyamanController>(tag: tag)) {
@@ -33,6 +39,7 @@ class _AnyamanScreenState extends State<AnyamanScreen> {
 
   @override
   void dispose() {
+    _canvasTransformationController.dispose();
     final tag = 'anyaman_${widget.level}';
     if (Get.isRegistered<AnyamanController>(tag: tag)) {
       Get.delete<AnyamanController>(tag: tag, force: true);
@@ -56,7 +63,10 @@ class _AnyamanScreenState extends State<AnyamanScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // ── Header ──
-              _AnyamanHeader(controller: controller),
+              _AnyamanHeader(
+                controller: controller,
+                onBeforeSubmit: _resetCanvasView,
+              ),
 
               // ── Timer Bar ──
               Obx(() => RepaintBoundary(
@@ -117,7 +127,32 @@ class _AnyamanScreenState extends State<AnyamanScreen> {
                 );
               }),
 
-
+              if ((widget.level == 2 ||
+                      widget.level == 3 ||
+                      widget.level == 4) &&
+                  _isZoomMode)
+                Container(
+                  color: const Color(0xFF2563EB),
+                  padding:
+                      const EdgeInsets.symmetric(vertical: 7, horizontal: 16),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.pinch_rounded, color: Colors.white, size: 18),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Mode Zoom/Geser aktif: cubit untuk zoom, lalu geser kanvas.',
+                          style: TextStyle(
+                            fontFamily: 'Nunito',
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
 
               // ── Grid Canvas ──
               Expanded(
@@ -125,18 +160,42 @@ class _AnyamanScreenState extends State<AnyamanScreen> {
                   padding: const EdgeInsets.all(12),
                   child: RepaintBoundary(
                     key: controller.canvasKey,
-                    child: _AnyamanGrid(controller: controller),
+                    child: _AnyamanGrid(
+                      controller: controller,
+                      isZoomMode: _isZoomMode,
+                      transformationController:
+                          _canvasTransformationController,
+                    ),
                   ),
                 ),
               ),
 
               // ── Toolbar ──
-              _AnyamanToolbar(controller: controller),
+              _AnyamanToolbar(
+                controller: controller,
+                isZoomMode: _isZoomMode,
+                onToggleZoomMode: _toggleZoomMode,
+                onResetZoom: _resetCanvasView,
+              ),
             ],
           ),
         ),
       ),
     );
+  }
+
+  void _toggleZoomMode() {
+    if (widget.level != 2 && widget.level != 3 && widget.level != 4) return;
+    controller.isEyedropper.value = false;
+    setState(() => _isZoomMode = !_isZoomMode);
+  }
+
+  void _resetCanvasView() {
+    if (widget.level != 2 && widget.level != 3 && widget.level != 4) return;
+    _canvasTransformationController.value = Matrix4.identity();
+    if (_isZoomMode) {
+      setState(() => _isZoomMode = false);
+    }
   }
 
   void _showExitDialog(AnyamanController controller) {
@@ -185,7 +244,11 @@ class _AnyamanScreenState extends State<AnyamanScreen> {
 
 class _AnyamanHeader extends StatelessWidget {
   final AnyamanController controller;
-  const _AnyamanHeader({required this.controller});
+  final VoidCallback onBeforeSubmit;
+  const _AnyamanHeader({
+    required this.controller,
+    required this.onBeforeSubmit,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -337,6 +400,7 @@ class _AnyamanHeader extends StatelessWidget {
               // Submit Button
               ElevatedButton.icon(
                 onPressed: () {
+                  onBeforeSubmit();
                   controller.pauseTimer();
                   Get.dialog(
                     AlertDialog(
@@ -406,7 +470,13 @@ class _AnyamanHeader extends StatelessWidget {
 
 class _AnyamanGrid extends StatelessWidget {
   final AnyamanController controller;
-  const _AnyamanGrid({required this.controller});
+  final bool isZoomMode;
+  final TransformationController transformationController;
+  const _AnyamanGrid({
+    required this.controller,
+    required this.isZoomMode,
+    required this.transformationController,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -420,6 +490,31 @@ class _AnyamanGrid extends StatelessWidget {
               ? availableHeight
               : availableWidth;
           return _buildLevel2Grid(boardSize);
+        },
+      );
+    }
+
+    if (controller.level == 3) {
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final availableHeight = constraints.maxHeight;
+          final boardSize = availableHeight.isFinite && availableHeight < availableWidth
+              ? availableHeight
+              : availableWidth;
+          return _buildLevel3Grid(boardSize);
+        },
+      );
+    }
+
+    if (controller.level == 4) {
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final availableHeight = constraints.maxHeight;
+          final boardSize =
+              availableHeight.isFinite && availableHeight < availableWidth
+                  ? availableHeight
+                  : availableWidth;
+          return _buildLevel4Grid(boardSize);
         },
       );
     }
@@ -492,15 +587,25 @@ class _AnyamanGrid extends StatelessWidget {
     final blockSize = boardSize / blockCount;
 
     return InteractiveViewer(
-      panEnabled: false,
-      scaleEnabled: true,
-      minScale: 0.5,
+      transformationController: transformationController,
+      panEnabled: isZoomMode,
+      scaleEnabled: isZoomMode,
+      minScale: 1.0,
       maxScale: 4.0,
       child: Center(
         child: GestureDetector(
-          onPanStart: (details) => _handleLevel2Touch(details.localPosition, blockSize),
-          onPanUpdate: (details) => _handleLevel2Touch(details.localPosition, blockSize),
-          onTapDown: (details) => _handleLevel2Touch(details.localPosition, blockSize),
+          onPanStart: isZoomMode
+              ? null
+              : (details) =>
+                  _handleLevel2Touch(details.localPosition, blockSize),
+          onPanUpdate: isZoomMode
+              ? null
+              : (details) =>
+                  _handleLevel2Touch(details.localPosition, blockSize),
+          onTapDown: isZoomMode
+              ? null
+              : (details) =>
+                  _handleLevel2Touch(details.localPosition, blockSize),
           child: Container(
             width: boardSize,
             height: boardSize,
@@ -654,6 +759,150 @@ class _AnyamanGrid extends StatelessWidget {
     controller.paintLevel2Strip(blockRow, blockCol, stripIndex);
   }
 
+  Widget _buildLevel3Grid(double availableBoardSize) {
+    final boardSize = availableBoardSize > 0 ? availableBoardSize : 320.0;
+
+    return InteractiveViewer(
+      transformationController: transformationController,
+      panEnabled: isZoomMode,
+      scaleEnabled: isZoomMode,
+      minScale: 1.0,
+      maxScale: 4.0,
+      child: Center(
+        child: GestureDetector(
+          onPanStart: isZoomMode
+              ? null
+              : (details) =>
+                  _handleLevel3Touch(details.localPosition, boardSize),
+          onPanUpdate: isZoomMode
+              ? null
+              : (details) =>
+                  _handleLevel3Touch(details.localPosition, boardSize),
+          onTapDown: isZoomMode
+              ? null
+              : (details) =>
+                  _handleLevel3Touch(details.localPosition, boardSize),
+          child: Container(
+            width: boardSize,
+            height: boardSize,
+            color: Colors.white,
+            foregroundDecoration: BoxDecoration(
+              border: Border.all(
+                color: const Color(0xFF334155),
+                width: 1,
+              ),
+            ),
+            child: ClipRect(
+              child: GetBuilder<AnyamanController>(
+                init: controller,
+                global: false,
+                id: 'level3_grid',
+                builder: (ctrl) {
+                  return CustomPaint(
+                    size: Size.square(boardSize),
+                    painter: _Level3WeavePainter(controller: ctrl),
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _handleLevel3Touch(Offset position, double boardSize) {
+    const tileCount = AnyamanController.level3TileCount;
+    final latticeExtent = boardSize * math.sqrt2;
+    final tileSize = latticeExtent / tileCount;
+    final centeredX = position.dx - boardSize / 2;
+    final centeredY = position.dy - boardSize / 2;
+    final cosAngle = math.cos(math.pi / 4);
+    final sinAngle = math.sin(math.pi / 4);
+
+    // Transformasi kebalikan dari rotasi painter agar sentuhan mengikuti bilah.
+    final latticeX =
+        cosAngle * centeredX + sinAngle * centeredY + latticeExtent / 2;
+    final latticeY =
+        -sinAngle * centeredX + cosAngle * centeredY + latticeExtent / 2;
+    final tileCol = (latticeX / tileSize).floor();
+    final tileRow = (latticeY / tileSize).floor();
+    if (tileRow < 0 ||
+        tileRow >= tileCount ||
+        tileCol < 0 ||
+        tileCol >= tileCount) {
+      return;
+    }
+
+    final localPosition = Offset(
+      latticeX - tileCol * tileSize,
+      latticeY - tileRow * tileSize,
+    );
+    final segments = _level3SegmentRects(tileSize);
+    final segmentIndex = segments.indexWhere(
+      (segment) => segment.contains(localPosition),
+    );
+    if (segmentIndex >= 0) {
+      controller.paintLevel3Segment(tileRow, tileCol, segmentIndex);
+    }
+  }
+
+  Widget _buildLevel4Grid(double availableBoardSize) {
+    final boardSize = availableBoardSize > 0 ? availableBoardSize : 320.0;
+
+    return InteractiveViewer(
+      transformationController: transformationController,
+      panEnabled: isZoomMode,
+      scaleEnabled: isZoomMode,
+      minScale: 1.0,
+      maxScale: 4.0,
+      child: Center(
+        child: GestureDetector(
+          onPanStart: isZoomMode
+              ? null
+              : (details) =>
+                  _handleLevel4Touch(details.localPosition, boardSize),
+          onPanUpdate: isZoomMode
+              ? null
+              : (details) =>
+                  _handleLevel4Touch(details.localPosition, boardSize),
+          onTapDown: isZoomMode
+              ? null
+              : (details) =>
+                  _handleLevel4Touch(details.localPosition, boardSize),
+          child: Container(
+            width: boardSize,
+            height: boardSize,
+            color: Colors.white,
+            child: GetBuilder<AnyamanController>(
+              init: controller,
+              global: false,
+              id: 'level4_grid',
+              builder: (ctrl) {
+                return CustomPaint(
+                  size: Size.square(boardSize),
+                  painter: _Level4BungaApiPainter(controller: ctrl),
+                );
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _handleLevel4Touch(Offset position, double boardSize) {
+    final cellSize = boardSize / level4BungaApiSize;
+    final col = (position.dx / cellSize).floor();
+    final row = (position.dy / cellSize).floor();
+    if (row >= 0 &&
+        row < level4BungaApiSize &&
+        col >= 0 &&
+        col < level4BungaApiSize) {
+      controller.paintLevel4Region(row, col);
+    }
+  }
+
   void _handleTouch(Offset position, double cellSize) {
     final size = controller.gridSize;
     final col = (position.dx / (cellSize + 1)).floor();
@@ -715,11 +964,170 @@ class _AnyamanGrid extends StatelessWidget {
   }
 }
 
+List<Rect> _level3SegmentRects(double tileSize) {
+  const ringCount = AnyamanController.level3RingsPerTile;
+  final band = tileSize / 8;
+  final segments = <Rect>[];
+
+  for (int ring = 0; ring < ringCount; ring++) {
+    final inset = ring * band;
+    final left = inset;
+    final top = inset;
+    final right = tileSize - inset;
+    final bottom = tileSize - inset;
+
+    // Empat bilah membentuk satu putaran spiral tanpa saling menumpuk.
+    segments.add(Rect.fromLTRB(left, top, right - band, top + band));
+    segments.add(Rect.fromLTRB(right - band, top, right, bottom - band));
+    segments.add(Rect.fromLTRB(left + band, bottom - band, right, bottom));
+    segments.add(Rect.fromLTRB(left, top + band, left + band, bottom));
+  }
+
+  final centerInset = ringCount * band;
+  segments.add(Rect.fromLTRB(
+    centerInset,
+    centerInset,
+    tileSize - centerInset,
+    tileSize - centerInset,
+  ));
+  return segments;
+}
+
+class _Level3WeavePainter extends CustomPainter {
+  final AnyamanController controller;
+
+  const _Level3WeavePainter({required this.controller});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const tileCount = AnyamanController.level3TileCount;
+    final boardSize = size.shortestSide;
+    final latticeExtent = boardSize * math.sqrt2;
+    final tileSize = latticeExtent / tileCount;
+    final segmentRects = _level3SegmentRects(tileSize);
+    final fillPaint = Paint()..style = PaintingStyle.fill;
+    final linePaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 0.8
+      ..color = const Color(0xFF334155)
+      ..isAntiAlias = true;
+
+    canvas.drawRect(Offset.zero & size, Paint()..color = Colors.white);
+    canvas.save();
+    canvas.clipRect(Offset.zero & size);
+    canvas.translate(size.width / 2, size.height / 2);
+    canvas.rotate(math.pi / 4);
+    canvas.translate(-latticeExtent / 2, -latticeExtent / 2);
+
+    for (int tileRow = 0; tileRow < tileCount; tileRow++) {
+      for (int tileCol = 0; tileCol < tileCount; tileCol++) {
+        canvas.save();
+        canvas.translate(tileCol * tileSize, tileRow * tileSize);
+
+        for (int segment = 0;
+            segment < segmentRects.length;
+            segment++) {
+          final rect = segmentRects[segment];
+          fillPaint.color =
+              controller.level3SegmentColor(tileRow, tileCol, segment) ??
+                  Colors.white;
+          canvas.drawRect(rect, fillPaint);
+          canvas.drawRect(rect, linePaint);
+        }
+        canvas.restore();
+      }
+    }
+
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(covariant _Level3WeavePainter oldDelegate) => true;
+}
+
+class _Level4BungaApiPainter extends CustomPainter {
+  final AnyamanController controller;
+
+  const _Level4BungaApiPainter({required this.controller});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final boardSize = size.shortestSide;
+    final cellSize = boardSize / level4BungaApiSize;
+    final fillPaint = Paint()..style = PaintingStyle.fill;
+    final linePaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = math.max(0.8, boardSize / 480)
+      ..strokeCap = StrokeCap.square
+      ..color = const Color(0xFF334155)
+      ..isAntiAlias = true;
+
+    canvas.drawRect(
+      Rect.fromLTWH(0, 0, boardSize, boardSize),
+      Paint()..color = Colors.white,
+    );
+
+    for (int row = 0; row < level4BungaApiSize; row++) {
+      for (int col = 0; col < level4BungaApiSize; col++) {
+        fillPaint.color = controller.grid[row][col].value ?? Colors.white;
+        canvas.drawRect(
+          Rect.fromLTWH(
+            col * cellSize,
+            row * cellSize,
+            cellSize + 0.25,
+            cellSize + 0.25,
+          ),
+          fillPaint,
+        );
+      }
+    }
+
+    for (int boundaryRow = 0;
+        boundaryRow <= level4BungaApiSize;
+        boundaryRow++) {
+      for (int col = 0; col < level4BungaApiSize; col++) {
+        if (!level4HasHorizontalEdge(boundaryRow, col)) continue;
+        final y = boundaryRow * cellSize;
+        canvas.drawLine(
+          Offset(col * cellSize, y),
+          Offset((col + 1) * cellSize, y),
+          linePaint,
+        );
+      }
+    }
+
+    for (int row = 0; row < level4BungaApiSize; row++) {
+      for (int boundaryCol = 0;
+          boundaryCol <= level4BungaApiSize;
+          boundaryCol++) {
+        if (!level4HasVerticalEdge(row, boundaryCol)) continue;
+        final x = boundaryCol * cellSize;
+        canvas.drawLine(
+          Offset(x, row * cellSize),
+          Offset(x, (row + 1) * cellSize),
+          linePaint,
+        );
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _Level4BungaApiPainter oldDelegate) => true;
+}
+
 // ── Toolbar ───────────────────────────────────────────────────────────────────
 
 class _AnyamanToolbar extends StatelessWidget {
   final AnyamanController controller;
-  const _AnyamanToolbar({required this.controller});
+  final bool isZoomMode;
+  final VoidCallback onToggleZoomMode;
+  final VoidCallback onResetZoom;
+  const _AnyamanToolbar({
+    required this.controller,
+    required this.isZoomMode,
+    required this.onToggleZoomMode,
+    required this.onResetZoom,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -737,43 +1145,6 @@ class _AnyamanToolbar extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Row Simetri Cermin (Hanya muncul di Level 4)
-            if (controller.level == 4)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                decoration: const BoxDecoration(
-                  border: Border(bottom: BorderSide(color: Color(0xFFF1F5F9))),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.compare_arrows_rounded, size: 16, color: Color(0xFFFF7A00)),
-                    const SizedBox(width: 8),
-                    const Text(
-                      'Simetri Cermin:',
-                      style: TextStyle(
-                        fontFamily: 'FredokaOne',
-                        fontSize: 13,
-                        color: Color(0xFFFF7A00),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: Row(
-                          children: [
-                            _buildSymmetryBtn('Nonaktif', 'none', Icons.block_rounded),
-                            _buildSymmetryBtn('Kiri-Kanan', 'vertical', Icons.align_horizontal_center_rounded),
-                            _buildSymmetryBtn('Atas-Bawah', 'horizontal', Icons.align_vertical_center_rounded),
-                            _buildSymmetryBtn('Kedua Sumbu', 'both', Icons.grid_4x4_rounded),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
             // Row 1: Eraser + Clear
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
@@ -885,51 +1256,94 @@ class _AnyamanToolbar extends StatelessWidget {
                         ),
                       )),
 
+                  if (controller.level == 2 ||
+                      controller.level == 3 ||
+                      controller.level == 4)
+                    GestureDetector(
+                      onTap: onToggleZoomMode,
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        margin: const EdgeInsets.only(left: 6, right: 6),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 7),
+                        decoration: BoxDecoration(
+                          color: isZoomMode
+                              ? const Color(0xFF2563EB)
+                              : const Color(0xFFEFF6FF),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: isZoomMode
+                                ? const Color(0xFF2563EB)
+                                : const Color(0xFF93C5FD),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              isZoomMode
+                                  ? Icons.pan_tool_alt_rounded
+                                  : Icons.zoom_in_rounded,
+                              size: 15,
+                              color: isZoomMode
+                                  ? Colors.white
+                                  : const Color(0xFF2563EB),
+                            ),
+                            const SizedBox(width: 5),
+                            Text(
+                              isZoomMode ? 'Zoom Aktif' : 'Zoom',
+                              style: TextStyle(
+                                fontFamily: 'Nunito',
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: isZoomMode
+                                    ? Colors.white
+                                    : const Color(0xFF2563EB),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                  if (controller.level == 2 ||
+                      controller.level == 3 ||
+                      controller.level == 4)
+                    GestureDetector(
+                      onTap: onResetZoom,
+                      child: Container(
+                        margin: const EdgeInsets.only(right: 6),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 7),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFFCBD5E1)),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.center_focus_strong_rounded,
+                              size: 15,
+                              color: Color(0xFF475569),
+                            ),
+                            SizedBox(width: 5),
+                            Text(
+                              'Reset Zoom',
+                              style: TextStyle(
+                                fontFamily: 'Nunito',
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF475569),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+
                   const SizedBox(width: 12),
-
-                  // Tombol Ukuran Grid (Hanya di Level 4)
-                  if (controller.level == 4)
-                    GestureDetector(
-                      onTap: () => _showGridSizeSelector(context),
-                      child: Container(
-                        margin: const EdgeInsets.only(right: 8),
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFEFF6FF),
-                          border: Border.all(color: const Color(0xFF3B82F6).withValues(alpha: 0.3)),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Row(
-                          children: [
-                            Icon(Icons.aspect_ratio, color: Color(0xFF3B82F6), size: 16),
-                            SizedBox(width: 6),
-                            Text('Ukuran', style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.bold, color: Color(0xFF3B82F6))),
-                          ],
-                        ),
-                      ),
-                    ),
-
-                  // Tombol Pola (Hanya di Level 4)
-                  if (controller.level == 4)
-                    GestureDetector(
-                      onTap: () => _showPatternSelector(context),
-                      child: Container(
-                        margin: const EdgeInsets.only(right: 12),
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFECFDF5),
-                          border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.3)),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Row(
-                          children: [
-                            Icon(Icons.grid_view_rounded, color: Color(0xFF10B981), size: 16),
-                            SizedBox(width: 6),
-                            Text('Pola', style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.bold, color: Color(0xFF10B981))),
-                          ],
-                        ),
-                      ),
-                    ),
 
                   // Reset semua
                   IconButton(
@@ -1035,210 +1449,6 @@ class _AnyamanToolbar extends StatelessWidget {
                     )),
               ),
             ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSymmetryBtn(String label, String value, IconData icon) {
-    return GestureDetector(
-      onTap: () => controller.activeSymmetry.value = value,
-      child: Obx(() {
-        final isActive = controller.activeSymmetry.value == value;
-        return AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          margin: const EdgeInsets.only(right: 6),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          decoration: BoxDecoration(
-            color: isActive ? const Color(0xFFFF7A00) : const Color(0xFFF8FAFC),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-              color: isActive ? const Color(0xFFFF7A00) : const Color(0xFFE2E8F0),
-            ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                icon,
-                size: 14,
-                color: isActive ? Colors.white : const Color(0xFF64748B),
-              ),
-              const SizedBox(width: 4),
-              Text(
-                label,
-                style: TextStyle(
-                  fontFamily: 'Nunito',
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
-                  color: isActive ? Colors.white : const Color(0xFF64748B),
-                ),
-              ),
-            ],
-          ),
-        );
-      }),
-    );
-  }
-
-  void _showGridSizeSelector(BuildContext context) {
-    Get.bottomSheet(
-      Container(
-        padding: const EdgeInsets.all(24),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                margin: const EdgeInsets.only(bottom: 20),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE2E8F0),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const Text(
-              'Ubah Resolusi Anyaman',
-              style: TextStyle(
-                fontFamily: 'FredokaOne',
-                fontSize: 18,
-                color: Color(0xFF3B82F6),
-              ),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Perhatian: Mengubah ukuran akan menghapus anyamanmu saat ini.',
-              style: TextStyle(fontFamily: 'Nunito', color: Color(0xFFEF4444)),
-            ),
-            const SizedBox(height: 20),
-            Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              children: [
-                _buildGridOption('8 x 8', 8, Icons.grid_3x3),
-                _buildGridOption('10 x 10', 10, Icons.grid_4x4),
-                _buildGridOption('12 x 12', 12, Icons.apps),
-                _buildGridOption('16 x 16', 16, Icons.blur_on),
-              ],
-            ),
-            const SizedBox(height: 16),
-          ],
-        ),
-      ),
-      isScrollControlled: true,
-    );
-  }
-
-  Widget _buildGridOption(String label, int size, IconData icon) {
-    return InkWell(
-      onTap: () {
-        Get.back();
-        controller.changeGridSize(size);
-      },
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          color: controller.gridSize == size ? const Color(0xFFEFF6FF) : const Color(0xFFF8FAFC),
-          border: Border.all(color: controller.gridSize == size ? const Color(0xFF3B82F6) : const Color(0xFFE2E8F0)),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 20, color: controller.gridSize == size ? const Color(0xFF3B82F6) : const Color(0xFF64748B)),
-            const SizedBox(width: 8),
-            Text(label, style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.bold, color: controller.gridSize == size ? const Color(0xFF3B82F6) : const Color(0xFF334155))),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showPatternSelector(BuildContext context) {
-    Get.bottomSheet(
-      Container(
-        padding: const EdgeInsets.all(24),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                margin: const EdgeInsets.only(bottom: 20),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE2E8F0),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const Text(
-              'Pilih Pola Dasar',
-              style: TextStyle(
-                fontFamily: 'FredokaOne',
-                fontSize: 18,
-                color: Color(0xFF10B981),
-              ),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Gunakan pola ini sebagai panduan anyamanmu.',
-              style: TextStyle(fontFamily: 'Nunito', color: Color(0xFF64748B)),
-            ),
-            const SizedBox(height: 20),
-            Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              children: [
-                _buildPatternOption('Kosong', 'clear', Icons.check_box_outline_blank),
-                _buildPatternOption('Catur', 'catur', Icons.grid_on),
-                _buildPatternOption('Vertikal', 'vertikal', Icons.view_column),
-                _buildPatternOption('Horizontal', 'horizontal', Icons.view_stream),
-                _buildPatternOption('Zig-zag', 'zigzag', Icons.water),
-              ],
-            ),
-            const SizedBox(height: 16),
-          ],
-        ),
-      ),
-      isScrollControlled: true,
-    );
-  }
-
-  Widget _buildPatternOption(String label, String type, IconData icon) {
-    return InkWell(
-      onTap: () {
-        Get.back();
-        controller.applyPattern(type);
-      },
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF8FAFC),
-          border: Border.all(color: const Color(0xFFE2E8F0)),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 20, color: const Color(0xFF10B981)),
-            const SizedBox(width: 8),
-            Text(label, style: const TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.bold, color: Color(0xFF334155))),
           ],
         ),
       ),

@@ -68,6 +68,45 @@ class _LevelSelectScreenState extends State<LevelSelectScreen> {
     }
   }
 
+  Future<void> _openLevel(int level) async {
+    final int? targetLevel;
+    if (widget.kategori.toLowerCase() == 'anyaman') {
+      targetLevel = await Get.to<int>(
+        () => AnyamanScreen(level: level),
+        transition: Transition.rightToLeft,
+      );
+    } else {
+      targetLevel = await Get.to<int>(
+        () => DrawingScreen(
+          kategori: widget.kategori,
+          level: level,
+        ),
+        transition: Transition.rightToLeft,
+      );
+    }
+
+    if (!mounted || targetLevel == null) return;
+
+    // Baca ulang progress setelah layar permainan ditutup agar kartu memakai
+    // status unlock terbaru, lalu arahkan carousel ke level yang diminta.
+    await _loadProgress();
+    if (!mounted) return;
+
+    final targetPage = targetLevel < 1
+        ? 0
+        : targetLevel > 4
+            ? 3
+            : targetLevel - 1;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_pageController.hasClients) return;
+      _pageController.animateToPage(
+        targetPage,
+        duration: const Duration(milliseconds: 450),
+        curve: Curves.easeOutCubic,
+      );
+    });
+  }
+
   Color get _primaryColor {
     switch (widget.kategori.toLowerCase()) {
       case 'batik':
@@ -99,9 +138,9 @@ class _LevelSelectScreenState extends State<LevelSelectScreen> {
           case 2:
             return 'Pola 6x6 blok • 4 bilah persegi panjang';
           case 3:
-            return 'Grid 12x12 • Minimal 4 warna berbeda';
+            return 'Pola diagonal spiral • Komposisi warna kreatif';
           case 4:
-            return 'Grid 14x14 • Multi-warna & Asisten Simetri';
+            return 'Motif Kelarai Bunga Api • Pola bilah bertingkat';
           default:
             return '';
         }
@@ -562,22 +601,7 @@ class _LevelSelectScreenState extends State<LevelSelectScreen> {
                     height: 48,
                     child: ElevatedButton(
                       onPressed: isUnlocked
-                          ? () {
-                              if (widget.kategori.toLowerCase() == 'anyaman') {
-                                Get.to(
-                                  () => AnyamanScreen(level: level),
-                                  transition: Transition.rightToLeft,
-                                );
-                              } else {
-                                Get.to(
-                                  () => DrawingScreen(
-                                    kategori: widget.kategori,
-                                    level: level,
-                                  ),
-                                  transition: Transition.rightToLeft,
-                                );
-                              }
-                            }
+                          ? () => _openLevel(level)
                           : null,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.white,

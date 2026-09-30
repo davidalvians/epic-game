@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:epic_app/core/constants/app_colors.dart';
 import 'package:epic_app/core/constants/app_fonts.dart';
 import 'package:epic_app/core/utils/epic_snackbar.dart';
 import 'package:epic_app/core/routes/app_routes.dart';
+import 'package:epic_app/core/services/draft_service.dart';
 import 'package:epic_app/shared/controllers/session_controller.dart';
 
 class KeamananAkunScreen extends StatefulWidget {
@@ -29,9 +31,34 @@ class _KeamananAkunScreenState extends State<KeamananAkunScreen> {
 
   Future<void> _loadCurrentDeviceId() async {
     final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
     setState(() {
       _currentDeviceId = prefs.getString('epic_device_unique_id') ?? '';
     });
+  }
+
+  String _formatSecurityTime(dynamic value, {bool includeClock = false}) {
+    if (value is! Timestamp) return '';
+    final date = value.toDate().toLocal();
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'Mei',
+      'Jun',
+      'Jul',
+      'Agu',
+      'Sep',
+      'Okt',
+      'Nov',
+      'Des',
+    ];
+    final dateText = '${date.day} ${months[date.month - 1]} ${date.year}';
+    if (!includeClock) return dateText;
+    final clock =
+        '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+    return '$dateText • $clock';
   }
 
   // Action: remote logout/kick device
@@ -39,12 +66,16 @@ class _KeamananAkunScreenState extends State<KeamananAkunScreen> {
     Get.dialog(
       AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: const Text('Keluarkan Perangkat?', style: TextStyle(fontFamily: 'FredokaOne')),
-        content: Text('Apakah Anda yakin ingin mengeluarkan perangkat "$name" dari jauh? Sesi login di perangkat tersebut akan langsung berakhir.'),
+        title: const Text('Keluarkan Perangkat?',
+            style: TextStyle(fontFamily: 'FredokaOne')),
+        content: Text(
+            'Apakah Anda yakin ingin mengeluarkan perangkat "$name" dari jauh? Sesi login di perangkat tersebut akan langsung berakhir.'),
         actions: [
           TextButton(
             onPressed: () => Get.back(),
-            child: Text('Batal', style: TextStyle(fontFamily: 'FredokaOne', color: Colors.grey.shade600)),
+            child: Text('Batal',
+                style: TextStyle(
+                    fontFamily: 'FredokaOne', color: Colors.grey.shade600)),
           ),
           ElevatedButton(
             onPressed: () {
@@ -54,9 +85,11 @@ class _KeamananAkunScreenState extends State<KeamananAkunScreen> {
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFEF4444),
               foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
             ),
-            child: const Text('Keluarkan', style: TextStyle(fontFamily: 'FredokaOne')),
+            child: const Text('Keluarkan',
+                style: TextStyle(fontFamily: 'FredokaOne')),
           ),
         ],
       ),
@@ -71,24 +104,15 @@ class _KeamananAkunScreenState extends State<KeamananAkunScreen> {
     );
 
     try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user != null) {
-        final db = FirebaseFirestore.instance;
-        final doc = await db.collection('users').doc(user.uid).get();
-        if (doc.exists && doc.data() != null) {
-          final data = doc.data()!;
-          List<Map<String, dynamic>> devices = [];
-          if (data['devices'] is List) {
-            devices = List<Map<String, dynamic>>.from(
-                (data['devices'] as List).map((e) => Map<String, dynamic>.from(e as Map)));
-          }
-          devices.removeWhere((d) => d['id'] == id);
-
-          await db.collection('users').doc(user.uid).update({
-            'devices': devices,
-          });
-        }
+      if (FirebaseAuth.instance.currentUser == null) {
+        throw Exception('Sesi login tidak ditemukan.');
       }
+      final callable = FirebaseFunctions.instance.httpsCallable(
+        'revokeDeviceSession',
+        options: HttpsCallableOptions(timeout: const Duration(seconds: 30)),
+      );
+      await callable.call<void>({'deviceId': id});
+
       Get.back(); // dismiss spinner
       EpicSnackbar.success(
         'Berhasil Dikeluarkan 📱',
@@ -96,7 +120,8 @@ class _KeamananAkunScreenState extends State<KeamananAkunScreen> {
       );
     } catch (e) {
       Get.back(); // dismiss spinner
-      EpicSnackbar.error('Gagal', 'Terjadi kesalahan saat mengeluarkan perangkat: $e');
+      EpicSnackbar.error(
+          'Gagal', 'Terjadi kesalahan saat mengeluarkan perangkat: $e');
     }
   }
 
@@ -105,37 +130,48 @@ class _KeamananAkunScreenState extends State<KeamananAkunScreen> {
     Get.dialog(
       AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: const Text('Hapus Riwayat Login?', style: TextStyle(fontFamily: 'FredokaOne')),
-        content: const Text('Tindakan ini akan menghapus semua riwayat aktivitas login akun Anda dari layar ini secara permanen.'),
+        title: const Text('Hapus Riwayat Login?',
+            style: TextStyle(fontFamily: 'FredokaOne')),
+        content: const Text(
+            'Tindakan ini akan menghapus semua riwayat aktivitas login akun Anda dari layar ini secara permanen.'),
         actions: [
           TextButton(
             onPressed: () => Get.back(),
-            child: Text('Batal', style: TextStyle(fontFamily: 'FredokaOne', color: Colors.grey.shade600)),
+            child: Text('Batal',
+                style: TextStyle(
+                    fontFamily: 'FredokaOne', color: Colors.grey.shade600)),
           ),
           ElevatedButton(
             onPressed: () async {
               Get.back();
               try {
-                final user = FirebaseAuth.instance.currentUser;
-                if (user != null) {
-                  await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
-                    'loginHistory': <Map<String, dynamic>>[],
-                  });
-                  EpicSnackbar.success(
-                    'Riwayat Dihapus 🗑️',
-                    'Semua log riwayat login akun Anda berhasil dibersihkan.',
-                  );
+                if (FirebaseAuth.instance.currentUser == null) {
+                  throw Exception('Sesi login tidak ditemukan.');
                 }
+                final callable = FirebaseFunctions.instance.httpsCallable(
+                  'clearLoginHistory',
+                  options: HttpsCallableOptions(
+                    timeout: const Duration(seconds: 30),
+                  ),
+                );
+                await callable.call<void>();
+                EpicSnackbar.success(
+                  'Riwayat Dihapus 🗑️',
+                  'Semua log riwayat login akun Anda berhasil dibersihkan.',
+                );
               } catch (e) {
-                EpicSnackbar.error('Gagal', 'Terjadi kesalahan saat menghapus riwayat: $e');
+                EpicSnackbar.error(
+                    'Gagal', 'Terjadi kesalahan saat menghapus riwayat: $e');
               }
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFEF4444),
               foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
             ),
-            child: const Text('Hapus', style: TextStyle(fontFamily: 'FredokaOne')),
+            child:
+                const Text('Hapus', style: TextStyle(fontFamily: 'FredokaOne')),
           ),
         ],
       ),
@@ -164,17 +200,26 @@ class _KeamananAkunScreenState extends State<KeamananAkunScreen> {
               isGuru
                   ? 'Tindakan ini sangat sensitif dan tidak dapat dibatalkan. Apakah Anda yakin ingin menghapus akun guru Anda?'
                   : 'Tindakan ini sangat sensitif dan tidak dapat dibatalkan. Apakah kamu yakin ingin menghapus akun murid kamu?',
-              style: const TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.bold),
+              style: const TextStyle(
+                  fontFamily: 'Nunito', fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
-            const Text('Yang terhapus permanen:', style: TextStyle(fontFamily: 'FredokaOne', fontSize: 12, color: Color(0xFFEF4444))),
+            const Text('Yang terhapus permanen:',
+                style: TextStyle(
+                    fontFamily: 'FredokaOne',
+                    fontSize: 12,
+                    color: Color(0xFFEF4444))),
             const SizedBox(height: 6),
             if (isGuru) ...[
               _buildBullet('❌ Profil guru Anda'),
               _buildBullet('❌ Semua kelas yang Anda miliki'),
               _buildBullet('❌ Hubungan/data murid di kelas Anda'),
               const SizedBox(height: 12),
-              const Text('Yang TIDAK terhapus:', style: TextStyle(fontFamily: 'FredokaOne', fontSize: 12, color: Color(0xFF10B981))),
+              const Text('Yang TIDAK terhapus:',
+                  style: TextStyle(
+                      fontFamily: 'FredokaOne',
+                      fontSize: 12,
+                      color: Color(0xFF10B981))),
               const SizedBox(height: 6),
               _buildBullet('✅ Akun & profil murid tetap ada'),
               _buildBullet('✅ Karya gambaran & nilai murid tetap tersimpan'),
@@ -183,7 +228,11 @@ class _KeamananAkunScreenState extends State<KeamananAkunScreen> {
               _buildBullet('❌ Riwayat karya gambaran & anyaman di galeri'),
               _buildBullet('❌ Seluruh perolehan skor, poin, dan peringkat'),
               const SizedBox(height: 12),
-              const Text('Yang TIDAK terhapus:', style: TextStyle(fontFamily: 'FredokaOne', fontSize: 12, color: Color(0xFF10B981))),
+              const Text('Yang TIDAK terhapus:',
+                  style: TextStyle(
+                      fontFamily: 'FredokaOne',
+                      fontSize: 12,
+                      color: Color(0xFF10B981))),
               const SizedBox(height: 6),
               _buildBullet('✅ Kelas guru tempat kamu pernah bergabung'),
             ],
@@ -192,7 +241,9 @@ class _KeamananAkunScreenState extends State<KeamananAkunScreen> {
         actions: [
           TextButton(
             onPressed: () => Get.back(),
-            child: Text('Batal', style: TextStyle(fontFamily: 'FredokaOne', color: Colors.grey.shade600)),
+            child: Text('Batal',
+                style: TextStyle(
+                    fontFamily: 'FredokaOne', color: Colors.grey.shade600)),
           ),
           ElevatedButton(
             onPressed: () {
@@ -202,9 +253,11 @@ class _KeamananAkunScreenState extends State<KeamananAkunScreen> {
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFEF4444),
               foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
             ),
-            child: const Text('Lanjutkan', style: TextStyle(fontFamily: 'FredokaOne')),
+            child: const Text('Lanjutkan',
+                style: TextStyle(fontFamily: 'FredokaOne')),
           ),
         ],
       ),
@@ -216,7 +269,8 @@ class _KeamananAkunScreenState extends State<KeamananAkunScreen> {
       padding: const EdgeInsets.only(bottom: 4, left: 4),
       child: Text(
         text,
-        style: const TextStyle(fontFamily: 'Nunito', fontSize: 12, fontWeight: FontWeight.w600),
+        style: const TextStyle(
+            fontFamily: 'Nunito', fontSize: 12, fontWeight: FontWeight.w600),
       ),
     );
   }
@@ -229,7 +283,8 @@ class _KeamananAkunScreenState extends State<KeamananAkunScreen> {
     Get.dialog(
       AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: const Text('Konfirmasi Penghapusan', style: TextStyle(fontFamily: 'FredokaOne')),
+        title: const Text('Konfirmasi Penghapusan',
+            style: TextStyle(fontFamily: 'FredokaOne')),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -251,7 +306,8 @@ class _KeamananAkunScreenState extends State<KeamananAkunScreen> {
                 hintStyle: const TextStyle(color: Colors.grey),
                 filled: true,
                 fillColor: Colors.white,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                   borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
@@ -262,7 +318,8 @@ class _KeamananAkunScreenState extends State<KeamananAkunScreen> {
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+                  borderSide:
+                      const BorderSide(color: AppColors.primary, width: 1.5),
                 ),
               ),
             ),
@@ -271,7 +328,9 @@ class _KeamananAkunScreenState extends State<KeamananAkunScreen> {
         actions: [
           TextButton(
             onPressed: () => Get.back(),
-            child: Text('Batal', style: TextStyle(fontFamily: 'FredokaOne', color: Colors.grey.shade600)),
+            child: Text('Batal',
+                style: TextStyle(
+                    fontFamily: 'FredokaOne', color: Colors.grey.shade600)),
           ),
           Obx(() => ElevatedButton(
                 onPressed: isValid.value
@@ -283,9 +342,11 @@ class _KeamananAkunScreenState extends State<KeamananAkunScreen> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFEF4444),
                   foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
                 ),
-                child: const Text('Verifikasi', style: TextStyle(fontFamily: 'FredokaOne')),
+                child: const Text('Verifikasi',
+                    style: TextStyle(fontFamily: 'FredokaOne')),
               )),
         ],
       ),
@@ -297,7 +358,8 @@ class _KeamananAkunScreenState extends State<KeamananAkunScreen> {
     Get.dialog(
       AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: const Text('Login Google Ulang', style: TextStyle(fontFamily: 'FredokaOne')),
+        title: const Text('Login Google Ulang',
+            style: TextStyle(fontFamily: 'FredokaOne')),
         content: const Text(
           'Demi keamanan akun Anda, harap lakukan verifikasi login Google ulang untuk menyelesaikan proses penghapusan permanen.',
           style: TextStyle(fontFamily: 'Nunito'),
@@ -305,7 +367,9 @@ class _KeamananAkunScreenState extends State<KeamananAkunScreen> {
         actions: [
           TextButton(
             onPressed: () => Get.back(),
-            child: Text('Batal', style: TextStyle(fontFamily: 'FredokaOne', color: Colors.grey.shade600)),
+            child: Text('Batal',
+                style: TextStyle(
+                    fontFamily: 'FredokaOne', color: Colors.grey.shade600)),
           ),
           ElevatedButton.icon(
             onPressed: () {
@@ -315,10 +379,12 @@ class _KeamananAkunScreenState extends State<KeamananAkunScreen> {
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primary,
               foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
             ),
             icon: const Icon(Icons.login_rounded, size: 16),
-            label: const Text('Login Google', style: TextStyle(fontFamily: 'FredokaOne')),
+            label: const Text('Login Google',
+                style: TextStyle(fontFamily: 'FredokaOne')),
           ),
         ],
       ),
@@ -330,7 +396,8 @@ class _KeamananAkunScreenState extends State<KeamananAkunScreen> {
     try {
       // 1. Google Re-auth
       Get.dialog(
-        const Center(child: CircularProgressIndicator(color: AppColors.primary)),
+        const Center(
+            child: CircularProgressIndicator(color: AppColors.primary)),
         barrierDismissible: false,
       );
 
@@ -340,11 +407,13 @@ class _KeamananAkunScreenState extends State<KeamananAkunScreen> {
 
       if (googleUser == null) {
         Get.back(); // Dismiss spinner
-        EpicSnackbar.error('Penghapusan Dibatalkan', 'Verifikasi masuk Google dibatalkan.');
+        EpicSnackbar.error(
+            'Penghapusan Dibatalkan', 'Verifikasi masuk Google dibatalkan.');
         return;
       }
 
-      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      final GoogleSignInAuthentication googleAuth =
+          await googleUser.authentication;
       final AuthCredential credential = GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,
@@ -359,86 +428,38 @@ class _KeamananAkunScreenState extends State<KeamananAkunScreen> {
       // Reauthenticate
       await userAuth.reauthenticateWithCredential(credential);
 
-      // 2. Perform Firestore Purging
-      final String uid = userAuth.uid;
-      final FirebaseFirestore db = FirebaseFirestore.instance;
       final session = Get.find<SessionController>();
       final isGuru = session.isGuru;
 
-      if (isGuru) {
-        // Query classes owned by this guru
-        final query = await db
-            .collection('kelas')
-            .where('guruUid', isEqualTo: uid)
-            .get();
-
-        // Clean up class references from enrolled students
-        for (final doc in query.docs) {
-          final List<dynamic> muridIds = doc.data()['muridIds'] ?? [];
-          final batch = db.batch();
-          for (final muridUid in muridIds) {
-            if (muridUid is String) {
-              final userRef = db.collection('users').doc(muridUid);
-              batch.update(userRef, {
-                'kelasIds': FieldValue.arrayRemove([doc.id]),
-              });
-            }
-          }
-          await batch.commit();
-        }
-
-        // Delete all owned classes
-        final batchDeleteKelas = db.batch();
-        for (final doc in query.docs) {
-          batchDeleteKelas.delete(doc.reference);
-        }
-        await batchDeleteKelas.commit();
-      } else {
-        // Murid: remove muridUid from any enrolled classes
-        final userDoc = await db.collection('users').doc(uid).get();
-        if (userDoc.exists && userDoc.data() != null) {
-          final List<dynamic> kelasIds = userDoc.data()!['kelasIds'] ?? [];
-          final batch = db.batch();
-          for (final kelasId in kelasIds) {
-            if (kelasId is String) {
-              final kelasRef = db.collection('kelas').doc(kelasId);
-              batch.update(kelasRef, {
-                'muridIds': FieldValue.arrayRemove([uid]),
-              });
-            }
-          }
-          await batch.commit();
-        }
-
-        // Delete murid's artworks from Firestore
-        final artworksQuery = await db.collection('artworks').where('uid', isEqualTo: uid).get();
-        final batchArtworks = db.batch();
-        for (final doc in artworksQuery.docs) {
-          batchArtworks.delete(doc.reference);
-        }
-        await batchArtworks.commit();
-      }
-
-      // Get user document to delete reserved username
-      final userDoc = await db.collection('users').doc(uid).get();
-      if (userDoc.exists && userDoc.data() != null) {
-        final username = userDoc.data()!['username']?.toString() ?? '';
-        if (username.isNotEmpty) {
-          await db.collection('usernames').doc(username.toLowerCase()).delete();
-        }
-      }
-
-      // Delete the user profile document
-      await db.collection('users').doc(uid).delete();
-
-      // Delete the Firebase Auth user
-      await userAuth.delete();
+      // Segarkan token setelah re-auth agar backend dapat memverifikasi bahwa
+      // login dilakukan baru-baru ini, lalu hapus seluruh data secara server-side.
+      await userAuth.getIdToken(true);
+      await FirebaseFunctions.instance
+          .httpsCallable(
+            'deleteOwnAccount',
+            options: HttpsCallableOptions(
+              timeout: const Duration(minutes: 9),
+            ),
+          )
+          .call<void>();
 
       Get.back(); // Dismiss spinner
 
-      // Logout local GetX Session
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('epic_device_unique_id');
+      await prefs.remove('active_kelas_id_${userAuth.uid}');
+      await prefs.remove('last_synced_max_nyawa_${userAuth.uid}');
+      if (Get.isRegistered<DraftService>()) {
+        try {
+          await Get.find<DraftService>().deleteAllDraftsForUser(userAuth.uid);
+        } catch (error) {
+          debugPrint('Gagal membersihkan draf lokal akun: $error');
+        }
+      }
+      await googleSignIn.signOut();
+      await FirebaseAuth.instance.signOut();
       session.currentUser.value = null;
-      
+
       Get.offAllNamed(Routes.auth);
 
       EpicSnackbar.success(
@@ -446,6 +467,13 @@ class _KeamananAkunScreenState extends State<KeamananAkunScreen> {
         isGuru
             ? 'Akun guru EPIC Anda dan seluruh kelas yang Anda miliki telah dihapus permanen.'
             : 'Akun murid EPIC kamu telah berhasil dihapus permanen.',
+      );
+    } on FirebaseFunctionsException catch (e) {
+      Get.back(); // Dismiss spinner
+      debugPrint('Error deleting account: ${e.code} - ${e.message}');
+      EpicSnackbar.error(
+        'Gagal Menghapus Akun',
+        e.message ?? 'Penghapusan belum selesai. Silakan coba lagi.',
       );
     } catch (e) {
       Get.back(); // Dismiss spinner
@@ -465,7 +493,8 @@ class _KeamananAkunScreenState extends State<KeamananAkunScreen> {
         backgroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded, color: AppColors.textPrimary),
+          icon: const Icon(Icons.arrow_back_rounded,
+              color: AppColors.textPrimary),
           onPressed: () => Get.back(),
         ),
         title: Text(
@@ -513,10 +542,15 @@ class _KeamananAkunScreenState extends State<KeamananAkunScreen> {
                   _buildListOption(
                     icon: Icons.important_devices_rounded,
                     title: 'Perangkat yang Login',
-                    subtitle: 'Lihat & kelola HP yang sedang menggunakan akunmu',
+                    subtitle:
+                        'Lihat & kelola HP yang sedang menggunakan akunmu',
                     onTap: _showActiveDevicesModal,
                   ),
-                  const Divider(height: 1, color: Color(0xFFF1F5F9), indent: 64, endIndent: 20),
+                  const Divider(
+                      height: 1,
+                      color: Color(0xFFF1F5F9),
+                      indent: 64,
+                      endIndent: 20),
                   // Item 2: Riwayat Login
                   _buildListOption(
                     icon: Icons.history_rounded,
@@ -624,7 +658,8 @@ class _KeamananAkunScreenState extends State<KeamananAkunScreen> {
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right_rounded, color: Color(0xFFCBD5E1), size: 20),
+            const Icon(Icons.chevron_right_rounded,
+                color: Color(0xFFCBD5E1), size: 20),
           ],
         ),
       ),
@@ -665,7 +700,10 @@ class _KeamananAkunScreenState extends State<KeamananAkunScreen> {
                 const SizedBox(height: 20),
                 Text(
                   '📱 Perangkat Aktif (${devices.length})',
-                  style: const TextStyle(fontFamily: 'FredokaOne', fontSize: 16, color: AppColors.textPrimary),
+                  style: const TextStyle(
+                      fontFamily: 'FredokaOne',
+                      fontSize: 16,
+                      color: AppColors.textPrimary),
                 ),
                 const SizedBox(height: 6),
                 Text(
@@ -677,7 +715,8 @@ class _KeamananAkunScreenState extends State<KeamananAkunScreen> {
                   Center(
                     child: Padding(
                       padding: const EdgeInsets.symmetric(vertical: 32.0),
-                      child: Text('Tidak ada perangkat aktif terdaftar', style: AppFonts.caption(color: Colors.grey)),
+                      child: Text('Tidak ada perangkat aktif terdaftar',
+                          style: AppFonts.caption(color: Colors.grey)),
                     ),
                   )
                 else
@@ -694,16 +733,22 @@ class _KeamananAkunScreenState extends State<KeamananAkunScreen> {
                           margin: const EdgeInsets.only(bottom: 12),
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
-                            color: isCur ? const Color(0xFFFFF7ED) : const Color(0xFFF8FAFC),
+                            color: isCur
+                                ? const Color(0xFFFFF7ED)
+                                : const Color(0xFFF8FAFC),
                             borderRadius: BorderRadius.circular(16),
                             border: Border.all(
-                              color: isCur ? const Color(0xFFFFEDD5) : const Color(0xFFE2E8F0),
+                              color: isCur
+                                  ? const Color(0xFFFFEDD5)
+                                  : const Color(0xFFE2E8F0),
                             ),
                           ),
                           child: Row(
                             children: [
                               Icon(
-                                isCur ? Icons.phone_android_rounded : Icons.tablet_mac_rounded,
+                                isCur
+                                    ? Icons.phone_android_rounded
+                                    : Icons.tablet_mac_rounded,
                                 color: isCur ? AppColors.primary : Colors.grey,
                                 size: 24,
                               ),
@@ -715,7 +760,8 @@ class _KeamananAkunScreenState extends State<KeamananAkunScreen> {
                                     Row(
                                       children: [
                                         Text(
-                                          dev['nama'] ?? 'Perangkat',
+                                          dev['nama']?.toString() ??
+                                              'Perangkat',
                                           style: const TextStyle(
                                             fontFamily: 'FredokaOne',
                                             fontSize: 14,
@@ -725,10 +771,12 @@ class _KeamananAkunScreenState extends State<KeamananAkunScreen> {
                                         if (isCur) ...[
                                           const SizedBox(width: 8),
                                           Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 6, vertical: 2),
                                             decoration: BoxDecoration(
                                               color: const Color(0xFFDCFCE7),
-                                              borderRadius: BorderRadius.circular(6),
+                                              borderRadius:
+                                                  BorderRadius.circular(6),
                                             ),
                                             child: const Text(
                                               'Perangkat ini',
@@ -744,19 +792,25 @@ class _KeamananAkunScreenState extends State<KeamananAkunScreen> {
                                     ),
                                     const SizedBox(height: 4),
                                     Text(
-                                      'Login: ${dev['tanggal']} • ${dev['lokasi']}',
-                                      style: AppFonts.caption(color: Colors.grey.shade500),
+                                      'Login: ${_formatSecurityTime(dev['lastSeenAt']).isNotEmpty ? _formatSecurityTime(dev['lastSeenAt']) : (dev['tanggal']?.toString() ?? '-')}'
+                                      ' • ${dev['lokasi']?.toString() ?? 'Lokasi tidak tersedia'}',
+                                      style: AppFonts.caption(
+                                          color: Colors.grey.shade500),
                                     ),
                                   ],
                                 ),
                               ),
                               if (!isCur)
                                 IconButton(
-                                  icon: const Icon(Icons.logout_rounded, color: Color(0xFFEF4444), size: 20),
+                                  icon: const Icon(Icons.logout_rounded,
+                                      color: Color(0xFFEF4444), size: 20),
                                   tooltip: 'Keluarkan Perangkat',
                                   onPressed: () {
                                     Navigator.pop(context);
-                                    _kickDevice(dev['id'], dev['nama']);
+                                    _kickDevice(
+                                      dev['id']?.toString() ?? '',
+                                      dev['nama']?.toString() ?? 'Perangkat',
+                                    );
                                   },
                                 ),
                             ],
@@ -784,7 +838,8 @@ class _KeamananAkunScreenState extends State<KeamananAkunScreen> {
       builder: (context) {
         return Obx(() {
           final user = _sessionController.currentUser.value;
-          final List<Map<String, dynamic>> loginHistory = user?.loginHistory ?? [];
+          final List<Map<String, dynamic>> loginHistory =
+              user?.loginHistory ?? [];
 
           return Padding(
             padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
@@ -808,7 +863,10 @@ class _KeamananAkunScreenState extends State<KeamananAkunScreen> {
                   children: [
                     const Text(
                       '📋 Riwayat Aktivitas Login',
-                      style: TextStyle(fontFamily: 'FredokaOne', fontSize: 16, color: AppColors.textPrimary),
+                      style: TextStyle(
+                          fontFamily: 'FredokaOne',
+                          fontSize: 16,
+                          color: AppColors.textPrimary),
                     ),
                     if (loginHistory.isNotEmpty)
                       TextButton.icon(
@@ -816,10 +874,14 @@ class _KeamananAkunScreenState extends State<KeamananAkunScreen> {
                           Navigator.pop(context);
                           _clearHistory();
                         },
-                        icon: const Icon(Icons.delete_outline_rounded, size: 16, color: Color(0xFFEF4444)),
+                        icon: const Icon(Icons.delete_outline_rounded,
+                            size: 16, color: Color(0xFFEF4444)),
                         label: const Text(
                           'Hapus',
-                          style: TextStyle(fontFamily: 'FredokaOne', fontSize: 12, color: Color(0xFFEF4444)),
+                          style: TextStyle(
+                              fontFamily: 'FredokaOne',
+                              fontSize: 12,
+                              color: Color(0xFFEF4444)),
                         ),
                       ),
                   ],
@@ -836,9 +898,11 @@ class _KeamananAkunScreenState extends State<KeamananAkunScreen> {
                       padding: const EdgeInsets.symmetric(vertical: 32.0),
                       child: Column(
                         children: [
-                          Icon(Icons.history_toggle_off_rounded, size: 40, color: Colors.grey.shade300),
+                          Icon(Icons.history_toggle_off_rounded,
+                              size: 40, color: Colors.grey.shade300),
                           const SizedBox(height: 12),
-                          Text('Riwayat kosong', style: AppFonts.caption(color: Colors.grey)),
+                          Text('Riwayat kosong',
+                              style: AppFonts.caption(color: Colors.grey)),
                         ],
                       ),
                     ),
@@ -853,7 +917,8 @@ class _KeamananAkunScreenState extends State<KeamananAkunScreen> {
                         final log = loginHistory[idx];
                         return Container(
                           margin: const EdgeInsets.only(bottom: 8),
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 12),
                           decoration: BoxDecoration(
                             color: const Color(0xFFF8FAFC),
                             borderRadius: BorderRadius.circular(12),
@@ -861,14 +926,23 @@ class _KeamananAkunScreenState extends State<KeamananAkunScreen> {
                           ),
                           child: Row(
                             children: [
-                              const Icon(Icons.login_rounded, color: AppColors.primary, size: 16),
+                              const Icon(Icons.login_rounded,
+                                  color: AppColors.primary, size: 16),
                               const SizedBox(width: 12),
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      '${log['tanggal']} • ${log['jam']}',
+                                      _formatSecurityTime(
+                                        log['occurredAt'],
+                                        includeClock: true,
+                                      ).isNotEmpty
+                                          ? _formatSecurityTime(
+                                              log['occurredAt'],
+                                              includeClock: true,
+                                            )
+                                          : '${log['tanggal'] ?? '-'} • ${log['jam'] ?? '-'}',
                                       style: const TextStyle(
                                         fontFamily: 'FredokaOne',
                                         fontSize: 12,
@@ -877,8 +951,9 @@ class _KeamananAkunScreenState extends State<KeamananAkunScreen> {
                                     ),
                                     const SizedBox(height: 2),
                                     Text(
-                                      'via ${log['metode']} (${log['device']})',
-                                      style: AppFonts.caption(color: Colors.grey.shade600),
+                                      'via ${log['metode'] ?? '-'} (${log['device'] ?? 'Perangkat'})',
+                                      style: AppFonts.caption(
+                                          color: Colors.grey.shade600),
                                     ),
                                   ],
                                 ),

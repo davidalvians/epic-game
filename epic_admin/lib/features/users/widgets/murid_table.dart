@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:epic_admin/core/services/account_deletion_service.dart';
 import 'package:epic_admin/core/theme/admin_colors.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
@@ -641,66 +641,7 @@ class _HoverableMuridRowState extends State<_HoverableMuridRow> {
                 );
 
                 try {
-                  final snap = await FirebaseFirestore.instance.collection('users').doc(uid).get();
-                  String? username;
-                  String? avatarUrl;
-                  if (snap.exists) {
-                    final data = snap.data() as Map<String, dynamic>?;
-                    username = data?['username'] as String?;
-                    avatarUrl = data?['avatarUrl'] as String?;
-                  }
-
-                  final artworksSnap = await FirebaseFirestore.instance
-                      .collection('artworks')
-                      .where('uid', isEqualTo: uid)
-                      .get();
-
-                  if (artworksSnap.docs.isNotEmpty) {
-                    final batch = FirebaseFirestore.instance.batch();
-                    for (var doc in artworksSnap.docs) {
-                      final artData = doc.data();
-                      final String imageUrl = artData['imageUrl']?.toString() ?? '';
-                      if (imageUrl.isNotEmpty && imageUrl.contains('firebasestorage.googleapis.com')) {
-                        try {
-                          final ref = FirebaseStorage.instance.refFromURL(imageUrl);
-                          await ref.delete();
-                        } catch (e) {
-                          debugPrint('Error deleting artwork file: $e');
-                        }
-                      }
-                      batch.delete(doc.reference);
-                    }
-                    await batch.commit();
-                  }
-
-                  if (avatarUrl != null && avatarUrl.isNotEmpty && avatarUrl.contains('firebasestorage.googleapis.com')) {
-                    try {
-                      final ref = FirebaseStorage.instance.refFromURL(avatarUrl);
-                      await ref.delete();
-                    } catch (e) {
-                      debugPrint('Error deleting avatar file: $e');
-                    }
-                  }
-
-                  if (username != null && username.isNotEmpty) {
-                    await FirebaseFirestore.instance.collection('usernames').doc(username.toLowerCase()).delete();
-                  }
-
-                  final kelasSnap = await FirebaseFirestore.instance
-                      .collection('kelas')
-                      .where('muridIds', arrayContains: uid)
-                      .get();
-                  if (kelasSnap.docs.isNotEmpty) {
-                    final batch = FirebaseFirestore.instance.batch();
-                    for (var doc in kelasSnap.docs) {
-                      batch.update(doc.reference, {
-                        'muridIds': FieldValue.arrayRemove([uid]),
-                      });
-                    }
-                    await batch.commit();
-                  }
-
-                  await FirebaseFirestore.instance.collection('users').doc(uid).delete();
+                  await AccountDeletionService.deleteUser(uid);
 
                   try {
                     rootNavigator.pop();

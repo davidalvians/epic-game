@@ -1,5 +1,6 @@
 # Firebase Environment Files
 functions/.env
+functions/.secret.local
 .firebase/
 
 # Node modules

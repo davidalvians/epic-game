@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:epic_app/data/models/drawing_session_model.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:epic_app/core/services/draft_service.dart';
 import 'package:flutter/foundation.dart';
@@ -15,7 +16,8 @@ import 'package:epic_app/data/repositories/auth_repository.dart';
 import 'package:epic_app/data/repositories/user_repository.dart';
 import 'package:epic_app/core/routes/app_routes.dart';
 import 'package:epic_app/core/utils/epic_notification.dart';
-import 'package:epic_app/features/kelas/kelas_controller.dart' as epic_app_kelas_controller;
+import 'package:epic_app/features/kelas/kelas_controller.dart'
+    as epic_app_kelas_controller;
 import 'package:epic_app/data/repositories/misi_harian_repository.dart';
 import 'package:epic_app/core/services/app_config_service.dart';
 
@@ -45,7 +47,7 @@ class SessionController extends GetxController {
   bool get isMurid => currentUser.value?.isMurid ?? true;
   bool get isGuru => currentUser.value?.isGuru ?? false;
   bool get isAdmin => currentUser.value?.isAdmin ?? false;
-  
+
   bool get isGuruVerified => currentUser.value?.isGuruVerified ?? false;
   bool get isGuruApproved => isGuruVerified;
   bool get isGuruPending => currentUser.value?.isGuruPending ?? false;
@@ -85,7 +87,8 @@ class SessionController extends GetxController {
     // (sangat tidak normal), hentikan loading agar app tidak stuck di splash.
     Future.delayed(const Duration(seconds: 10), () {
       if (isLoading.value) {
-        debugPrint('⚠️ Safety timeout: isLoading masih true setelah 10 detik, dihentikan paksa.');
+        debugPrint(
+            '⚠️ Safety timeout: isLoading masih true setelah 10 detik, dihentikan paksa.');
         isLoading.value = false;
       }
     });
@@ -94,7 +97,7 @@ class SessionController extends GetxController {
   Future<void> _autoRestoreSession() async {
     debugPrint('🔄 Menjalankan _autoRestoreSession...');
     final restored = await _authRepo.restoreSessionIfPossible();
-    
+
     // Listen authStateChanges setelah auto restore selesai (atau gagal)
     _auth.authStateChanges().listen(_onAuthStateChanged);
 
@@ -131,7 +134,6 @@ class SessionController extends GetxController {
   /// Memulai subscription Firestore untuk perubahan data user
   void _listenToUserChanges(String uid) {
     _userSub?.cancel();
-    bool isFirstSnapshot = true;
     _userSub = FirebaseFirestore.instance
         .collection('users')
         .doc(uid)
@@ -162,14 +164,12 @@ class SessionController extends GetxController {
 
         final freshUser = UserModel.fromJson({...data, 'uid': uid});
         currentUser.value = freshUser;
-
-        // EPIC Fix: Mencegah false-positive logout akibat cache offline / data awal lama
-        if (isFirstSnapshot) {
-          isFirstSnapshot = false;
-          debugPrint('ℹ️ Mengabaikan cek device kick pada snapshot pertama (startup stream).');
-        } else if (!doc.metadata.isFromCache) {
-          _checkIfDeviceKicked(freshUser);
-        }
+        final revokedDeviceIds = data['revokedDeviceIds'] is List
+            ? Set<String>.from(
+                (data['revokedDeviceIds'] as List).map((entry) => '$entry'),
+              )
+            : <String>{};
+        _checkIfDeviceKicked(revokedDeviceIds);
       }
     }, onError: (e) async {
       debugPrint('⚠️ Error pada user sub stream listener: $e');
@@ -204,7 +204,7 @@ class SessionController extends GetxController {
       // Baru boleh clear state.
       currentUser.value = null;
       activeKelasId.value = '';
-      
+
       // Jika auto restore masih berjalan, JANGAN set isLoading = false di sini
       isLoading.value = false;
       return;
@@ -226,7 +226,8 @@ class SessionController extends GetxController {
         // Solusi: Set currentUser = null tanpa clear Firebase token.
         // Splash screen akan cek Firebase Auth langsung dan navigasi ke auth screen
         // (bukan onboarding), sehingga user bisa retry tanpa Google Sign-In lagi.
-        debugPrint('⚠️ Profil Firestore tidak dapat dimuat — Firebase Auth masih valid. TIDAK logout.');
+        debugPrint(
+            '⚠️ Profil Firestore tidak dapat dimuat — Firebase Auth masih valid. TIDAK logout.');
         currentUser.value = null;
         return;
       }
@@ -256,12 +257,17 @@ class SessionController extends GetxController {
       }();
       if (userModel.isMurid) {
         () async {
-          try { await _userRepo.updateLastActive(userModel.uid); } catch (e) {
+          try {
+            await _userRepo.updateLastActive(userModel.uid);
+          } catch (e) {
             debugPrint('⚠️ updateLastActive error: $e');
           }
         }();
         () async {
-          try { await MisiHarianRepository().incrementByType(uid: userModel.uid, tipe: 'login_streak'); } catch (e) {
+          try {
+            await MisiHarianRepository()
+                .incrementByType(uid: userModel.uid, tipe: 'login_streak');
+          } catch (e) {
             debugPrint('⚠️ login_streak error: $e');
           }
         }();
@@ -352,28 +358,27 @@ class SessionController extends GetxController {
     }
   }
 
-
   /// Logout dan kembali ke auth screen.
   // --- Keamanan Akun Sesi & Device Sync ---
 
   bool _isKickedChecking = false;
 
-  Future<void> _checkIfDeviceKicked(UserModel freshUser) async {
+  Future<void> _checkIfDeviceKicked(Set<String> revokedDeviceIds) async {
     if (_isKickedChecking) return;
     try {
-      if (freshUser.devices.isEmpty) return; // Belum ter-inisialisasi, lewati
-
       final prefs = await SharedPreferences.getInstance();
       final String? deviceId = prefs.getString('epic_device_unique_id');
       if (deviceId == null) return; // Device ID belum dibuat, lewati
 
-      // Cek apakah perangkat aktif saat ini terdaftar di Firestore
-      final hasCurrentDevice = freshUser.devices.any((d) => d['id'] == deviceId);
-      if (!hasCurrentDevice) {
+      // Logout hanya jika ada pencabutan eksplisit dari server. Daftar device
+      // yang belum terbentuk saat startup bukan lagi dianggap sebagai kick.
+      if (revokedDeviceIds.contains(deviceId)) {
         _isKickedChecking = true;
-        debugPrint('⚠️ Perangkat ini ($deviceId) telah dikeluarkan dari Firestore dari jauh!');
+        debugPrint(
+            '⚠️ Perangkat ini ($deviceId) telah dikeluarkan dari Firestore dari jauh!');
 
         // Hentikan sesi dan logout instan
+        await prefs.remove('epic_device_unique_id');
         await logout();
 
         // Tampilkan notifikasi pop-up pemberitahuan sesi berakhir
@@ -396,106 +401,37 @@ class SessionController extends GetxController {
       // Dapatkan atau buat unique device ID
       String? deviceId = prefs.getString('epic_device_unique_id');
       if (deviceId == null) {
-        final random = Random();
-        final parts = List.generate(4, (_) => random.nextInt(1000000).toString().padLeft(6, '0'));
+        final random = Random.secure();
+        final parts = List.generate(
+            4, (_) => random.nextInt(1000000).toString().padLeft(6, '0'));
         deviceId = 'DEV-${parts.join("-")}';
         await prefs.setString('epic_device_unique_id', deviceId);
       }
 
-      // Ambil detail nama perangkat riil
       final String deviceName = await _getDeviceName();
-
-      // Ambil lokasi kabupaten/provinsi berdasarkan profil Firestore
-      String locationStr = 'Lokasi belum diisi';
-      final db = FirebaseFirestore.instance;
-      final userDoc = await db.collection('users').doc(uid).get();
-
-      List<Map<String, dynamic>> devices = [];
-      List<Map<String, dynamic>> loginHistory = [];
-
-      if (userDoc.exists && userDoc.data() != null) {
-        final data = userDoc.data()!;
-        final kabupaten = data['kabupaten']?.toString() ?? '';
-        final provinsi = data['provinsi']?.toString() ?? '';
-        if (kabupaten.isNotEmpty && provinsi.isNotEmpty) {
-          locationStr = '$kabupaten, $provinsi';
-        } else if (kabupaten.isNotEmpty) {
-          locationStr = kabupaten;
-        } else if (provinsi.isNotEmpty) {
-          locationStr = provinsi;
-        }
-
-        if (data['devices'] is List) {
-          devices = List<Map<String, dynamic>>.from(
-              (data['devices'] as List).map((e) => Map<String, dynamic>.from(e as Map)));
-        }
-        if (data['loginHistory'] is List) {
-          loginHistory = List<Map<String, dynamic>>.from(
-              (data['loginHistory'] as List).map((e) => Map<String, dynamic>.from(e as Map)));
-        }
-      }
-
-      final now = DateTime.now();
-      final months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
-      final dateStr = '${now.day} ${months[now.month - 1]} ${now.year}';
-      final jamStr = '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
-
-      // 1. Perbarui perangkat aktif
-      final deviceIndex = devices.indexWhere((d) => d['id'] == deviceId);
-      final newDeviceMap = {
-        'id': deviceId,
-        'nama': deviceName,
-        'tanggal': dateStr,
-        'lokasi': locationStr,
-      };
-
-      if (deviceIndex != -1) {
-        devices[deviceIndex] = newDeviceMap;
-      } else {
-        devices.add(newDeviceMap);
-      }
-
-      // 2. Tambah ke riwayat login jika tidak duplikat dengan riwayat terakhir
-      final String loginMethod = await _getLoginMethod();
-      final newHistoryMap = {
-        'tanggal': dateStr,
-        'jam': jamStr,
-        'device': deviceName,
-        'metode': loginMethod,
-      };
-
-      bool isDuplicate = false;
-      if (loginHistory.isNotEmpty) {
-        final last = loginHistory.first;
-        if (last['tanggal'] == dateStr &&
-            last['device'] == deviceName &&
-            last['metode'] == loginMethod) {
-          final lastJamParts = last['jam']?.toString().split(':') ?? [];
-          if (lastJamParts.length == 2) {
-            final lastHour = int.tryParse(lastJamParts[0]) ?? 0;
-            final lastMin = int.tryParse(lastJamParts[1]) ?? 0;
-            final diffMin = (now.hour - lastHour) * 60 + (now.minute - lastMin);
-            if (diffMin.abs() < 5) {
-              isDuplicate = true;
-            }
-          }
-        }
-      }
-
-      if (!isDuplicate) {
-        loginHistory.insert(0, newHistoryMap);
-        if (loginHistory.length > 20) {
-          loginHistory = loginHistory.sublist(0, 20);
-        }
-      }
-
-      // Update Firestore secara atomik
-      await db.collection('users').doc(uid).update({
-        'devices': devices,
-        'loginHistory': loginHistory,
+      final callable = FirebaseFunctions.instance.httpsCallable(
+        'registerDeviceSession',
+        options: HttpsCallableOptions(timeout: const Duration(seconds: 30)),
+      );
+      final result = await callable.call<Map<String, dynamic>>({
+        'deviceId': deviceId,
+        'deviceName': deviceName,
       });
+      final revoked = result.data['revoked'] == true;
 
-      debugPrint('📱 Perangkat aktif berhasil didaftarkan: $deviceName ($deviceId)');
+      if (revoked) {
+        await prefs.remove('epic_device_unique_id');
+        await logout();
+        EpicNotification.warning(
+          'Sesi Berakhir 🔒',
+          'Perangkat ini telah dikeluarkan dari akun.',
+          duration: const Duration(seconds: 5),
+        );
+        return;
+      }
+
+      debugPrint(
+          '📱 Perangkat aktif berhasil didaftarkan: $deviceName ($deviceId)');
     } catch (e) {
       debugPrint('⚠️ Gagal mendaftarkan perangkat aktif ke Firestore: $e');
     }
@@ -530,34 +466,41 @@ class SessionController extends GetxController {
     return 'Perangkat Aktif';
   }
 
-  Future<String> _getLoginMethod() async {
-    final user = _auth.currentUser;
-    if (user != null) {
-      for (final profile in user.providerData) {
-        if (profile.providerId == 'google.com') {
-          return 'Google Sign-In';
-        }
-      }
-    }
-    return 'Kode 6 Digit';
-  }
-
   Future<void> logout() async {
     isLoading.value = true;
     _userSub?.cancel();
     _userSub = null;
     try {
+      await _removeCurrentDeviceRegistration();
       await _authRepo.logout();
       currentUser.value = null;
-      
+
       // Hapus controller yang menyimpan state user sebelumnya
       if (Get.isRegistered<epic_app_kelas_controller.KelasController>()) {
         Get.delete<epic_app_kelas_controller.KelasController>(force: true);
       }
-      
+
       Get.offAllNamed(Routes.auth);
     } finally {
       isLoading.value = false;
+    }
+  }
+
+  Future<void> _removeCurrentDeviceRegistration() async {
+    try {
+      final uid = _auth.currentUser?.uid;
+      if (uid == null) return;
+      final prefs = await SharedPreferences.getInstance();
+      final deviceId = prefs.getString('epic_device_unique_id');
+      if (deviceId == null) return;
+
+      final callable = FirebaseFunctions.instance.httpsCallable(
+        'unregisterDeviceSession',
+        options: HttpsCallableOptions(timeout: const Duration(seconds: 15)),
+      );
+      await callable.call<void>({'deviceId': deviceId});
+    } catch (error) {
+      debugPrint('⚠️ Gagal menutup registrasi perangkat saat logout: $error');
     }
   }
 

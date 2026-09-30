@@ -14,12 +14,9 @@ service cloud.firestore {
 
     function isAdmin() {
       return isLoggedIn() && 
-        (
-          (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin') ||
-          (exists(/databases/$(database)/documents/admins/$(request.auth.uid)) && 
-           get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role == 'admin')
-        );
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role == 'admin' &&
+        get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.isActive == true;
     }
 
     function isGuru() {
@@ -51,12 +48,50 @@ service cloud.firestore {
       // Siapapun yang login bisa baca profil user (untuk ranking, dll)
       allow read: if isLoggedIn();
 
-      // Hanya pemilik akun yang bisa create & update profilnya sendiri
-      allow create: if isLoggedIn() && isOwner(uid);
-      allow update: if isLoggedIn() && (isOwner(uid) || isAdmin()) &&
-        // Poin tidak boleh berkurang kecuali via server-side
-        (!request.resource.data.keys().hasAll(['poin']) ||
-         isNonNegative(request.resource.data.poin));
+      // Profil awal selalu murid yang belum menyelesaikan onboarding. Role guru
+      // hanya dapat dipilih lewat update terkontrol dan wajib berstatus pending.
+      allow create: if isLoggedIn() && isOwner(uid) &&
+        request.resource.data.get('uid', uid) == uid &&
+        request.resource.data.get('role', 'murid') == 'murid' &&
+        request.resource.data.get('isProfileComplete', false) == false &&
+        request.resource.data.get('guruStatus', 'none') == 'none' &&
+        request.resource.data.get('verifikasiStatus', 'none') == 'none' &&
+        request.resource.data.get('isActive', true) == true &&
+        request.resource.data.get('status', 'active') == 'active' &&
+        request.resource.data.get('poin', 0) == 0;
+      allow update: if isAdmin() ||
+        (isLoggedIn() && isOwner(uid) &&
+         (
+           request.resource.data.get('role', 'murid') ==
+             resource.data.get('role', 'murid') ||
+           (
+             resource.data.get('isProfileComplete', false) == false &&
+             request.resource.data.get('role', 'murid') in ['murid', 'guru']
+           )
+         ) &&
+         request.resource.data.get('isActive', true) ==
+           resource.data.get('isActive', true) &&
+         request.resource.data.get('status', 'active') ==
+           resource.data.get('status', 'active') &&
+         (
+           request.resource.data.get('guruStatus', 'none') ==
+             resource.data.get('guruStatus', 'none') ||
+           (
+             request.resource.data.get('role', 'murid') == 'guru' &&
+             request.resource.data.get('guruStatus', 'none') == 'pending' &&
+             resource.data.get('guruStatus', 'none') in ['none', 'rejected']
+           )
+         ) &&
+         request.resource.data.get('verifikasiStatus', 'none') ==
+           resource.data.get('verifikasiStatus', 'none') &&
+         request.resource.data.get('devices', []) ==
+           resource.data.get('devices', []) &&
+         request.resource.data.get('loginHistory', []) ==
+           resource.data.get('loginHistory', []) &&
+         request.resource.data.get('revokedDeviceIds', []) ==
+           resource.data.get('revokedDeviceIds', []) &&
+         (!request.resource.data.keys().hasAll(['poin']) ||
+          isNonNegative(request.resource.data.poin)));
 
       // Tidak ada yang bisa hapus akun dari client (kecuali admin)
       allow delete: if isAdmin();
@@ -107,6 +142,16 @@ service cloud.firestore {
         allow read: if isLoggedIn() && isOwner(uid);
         allow create, update: if isLoggedIn() && isOwner(uid);
         allow delete: if false;
+      }
+
+      match /security_sessions/{sessionId} {
+        allow read: if isLoggedIn() && (isOwner(uid) || isAdmin());
+        allow write: if false;
+      }
+
+      match /login_history/{historyId} {
+        allow read: if isLoggedIn() && (isOwner(uid) || isAdmin());
+        allow write: if false;
       }
     }
 
@@ -160,7 +205,29 @@ service cloud.firestore {
       allow update: if isLoggedIn() && (
         resource.data.guruUid == request.auth.uid ||
         isAdmin() ||
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['muridIds', 'exitedMurids'])
+        (
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['muridIds']) &&
+          (
+            (
+              !(request.auth.uid in resource.data.get('muridIds', [])) &&
+              request.auth.uid in request.resource.data.get('muridIds', []) &&
+              request.resource.data.get('muridIds', [])
+                .hasAll(resource.data.get('muridIds', [])) &&
+              request.resource.data.get('muridIds', []).size() ==
+                resource.data.get('muridIds', []).size() + 1
+            ) ||
+            (
+              request.auth.uid in resource.data.get('muridIds', []) &&
+              !(request.auth.uid in
+                request.resource.data.get('muridIds', [])) &&
+              resource.data.get('muridIds', [])
+                .hasAll(request.resource.data.get('muridIds', [])) &&
+              request.resource.data.get('muridIds', []).size() ==
+                resource.data.get('muridIds', []).size() - 1
+            )
+          )
+        )
       );
 
       // Guru pemilik atau admin yang bisa hapus kelas
@@ -291,14 +358,26 @@ service cloud.firestore {
     // ─── STUDENT_EVALUATIONS Collection ──────────────────────────────────
     match /student_evaluations/{evalId} {
       allow read: if isAdmin() || (isLoggedIn() && isOwner(resource.data.studentId));
-      allow create, update: if isLoggedIn();
+      allow create: if isLoggedIn() &&
+        request.resource.data.studentId == request.auth.uid;
+      allow update: if isAdmin() ||
+        (isLoggedIn() &&
+         resource.data.studentId == request.auth.uid &&
+         request.resource.data.studentId == request.auth.uid);
       allow delete: if isAdmin();
     }
 
     // ─── ADMINS Collection ────────────────────────────────────────────────
     match /admins/{uid} {
+      // Pertahankan kompatibilitas data admin lama yang masih dicari via email.
+      // Hak admin tetap hanya diberikan oleh dokumen UID pada fungsi isAdmin().
       allow read: if isLoggedIn();
       allow write: if false; // Hanya diubah via Firebase Console demi keamanan
+    }
+
+    match /account_deletion_jobs/{uid} {
+      allow read: if isAdmin();
+      allow write: if false;
     }
   }
 }

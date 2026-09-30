@@ -68,8 +68,8 @@ class Helpers {
       switch (level) {
         case 1: return 'Anyaman 2 Warna';
         case 2: return 'Anyaman Bilah Silang';
-        case 3: return 'Anyaman 4 Warna';
-        case 4: return 'Anyaman Bebas';
+        case 3: return 'Anyaman Diagonal';
+        case 4: return 'Kelarai Bunga Api';
         default: return 'Level $level';
       }
     }

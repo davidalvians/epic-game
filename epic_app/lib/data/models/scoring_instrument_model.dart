@@ -82,26 +82,33 @@ class ScoringInstrumentModel {
     }
 
     final instructions = systemInstruction.isNotEmpty ? systemInstruction : konteksBudaya;
-    final levelSpecificRubric = kategori.toLowerCase() == 'anyaman' && level == 2
+    final usesAnyamanColorRubric =
+        kategori.toLowerCase() == 'anyaman' && level >= 1 && level <= 4;
+    final levelSpecificRubric = usesAnyamanColorRubric
         ? '''
-RUBRIK KHUSUS ANYAMAN LEVEL 2 (WAJIB):
+RUBRIK KHUSUS ANYAMAN LEVEL $level (WAJIB):
 - Nilai kualitas POLA WARNA dari ritme, pengulangan, keseimbangan, dan hubungan warna antarbilah; bentuk grid bawaan aplikasi bukan bukti kreativitas siswa.
-- Satu warna yang dipakai seragam tanpa variasi atau motif: skor kualitas pola warna 10-30 dan kreativitas warna 10-30. Walaupun rapi dan penuh, nilai akhir maksimal 55.
-- Dua atau lebih warna yang hanya ditempatkan acak tidak otomatis kreatif: skor kreativitas maksimal 50.
+- Satu warna yang dipakai seragam tanpa variasi atau motif: skor kualitas pola warna 5-30 dan kreativitas warna 0-20. Nilai kelengkapan tetap sesuai bidang yang terisi; jangan memberikan satu angka total yang sama untuk semua karya satu warna.
+- Dua atau lebih warna yang ditempatkan acak tidak otomatis kreatif. Bedakan skor berdasarkan tingkat keteraturan, pengulangan, keseimbangan, dan bagian yang telah diselesaikan.
 - Skor 60-79 membutuhkan pola warna yang sengaja disusun, berulang, cukup seimbang, dan rapi.
 - Skor 80-89 membutuhkan komposisi warna yang jelas harmonis/kontras, pola yang berkembang, seimbang, dan hampir seluruh bilah rapi.
 - Skor 90-100 hanya untuk karya yang sangat orisinal, kompleks tetapi teratur, harmonis, lengkap, dan nyaris tanpa kesalahan; kategori ini harus sangat jarang.
 - Bedakan penilaian setiap kriteria. Jangan memberi skor kreativitas tinggi hanya karena seluruh bilah telah diwarnai.
 '''
         : '';
-    final objectiveData = kategori.toLowerCase() == 'anyaman' &&
-            level == 2 &&
-            scoringMetadata != null
+    final objectiveData = usesAnyamanColorRubric && scoringMetadata != null
         ? '''
 DATA OBJEKTIF DARI GRID (lebih akurat daripada perkiraan gambar):
 - Jumlah warna yang benar-benar digunakan: ${scoringMetadata['uniqueColorCount'] ?? 0}
 - Persentase bilah yang terisi: ${(((scoringMetadata['fillPercentage'] as num?) ?? 0) * 100).round()}%
-Gunakan data ini sebagai fakta saat menilai variasi warna dan kelengkapan.
+- Persentase warna dominan: ${(((scoringMetadata['dominantColorRatio'] as num?) ?? 0) * 100).round()}%
+- Keseimbangan distribusi warna: ${(((scoringMetadata['colorBalance'] as num?) ?? 0) * 100).round()}%
+- Kekayaan variasi warna: ${(((scoringMetadata['colorRichness'] as num?) ?? 0) * 100).round()}%
+- Konsistensi pengulangan pola: ${(((scoringMetadata['patternConsistency'] as num?) ?? 0) * 100).round()}%
+- Skor pola objektif: ${scoringMetadata['objectivePatternScore'] ?? 0}/100
+- Skor kreativitas objektif: ${scoringMetadata['objectiveCreativityScore'] ?? 0}/100
+- Skor kelengkapan objektif: ${scoringMetadata['objectiveCompletenessScore'] ?? 0}/100
+Gunakan data ini sebagai fakta. Jangan menaikkan nilai hanya karena bidang penuh, dan jangan menyamakan karya satu warna, karya acak, serta pola yang sengaja disusun.
 '''
         : '';
 
@@ -145,6 +152,7 @@ PENTING: Berikan respons dalam format JSON berikut SAJA:
 {
   "skor": <skor_total_bulat_0_100>,
   "grade": "<S/A/B/C/D/E>",
+  "nilaiKriteria": [<skor kriteria 1>, <skor kriteria 2>, <skor kriteria 3>],
   "feedback": "<Teks feedback gabungan apresiasi, koreksi, dan saran>"
 }
 
@@ -265,21 +273,30 @@ Hanya berikan JSON, tanpa teks atau format markdown tambahan lainnya.
         return ScoringInstrumentModel(
           kategori: kategori,
           level: level,
-          konteksBudaya: 'Anyaman tradisional Madura dengan anyaman multi-warna yang kompleks.',
-          materiMatematika: 'Eksplorasi geometri dan warna. Warnai grid 12x12 secara bebas menggunakan minimal 4 warna berbeda.',
-          kriteria1: 'Penggunaan warna (minimal menggunakan 4 warna berbeda pada grid)',
-          kriteria2: 'Keindahan komposisi warna (harmonisasi gradasi warna)',
-          kriteria3: 'Kerapihan dan detail motif yang dibentuk',
+          konteksBudaya: 'Anyaman Madura dapat disusun dari bilah-bilah diagonal yang berulang membentuk motif geometris menyerupai spiral dan persegi bertingkat.',
+          materiMatematika: 'Pola geometri diagonal, rotasi, pengulangan, dan keseimbangan. Warnai setiap bilah untuk membentuk komposisi warna yang teratur dan kreatif.',
+          kriteria1: 'Kualitas pola warna anyaman diagonal (ritme, pengulangan, dan keseimbangan antarbilah)',
+          bobot1: 35,
+          kriteria2: 'Kreativitas komposisi warna (variasi, harmoni, kontras, dan orisinalitas)',
+          bobot2: 40,
+          kriteria3: 'Kerapihan dan kelengkapan pewarnaan setiap bilah',
+          bobot3: 25,
+          systemInstruction: 'Anda adalah juri Anyaman Level 3. Nilai kualitas pola warna pada susunan bilah diagonal, kreativitas komposisi warna, serta kerapihan dan kelengkapan bilah secara terpisah. Tidak ada syarat jumlah warna minimum. Satu warna seragam tanpa variasi atau motif mendapat skor kualitas pola 5-30 dan kreativitas warna 0-20, sedangkan kelengkapan dinilai sesuai bidang yang terisi; jangan memberikan satu angka total yang sama untuk semua karya satu warna. Dua atau lebih warna yang ditempatkan acak tidak otomatis kreatif. Nilai 80 ke atas hanya untuk komposisi yang sengaja disusun, harmonis atau kontras, seimbang, lengkap, dan rapi; nilai 90-100 harus sangat jarang.',
         );
       case 'anyaman_4':
         return ScoringInstrumentModel(
           kategori: kategori,
           level: level,
-          konteksBudaya: 'Anyaman bebas Madura - Tingkat mahir dengan kreativitas tanpa batas.',
-          materiMatematika: 'Desain etnomatematika tingkat lanjut. Warnai grid 14x14 menggunakan multi-warna (lebih dari 3 warna berbeda).',
-          kriteria1: 'Penggunaan warna (menggunakan lebih dari 3 warna berbeda pada grid)',
-          kriteria2: 'Orisinalitas desain (motif ornamen anyaman khas Madura)',
-          kriteria3: 'Kerapihan dan keindahan artistik keseluruhan',
+          konteksBudaya: 'Motif Kelarai Bunga Api menyusun bilah-bilah anyaman horizontal dan vertikal secara bertingkat hingga membentuk komposisi geometris yang memancar dari pusat.',
+          materiMatematika: 'Pola geometri ortogonal, pengulangan, keseimbangan, dan hubungan spasial. Warnai setiap bidang Kelarai Bunga Api untuk membentuk komposisi warna yang teratur dan kreatif.',
+          kriteria1: 'Kualitas pola warna Kelarai Bunga Api (ritme, pengulangan, keseimbangan, dan hubungan antarbidang)',
+          bobot1: 35,
+          kriteria2: 'Kreativitas komposisi warna (variasi, harmoni, kontras, dan orisinalitas)',
+          bobot2: 40,
+          kriteria3: 'Kerapihan dan kelengkapan pewarnaan setiap bidang anyaman',
+          bobot3: 25,
+          modelAI: 'gemini-2.5-flash',
+          systemInstruction: 'Anda adalah juri Anyaman Level 4 dengan motif Kelarai Bunga Api. Nilai kualitas pola warna pada susunan bilah horizontal dan vertikal yang bertingkat, kreativitas komposisi warna, serta kerapihan dan kelengkapan setiap bidang secara terpisah. Tidak ada syarat jumlah warna minimum. Satu warna seragam tanpa variasi atau motif mendapat skor kualitas pola 5-30 dan kreativitas warna 0-20, sedangkan kelengkapan dinilai sesuai bidang yang terisi; jangan memberikan satu angka total yang sama untuk semua karya satu warna. Dua atau lebih warna yang ditempatkan acak tidak otomatis kreatif. Nilai 80 ke atas hanya untuk komposisi yang sengaja disusun, harmonis atau kontras, seimbang, lengkap, dan rapi; nilai 90-100 harus sangat jarang.',
         );
       case 'keris_1':
         return ScoringInstrumentModel(

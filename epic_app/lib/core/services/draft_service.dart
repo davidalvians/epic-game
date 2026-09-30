@@ -9,10 +9,10 @@ import 'package:flutter/foundation.dart';
 
 class DraftService extends GetxService {
   final RxList<DrawingSessionModel> drafts = <DrawingSessionModel>[].obs;
-  
+
   // Mencegah file I/O bertabrakan untuk file draf yang sama (misal: save & delete berbarengan)
   final Map<String, Completer<void>> _fileLocks = {};
-  
+
   // Mencegah loadAllDrafts berjalan ganda secara bersamaan
   bool _isLoading = false;
   bool _needsReload = false;
@@ -55,7 +55,7 @@ class DraftService extends GetxService {
       return;
     }
     _isLoading = true;
-    
+
     do {
       _needsReload = false;
       final user = Get.find<SessionController>().currentUser.value;
@@ -67,8 +67,11 @@ class DraftService extends GetxService {
       try {
         final dir = await _getDraftDir();
         final List<DrawingSessionModel> loadedDrafts = [];
-        
-        final files = dir.listSync().whereType<File>().where((f) => f.path.endsWith('.json'));
+
+        final files = dir
+            .listSync()
+            .whereType<File>()
+            .where((f) => f.path.endsWith('.json'));
         for (var file in files) {
           try {
             final jsonStr = await file.readAsString();
@@ -87,14 +90,14 @@ class DraftService extends GetxService {
             } catch (_) {}
           }
         }
-        
+
         loadedDrafts.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
         drafts.assignAll(loadedDrafts);
       } catch (e) {
         debugPrint('Error accessing draft directory: $e');
       }
     } while (_needsReload);
-    
+
     _isLoading = false;
   }
 
@@ -121,18 +124,45 @@ class DraftService extends GetxService {
     await loadAllDrafts();
   }
 
+  /// Menghapus seluruh draf lokal milik akun yang dihapus tanpa menyentuh
+  /// draf pengguna lain yang mungkin pernah memakai perangkat yang sama.
+  Future<void> deleteAllDraftsForUser(String uid) async {
+    final dir = await _getDraftDir();
+    final prefix = 'drawing_session_${uid}_';
+    final files = dir
+        .listSync()
+        .whereType<File>()
+        .where((file) =>
+            file.path.split(Platform.pathSeparator).last.startsWith(prefix))
+        .toList();
+
+    for (final file in files) {
+      final fileName = file.path.split(Platform.pathSeparator).last;
+      final key = fileName.endsWith('.json')
+          ? fileName.substring(0, fileName.length - 5)
+          : fileName;
+      await _runWithLock(key, () async {
+        if (await file.exists()) await file.delete();
+      });
+    }
+    drafts.removeWhere((draft) => draft.uid == uid);
+  }
+
   /// Menghapus draft dari memori secara langsung (sinkron) agar UI terupdate seketika,
   /// lalu menghapus file dari disk di background tanpa memblokir proses.
   void clearDraftImmediately(String uid, String kategori, int level) {
     // 1. Hapus langsung dari list memory
-    drafts.removeWhere((d) => d.uid == uid && d.kategori == kategori && d.level == level);
-    debugPrint('✅ Draft dihapus dari memori secara instan: $kategori level $level');
+    drafts.removeWhere(
+        (d) => d.uid == uid && d.kategori == kategori && d.level == level);
+    debugPrint(
+        '✅ Draft dihapus dari memori secara instan: $kategori level $level');
 
     // 2. Hapus file di background
     _deleteDraftFileInBackground(uid, kategori, level);
   }
 
-  Future<void> _deleteDraftFileInBackground(String uid, String kategori, int level) async {
+  Future<void> _deleteDraftFileInBackground(
+      String uid, String kategori, int level) async {
     final key = 'drawing_session_${uid}_${kategori}_$level';
     await _runWithLock(key, () async {
       try {
@@ -150,7 +180,8 @@ class DraftService extends GetxService {
     await loadAllDrafts();
   }
 
-  Future<DrawingSessionModel?> getDraft(String uid, String kategori, int level) async {
+  Future<DrawingSessionModel?> getDraft(
+      String uid, String kategori, int level) async {
     final key = 'drawing_session_${uid}_${kategori}_$level';
     final dir = await _getDraftDir();
     final file = File('${dir.path}/$key.json');

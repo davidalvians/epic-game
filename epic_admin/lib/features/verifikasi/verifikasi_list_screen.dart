@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:epic_admin/core/services/account_deletion_service.dart';
 import 'package:epic_admin/core/theme/admin_colors.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
@@ -488,58 +489,17 @@ class _VerifikasiListScreenState extends State<VerifikasiListScreen> with Single
         final data = doc.data() as Map<String, dynamic>;
         final String fileUrl = data['buktiUrl'] ?? data['fileUrl'] ?? '';
         final String uid = data['uid'] ?? '';
-        final String requestId = doc.id;
 
         if (uid.isNotEmpty) {
-          try {
-            final userSnap = await FirebaseFirestore.instance.collection('users').doc(uid).get();
-            String? username;
-            String? avatarUrl;
-            if (userSnap.exists) {
-              final userData = userSnap.data() as Map<String, dynamic>?;
-              username = userData?['username'] as String?;
-              avatarUrl = userData?['avatarUrl'] as String?;
-            }
-
-            if (avatarUrl != null && avatarUrl.isNotEmpty && avatarUrl.contains('firebasestorage.googleapis.com')) {
-              try {
-                final ref = FirebaseStorage.instance.refFromURL(avatarUrl);
-                await ref.delete();
-              } catch (e) {
-                debugPrint('Error deleting avatar: $e');
-              }
-            }
-
-            if (username != null && username.isNotEmpty) {
-              await FirebaseFirestore.instance.collection('usernames').doc(username.toLowerCase()).delete();
-            }
-
-            final classesSnap = await FirebaseFirestore.instance
-                .collection('kelas')
-                .where('guruUid', isEqualTo: uid)
-                .get();
-            if (classesSnap.docs.isNotEmpty) {
-              for (var classDoc in classesSnap.docs) {
-                await classDoc.reference.delete();
-              }
-            }
-
-            await FirebaseFirestore.instance.collection('users').doc(uid).delete();
-          } catch (e) {
-            debugPrint('Error deleting teacher user: $e');
-          }
-        }
-
-        if (fileUrl.isNotEmpty && fileUrl.contains('firebasestorage.googleapis.com')) {
-          try {
+          await AccountDeletionService.deleteUser(uid);
+        } else {
+          if (fileUrl.isNotEmpty &&
+              fileUrl.contains('firebasestorage.googleapis.com')) {
             final ref = FirebaseStorage.instance.refFromURL(fileUrl);
             await ref.delete();
-          } catch (e) {
-            debugPrint('Error deleting storage file: $e');
           }
+          await doc.reference.delete();
         }
-
-        await FirebaseFirestore.instance.collection('guru_verifikasi').doc(requestId).delete();
         successCount++;
       }
 

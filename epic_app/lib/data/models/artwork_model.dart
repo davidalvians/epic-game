@@ -56,7 +56,7 @@ class ArtworkModel {
   }
 
   /// Getter untuk mendapatkan grade aktual berdasarkan skorAI secara dinamis & real-time.
-  String get actualGrade => skorAI == null ? '-' : grade;
+  String get actualGrade => calculateGrade(skorAI);
 
   /// Multiplier poin berdasarkan level.
   static double multiplierForLevel(int level) {
@@ -99,6 +99,7 @@ class ArtworkModel {
       return null;
     }
 
+    final parsedScore = parseSafeIntNullable(json['skorAI']);
     return ArtworkModel(
       uid: json['uid']?.toString() ?? '',
       idKarya: json['idKarya']?.toString() ?? '',
@@ -107,8 +108,8 @@ class ArtworkModel {
       kategori: json['kategori']?.toString() ?? 'keris',
       level: parseSafeInt(json['level'], 1),
       templateId: json['templateId']?.toString(),
-      skorAI: parseSafeIntNullable(json['skorAI']),
-      grade: json['grade']?.toString() ?? 'C',
+      skorAI: parsedScore,
+      grade: calculateGrade(parsedScore),
       feedback: json['feedback']?.toString() ?? '',
       detailPenilaian: json['detailPenilaian'] is Map
           ? Map<String, dynamic>.from(json['detailPenilaian'])
@@ -134,7 +135,7 @@ class ArtworkModel {
       'level': level,
       'templateId': templateId,
       'skorAI': skorAI,
-      'grade': grade,
+      'grade': actualGrade,
       'feedback': feedback,
       'detailPenilaian': detailPenilaian,
       'modelAI': modelAI,

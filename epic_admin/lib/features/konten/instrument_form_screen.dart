@@ -35,7 +35,7 @@ class _InstrumentFormScreenState extends State<InstrumentFormScreen> {
   Map<String, dynamic> _getDefaultInstrumentValues() {
     if (widget.id.toLowerCase() == 'anyaman_2') {
       return {
-        'systemInstruction': '''Anda adalah juri Anyaman Level 2. Nilai kualitas pola warna, kreativitas komposisi warna, serta kerapihan dan kelengkapan bilah secara terpisah. Satu warna seragam tanpa variasi atau motif hanya boleh memperoleh skor 10-30 pada kualitas pola dan kreativitas warna, dengan nilai akhir maksimal 55 meskipun rapi dan penuh. Dua atau lebih warna yang ditempatkan acak tidak otomatis kreatif. Nilai 80 ke atas hanya untuk komposisi yang sengaja disusun, harmonis atau kontras, seimbang, lengkap, dan rapi; nilai 90-100 harus sangat jarang.''',
+        'systemInstruction': '''Anda adalah juri Anyaman Level 2. Nilai kualitas pola warna, kreativitas komposisi warna, serta kerapihan dan kelengkapan bilah secara terpisah. Satu warna seragam tanpa variasi atau motif mendapat skor kualitas pola 5-30 dan kreativitas warna 0-20, sedangkan kelengkapan dinilai sesuai bidang yang terisi; jangan memberikan satu angka total yang sama untuk semua karya satu warna. Dua atau lebih warna yang ditempatkan acak tidak otomatis kreatif. Nilai 80 ke atas hanya untuk komposisi yang sengaja disusun, harmonis atau kontras, seimbang, lengkap, dan rapi; nilai 90-100 harus sangat jarang.''',
         'criteria': <Map<String, dynamic>>[
           {
             'name': 'Kualitas pola warna anyaman (ritme, pengulangan, dan keseimbangan antarbilah)',
@@ -53,6 +53,47 @@ class _InstrumentFormScreenState extends State<InstrumentFormScreen> {
       };
     }
 
+    if (widget.id.toLowerCase() == 'anyaman_3') {
+      return {
+        'systemInstruction': '''Anda adalah juri Anyaman Level 3. Nilai kualitas pola warna pada susunan bilah diagonal, kreativitas komposisi warna, serta kerapihan dan kelengkapan bilah secara terpisah. Tidak ada syarat jumlah warna minimum. Satu warna seragam tanpa variasi atau motif mendapat skor kualitas pola 5-30 dan kreativitas warna 0-20, sedangkan kelengkapan dinilai sesuai bidang yang terisi; jangan memberikan satu angka total yang sama untuk semua karya satu warna. Dua atau lebih warna yang ditempatkan acak tidak otomatis kreatif. Nilai 80 ke atas hanya untuk komposisi yang sengaja disusun, harmonis atau kontras, seimbang, lengkap, dan rapi; nilai 90-100 harus sangat jarang.''',
+        'criteria': <Map<String, dynamic>>[
+          {
+            'name': 'Kualitas pola warna anyaman diagonal (ritme, pengulangan, dan keseimbangan antarbilah)',
+            'weight': 35,
+          },
+          {
+            'name': 'Kreativitas komposisi warna (variasi, harmoni, kontras, dan orisinalitas)',
+            'weight': 40,
+          },
+          {
+            'name': 'Kerapihan dan kelengkapan pewarnaan setiap bilah',
+            'weight': 25,
+          },
+        ],
+      };
+    }
+
+    if (widget.id.toLowerCase() == 'anyaman_4') {
+      return {
+        'modelAI': 'gemini-2.5-flash',
+        'systemInstruction': '''Anda adalah juri Anyaman Level 4 dengan motif Kelarai Bunga Api. Nilai kualitas pola warna pada susunan bilah horizontal dan vertikal yang bertingkat, kreativitas komposisi warna, serta kerapihan dan kelengkapan setiap bidang secara terpisah. Tidak ada syarat jumlah warna minimum. Satu warna seragam tanpa variasi atau motif mendapat skor kualitas pola 5-30 dan kreativitas warna 0-20, sedangkan kelengkapan dinilai sesuai bidang yang terisi; jangan memberikan satu angka total yang sama untuk semua karya satu warna. Dua atau lebih warna yang ditempatkan acak tidak otomatis kreatif. Nilai 80 ke atas hanya untuk komposisi yang sengaja disusun, harmonis atau kontras, seimbang, lengkap, dan rapi; nilai 90-100 harus sangat jarang.''',
+        'criteria': <Map<String, dynamic>>[
+          {
+            'name': 'Kualitas pola warna Kelarai Bunga Api (ritme, pengulangan, keseimbangan, dan hubungan antarbidang)',
+            'weight': 35,
+          },
+          {
+            'name': 'Kreativitas komposisi warna (variasi, harmoni, kontras, dan orisinalitas)',
+            'weight': 40,
+          },
+          {
+            'name': 'Kerapihan dan kelengkapan pewarnaan setiap bidang anyaman',
+            'weight': 25,
+          },
+        ],
+      };
+    }
+
     return {
       'systemInstruction': '',
       'criteria': <Map<String, dynamic>>[
@@ -61,6 +102,23 @@ class _InstrumentFormScreenState extends State<InstrumentFormScreen> {
         {'name': 'Kreativitas Warna', 'weight': 30},
       ],
     };
+  }
+
+  bool _usesLegacyAnyamanValues(Map<String, dynamic> data) {
+    final id = widget.id.toLowerCase();
+    if (id != 'anyaman_2' && id != 'anyaman_3' && id != 'anyaman_4') {
+      return false;
+    }
+    final normalized = jsonEncode(data).toLowerCase();
+    return normalized.contains('grid 12x12') ||
+        normalized.contains('grid 14x14') ||
+        normalized.contains('minimal 4 warna') ||
+        normalized.contains('minimal menggunakan 4 warna') ||
+        normalized.contains('lebih dari 3 warna') ||
+        normalized.contains('anyaman bebas') ||
+        normalized.contains('asisten simetri') ||
+        normalized.contains('nilai akhir maksimal 55') ||
+        normalized.contains('skor 10-30 pada kualitas pola');
   }
 
   @override
@@ -118,7 +176,10 @@ class _InstrumentFormScreenState extends State<InstrumentFormScreen> {
           .get();
 
       if (doc.exists && doc.data() != null) {
-        final data = doc.data()!;
+        final rawData = doc.data()!;
+        final data = _usesLegacyAnyamanValues(rawData)
+            ? <String, dynamic>{...rawData, ...defaults}
+            : rawData;
         setState(() {
           _selectedModel = data['modelAI'] ?? 'gemini-2.5-flash-lite';
           final savedInstruction = data['systemInstruction']?.toString() ?? '';
@@ -165,6 +226,7 @@ class _InstrumentFormScreenState extends State<InstrumentFormScreen> {
         final parts = widget.id.split('_');
         final categoryName = parts.isNotEmpty ? parts[0] : 'Karya';
         setState(() {
+          _selectedModel = defaults['modelAI']?.toString() ?? _selectedModel;
           final defaultInstruction = defaults['systemInstruction'] as String;
           _promptController.text = defaultInstruction.isNotEmpty
               ? defaultInstruction
@@ -206,6 +268,7 @@ class _InstrumentFormScreenState extends State<InstrumentFormScreen> {
   void _applyLatestDefaults() {
     final defaults = _getDefaultInstrumentValues();
     setState(() {
+      _selectedModel = defaults['modelAI']?.toString() ?? _selectedModel;
       _promptController.text = defaults['systemInstruction'] as String;
       _criteriaList
         ..clear()
@@ -663,12 +726,16 @@ class _InstrumentFormScreenState extends State<InstrumentFormScreen> {
               ),
             ],
           ),
-          if (widget.id.toLowerCase() == 'anyaman_2') ...[
+          if (widget.id.toLowerCase() == 'anyaman_2' ||
+              widget.id.toLowerCase() == 'anyaman_3' ||
+              widget.id.toLowerCase() == 'anyaman_4') ...[
             const SizedBox(height: 12),
             OutlinedButton.icon(
               onPressed: _applyLatestDefaults,
               icon: const Icon(Icons.auto_fix_high_rounded, size: 16),
-              label: const Text('Gunakan Default Level 2 Terbaru'),
+              label: Text(
+                'Gunakan Default Level ${widget.id.split('_').last} Terbaru',
+              ),
               style: OutlinedButton.styleFrom(
                 foregroundColor: const Color(0xFF059669),
                 side: const BorderSide(color: Color(0xFF10B981)),

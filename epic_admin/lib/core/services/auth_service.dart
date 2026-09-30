@@ -37,9 +37,8 @@ class AuthService {
   /// Validasi apakah user yang login memiliki role admin yang aktif.
   ///
   /// Cek dilakukan dalam urutan:
-  /// 1. Koleksi `users` (role == 'admin' && isActive == true)
-  /// 2. Koleksi `admins` by UID
-  /// 3. Koleksi `admins` by email (fallback)
+  /// 1. Koleksi `admins` by UID
+  /// 2. Koleksi `admins` by email (fallback untuk data admin lama)
   Future<bool> validateAdminRole(String uid) async {
     final User? user = _auth.currentUser;
     final String? email = user?.email;
@@ -48,25 +47,8 @@ class AuthService {
       debugPrint('[AuthService] validateAdminRole untuk UID: $uid');
     }
 
-    // 1. Cek koleksi 'users'
-    try {
-      final DocumentSnapshot userDoc = await _db.collection('users').doc(uid).get();
-      if (userDoc.exists) {
-        final data = userDoc.data() as Map<String, dynamic>?;
-        if (data != null) {
-          final String? role = data['role'];
-          final bool isActive = data['isActive'] ?? true;
-          if (role == 'admin' && isActive) {
-            if (kDebugMode) debugPrint('[AuthService] ✅ Admin tervalidasi via koleksi users');
-            return true;
-          }
-        }
-      }
-    } catch (e) {
-      if (kDebugMode) debugPrint('[AuthService] ⚠️ Error cek users collection: $e');
-    }
-
-    // 2. Cek koleksi 'admins' by UID
+    // 1. Cek koleksi 'admins' by UID. Jangan pernah mempercayai field role
+    // pada profil users karena profil tersebut dikelola oleh aplikasi klien.
     try {
       final DocumentSnapshot adminDoc = await _db.collection('admins').doc(uid).get();
       if (adminDoc.exists) {
@@ -84,7 +66,7 @@ class AuthService {
       if (kDebugMode) debugPrint('[AuthService] ⚠️ Error cek admins by UID: $e');
     }
 
-    // 3. Fallback: cek koleksi 'admins' by email
+    // 2. Fallback: cek koleksi 'admins' by email
     try {
       if (email != null && email.isNotEmpty) {
         final querySnap = await _db
