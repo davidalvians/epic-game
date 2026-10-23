@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'dart:math' as math;
 import 'dart:convert';
-import 'dart:typed_data';
 import 'dart:ui' as ui;
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:get/get.dart';
@@ -23,188 +23,11 @@ import 'package:epic_app/shared/widgets/epic_transition_overlay.dart';
 import 'package:epic_app/core/services/student_evaluation_service.dart';
 import 'package:epic_app/shared/widgets/dialog_refleksi_penalaran.dart';
 
-// ─── Enum Tools ────────────────────────────────────────────────────────────────
+import 'models/drawing_models.dart';
+import 'drawing_render_cache.dart';
+import 'drawing_draft_store.dart';
+export 'models/drawing_models.dart';
 
-enum DrawingTool {
-  cursor,       // Kursor untuk mengatur bentuk
-  pencil,       // Pensil bebas
-  straightLine, // Garis lurus
-  shape,        // Bangun datar (keris) - old
-  symbol,       // Simbol dekoratif (batik) - old
-  eraser,       // Penghapus
-  stempel,      // Tool stempel/bentuk baru
-  eyedropper,   // Pipet warna (menyalin warna dari kanvas)
-}
-
-// ─── Jenis Pensil ──────────────────────────────────────────────────────────────
-
-enum PencilType {
-  ballpoint,  // Bolpoin — garis halus, konsisten, opacity penuh
-  pencil,     // Pensil — sedikit kasar, opacity 85%, variasi tipis
-  marker,     // Spidol — tebal, flat, opaque
-  watercolor, // Cat air — soft edges, semi-transparan
-}
-
-extension PencilTypeExt on PencilType {
-  String get label {
-    switch (this) {
-      case PencilType.ballpoint: return 'Bolpoin';
-      case PencilType.pencil: return 'Pensil';
-      case PencilType.marker: return 'Spidol';
-      case PencilType.watercolor: return 'Cat Air';
-    }
-  }
-
-  String get emoji {
-    switch (this) {
-      case PencilType.ballpoint: return '🖊️';
-      case PencilType.pencil: return '✏️';
-      case PencilType.marker: return '🖍️';
-      case PencilType.watercolor: return '🎨';
-    }
-  }
-
-  double get opacityFactor {
-    switch (this) {
-      case PencilType.ballpoint: return 1.0;
-      case PencilType.pencil: return 0.8;
-      case PencilType.marker: return 1.0;
-      case PencilType.watercolor: return 0.5;
-    }
-  }
-
-  double get thicknessMultiplier {
-    switch (this) {
-      case PencilType.ballpoint: return 1.0;
-      case PencilType.pencil: return 1.1;
-      case PencilType.marker: return 2.0;
-      case PencilType.watercolor: return 2.5;
-    }
-  }
-
-  StrokeCap get strokeCap {
-    switch (this) {
-      case PencilType.ballpoint: return StrokeCap.round;
-      case PencilType.pencil: return StrokeCap.round;
-      case PencilType.marker: return StrokeCap.round;
-      case PencilType.watercolor: return StrokeCap.round;
-    }
-  }
-
-  BlendMode get blendMode {
-    switch (this) {
-      case PencilType.watercolor: return BlendMode.multiply;
-      default: return BlendMode.srcOver;
-    }
-  }
-}
-
-// ─── Stroke Model ──────────────────────────────────────────────────────────────
-
-class DrawingStroke {
-  final DrawingTool tool;
-  final PencilType pencilType;
-  final List<Offset> points;
-  final Color color;
-  final double thickness;
-  final double opacity;
-  final bool isDot;
-  final bool isStraightLine;
-  final String? shapeType;
-
-  Path? cachedPath;
-
-  DrawingStroke({
-    required this.tool,
-    required this.points,
-    required this.color,
-    required this.thickness,
-    this.opacity = 1.0,
-    this.pencilType = PencilType.ballpoint,
-    this.isDot = false,
-    this.isStraightLine = false,
-    this.shapeType,
-  });
-
-  Map<String, dynamic> toJson() => {
-    'tool': tool.name,
-    'pencilType': pencilType.name,
-    'points': points.map((p) => [p.dx, p.dy]).toList(),
-    'color': color.toARGB32(),
-    'thickness': thickness,
-    'opacity': opacity,
-    'isDot': isDot,
-    'isStraightLine': isStraightLine,
-    'shapeType': shapeType,
-  };
-
-  factory DrawingStroke.fromJson(Map<String, dynamic> json) {
-    return DrawingStroke(
-      tool: DrawingTool.values.firstWhere(
-        (e) => e.name == json['tool'],
-        orElse: () => DrawingTool.pencil,
-      ),
-      pencilType: PencilType.values.firstWhere(
-        (e) => e.name == json['pencilType'],
-        orElse: () => PencilType.ballpoint,
-      ),
-      points: (json['points'] as List)
-          .map((p) => Offset((p[0] as num).toDouble(), (p[1] as num).toDouble()))
-          .toList(),
-      color: Color(json['color'] as int),
-      thickness: (json['thickness'] as num).toDouble(),
-      opacity: (json['opacity'] as num?)?.toDouble() ?? 1.0,
-      isDot: json['isDot'] as bool? ?? false,
-      isStraightLine: json['isStraightLine'] as bool? ?? false,
-      shapeType: json['shapeType'] as String?,
-    );
-  }
-}
-
-// ─── Layer Model ───────────────────────────────────────────────────────────────
-
-class DrawingLayer {
-  final String id;
-  final RxString name;
-  final RxList<DrawingStroke> strokes;
-  final RxList<DrawingStroke> undoStack;
-  final RxList<StempelModel> stempels;
-  final RxBool isVisible;
-
-  DrawingLayer({required this.id, String? name})
-      : name = (name ?? 'Layer').obs,
-        strokes = <DrawingStroke>[].obs,
-        undoStack = <DrawingStroke>[].obs,
-        stempels = <StempelModel>[].obs,
-        isVisible = true.obs;
-
-  Map<String, dynamic> toJson() => {
-    'id': id,
-    'name': name.value,
-    'strokes': strokes.map((s) => s.toJson()).toList(),
-    'stempels': stempels.map((s) => s.toJson()).toList(),
-    'isVisible': isVisible.value,
-  };
-
-  factory DrawingLayer.fromJson(Map<String, dynamic> json) {
-    final layer = DrawingLayer(
-      id: json['id'] as String,
-      name: json['name'] as String?,
-    );
-    final strokeList = (json['strokes'] as List? ?? [])
-        .map((e) => DrawingStroke.fromJson(e as Map<String, dynamic>))
-        .toList();
-    layer.strokes.assignAll(strokeList);
-    
-    final stempelList = (json['stempels'] as List? ?? [])
-        .map((e) => StempelModel.fromJson(e as Map<String, dynamic>))
-        .toList();
-    layer.stempels.assignAll(stempelList);
-    
-    layer.isVisible.value = json['isVisible'] as bool? ?? true;
-    return layer;
-  }
-}
 
 // ─── Drawing Controller ────────────────────────────────────────────────────────
 
@@ -495,6 +318,8 @@ class DrawingController extends GetxController with WidgetsBindingObserver {
   final RxDouble canvasZoomScale = 1.0.obs;
   double paperWidth = 0.0;
   double paperHeight = 0.0;
+  Size _drawingViewSize = Size.zero;
+  double? _drawingPixelRatio;
 
   Offset? _prevFocalPoint;
   double? _prevDistance;
@@ -523,9 +348,13 @@ class DrawingController extends GetxController with WidgetsBindingObserver {
     canvasZoomScale.value = 1.0;
   }
 
-  void setDefaultCanvasSize(double screenW, double screenH, double paperW, double paperH) {
+  void setDefaultCanvasSize(double screenW, double screenH, double paperW, double paperH,
+      {double? pixelRatio}) {
+    _drawingViewSize = Size(screenW, screenH);
+    _drawingPixelRatio = pixelRatio ?? _drawingPixelRatio;
     paperWidth = paperW;
     paperHeight = paperH;
+    _configureRenderCache();
     if (!_isCanvasInitialized) {
       final dx = (screenW - paperW) / 2;
       // Posisi di tengah layar (sudah tidak dikurangi -40 karena padding canvas sudah aman)
@@ -1175,6 +1004,32 @@ class DrawingController extends GetxController with WidgetsBindingObserver {
   // ─── Current Drawing ──────────────────────────────────────────────────────
 
   final Rx<DrawingStroke?> currentStroke = Rx<DrawingStroke?>(null);
+  final ValueNotifier<int> liveTick = ValueNotifier<int>(0);
+  final DrawingRenderCache renderCache = DrawingRenderCache();
+  final List<Worker> _renderWorkers = [];
+  bool _layerSyncQueued = false;
+  bool _renderDisposed = false;
+  bool _preparingCapture = false;
+
+  void _scheduleLayerCacheSync() {
+    if (_layerSyncQueued || _renderDisposed) return;
+    _layerSyncQueued = true;
+    scheduleMicrotask(() {
+      _layerSyncQueued = false;
+      if (!_renderDisposed) renderCache.retainLayers(layers);
+    });
+  }
+
+  void _configureRenderCache() {
+    if (_preparingCapture || _renderDisposed) return;
+    final views = ui.PlatformDispatcher.instance.views;
+    final pixelRatio = _drawingPixelRatio ?? (views.isEmpty ? 1.0 : views.first.devicePixelRatio);
+    final inverse = Matrix4.tryInvert(canvasMatrix.value);
+    final viewport = inverse == null || _drawingViewSize.isEmpty
+        ? null : MatrixUtils.transformRect(inverse, Offset.zero & _drawingViewSize);
+    renderCache.configure(Size(paperWidth, paperHeight), pixelRatio,
+        canvasMatrix.value.getMaxScaleOnAxis(), viewport: viewport);
+  }
 
   // ─── Loading / Submitting ─────────────────────────────────────────────────
 
@@ -1204,9 +1059,16 @@ class DrawingController extends GetxController with WidgetsBindingObserver {
   void onInit() {
     super.onInit();
     WidgetsBinding.instance.addObserver(this);
-    ever(canvasMatrix, (matrix) {
+    _renderWorkers.add(ever(canvasMatrix, (matrix) {
       canvasZoomScale.value = matrix.getMaxScaleOnAxis();
-    });
+      _configureRenderCache();
+    }));
+    _renderWorkers.add(ever(currentStroke, (stroke) {
+      renderCache.setDrawingActive(stroke != null);
+      liveTick.value++;
+    }));
+    _renderWorkers.add(ever(layers, (_) => _scheduleLayerCacheSync()));
+    renderCache.retainLayers(layers);
   }
 
   @override
@@ -1219,6 +1081,11 @@ class DrawingController extends GetxController with WidgetsBindingObserver {
 
   /// Flag untuk mencegah draft disimpan kembali setelah submit
   bool _isSubmitted = false;
+
+  @override
+  void didHaveMemoryPressure() {
+    renderCache.releaseImages();
+  }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
@@ -1239,7 +1106,13 @@ class DrawingController extends GetxController with WidgetsBindingObserver {
 
   @override
   void onClose() {
+    _renderDisposed = true;
     WidgetsBinding.instance.removeObserver(this);
+    for (final worker in _renderWorkers) {
+      worker.dispose();
+    }
+    renderCache.dispose();
+    liveTick.dispose();
     _timer?.cancel();
     // Jangan simpan draft jika sudah di-submit
     if (!_isSubmitted) {
@@ -1459,8 +1332,10 @@ class DrawingController extends GetxController with WidgetsBindingObserver {
     }
   }
 
-  String _strokesToJson() {
-    return jsonEncode(layers.map((l) => l.toJson()).toList());
+  final _draftStore = DrawingDraftStore();
+
+  Future<String> _strokesToJson() {
+    return _draftStore.encode(layers);
   }
 
   // ─── Layer Management ─────────────────────────────────────────────────────
@@ -1698,12 +1573,19 @@ class DrawingController extends GetxController with WidgetsBindingObserver {
     _persistState();
   }
 
-  Future<void> _persistState() async {
+  Future<void> _persistState() {
+    // Serialize saves as well as file writes: an older background encoding
+    // must never finish after, and overwrite, a newer exit/lifecycle snapshot.
+    return _draftStore.enqueue(_writeDraftState);
+  }
+
+  Future<void> _writeDraftState() async {
     if (_isSubmitted) return;
     if (_session == null) return;
 
     // Selalu serialize semua stroke agar tidak ada gambar yang hilang
-    final String strokesData = _strokesToJson();
+    final String strokesData = await _strokesToJson();
+    if (_isSubmitted) return;
 
     // ✅ SELALU serialisasi stempelsData dengan list kosong untuk kompatibilitas ke belakang
     // Stempel yang sebenarnya sekarang disimpan di dalam strokesData sebagai bagian dari layer.
@@ -1749,12 +1631,16 @@ class DrawingController extends GetxController with WidgetsBindingObserver {
       final size = renderBox.size;
 
       final image = await boundary.toImage(pixelRatio: 1.0);
-      final byteData = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
+      final ByteData? byteData;
+      try {
+        byteData = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
+        _eyedropperWidth = image.width;
+        _eyedropperHeight = image.height;
+      } finally {
+        image.dispose();
+      }
       if (byteData == null) return;
-
       _eyedropperBytes = byteData;
-      _eyedropperWidth = image.width;
-      _eyedropperHeight = image.height;
 
       _eyedropperScaleX = _eyedropperWidth / size.width;
       _eyedropperScaleY = _eyedropperHeight / size.height;
@@ -1841,6 +1727,12 @@ class DrawingController extends GetxController with WidgetsBindingObserver {
       _isDraggingStempel = false; // 2 fingers overrides stempel drag -> zooms canvas
       _setupTransform();
     }
+    _syncRenderGestureState();
+  }
+
+  void _syncRenderGestureState() {
+    renderCache.setGestureActive(activePointersMap.isNotEmpty &&
+        (activePointersMap.length >= 2 || !_isDrawing));
   }
 
   void onPointerMove(PointerMoveEvent event) {
@@ -1892,6 +1784,7 @@ class DrawingController extends GetxController with WidgetsBindingObserver {
     }
     
     activePointersMap.remove(event.pointer);
+    _syncRenderGestureState();
     
     if (activePointersMap.isEmpty) {
       if (_isDrawing) {
@@ -1916,6 +1809,7 @@ class DrawingController extends GetxController with WidgetsBindingObserver {
     }
     
     activePointersMap.remove(event.pointer);
+    _syncRenderGestureState();
     
     if (activePointersMap.isEmpty) {
       if (_isDrawing) {
@@ -2161,16 +2055,9 @@ class DrawingController extends GetxController with WidgetsBindingObserver {
         if (distance < threshold) return;
       }
 
-      final newPoints = [...stroke.points, position];
-      currentStroke.value = DrawingStroke(
-        tool: stroke.tool,
-        pencilType: stroke.pencilType,
-        points: newPoints,
-        color: stroke.color,
-        thickness: stroke.thickness,
-        opacity: stroke.opacity,
-        isDot: false,
-      );
+      stroke.points.add(position);
+      stroke.cachedPath = null;
+      liveTick.value++;
     }
   }
 
@@ -2201,6 +2088,8 @@ class DrawingController extends GetxController with WidgetsBindingObserver {
         isDot: true,
       ));
     } else {
+      stroke.smoothingPrefix = null;
+      stroke.smoothedPointCount = 0;
       activeLayer.strokes.add(stroke);
     }
 
@@ -2238,14 +2127,12 @@ class DrawingController extends GetxController with WidgetsBindingObserver {
     if (activeLayer.strokes.isEmpty) return;
     final last = activeLayer.strokes.removeLast();
     activeLayer.undoStack.add(last);
-    layers.refresh();
   }
 
   void redo() {
     if (layers.isEmpty) return;
     if (activeLayer.undoStack.isEmpty) return;
     activeLayer.strokes.add(activeLayer.undoStack.removeLast());
-    layers.refresh();
   }
 
 
@@ -2290,6 +2177,18 @@ class DrawingController extends GetxController with WidgetsBindingObserver {
 
   Future<Uint8List?> captureCanvas() async {
     try {
+      _preparingCapture = true;
+      // Flatten large drawings in bounded native batches before asking the
+      // boundary for a 2x export. Never replay thousands of blur operations
+      // together just because an export was requested.
+      renderCache.setGestureActive(false);
+      renderCache.configure(Size(paperWidth, paperHeight), 2,
+          canvasZoomScale.value, fullResolutionExport: true);
+      renderCache.retainLayers(layers);
+      await renderCache.flush();
+      if (layers.any((layer) => !renderCache.forLayer(layer).isReady)) {
+        throw StateError('Full-resolution drawing cache could not be prepared');
+      }
       debugPrint('🎨 [captureCanvas] Memulai proses capture (hiding template/overlays)...');
       // Sembunyikan overlay template, garis bantu simetri, dan preview alat
       isCapturing.value = true;
@@ -2310,15 +2209,21 @@ class DrawingController extends GetxController with WidgetsBindingObserver {
       }
 
       final image = await boundary.toImage(pixelRatio: 2.0);
+      try {
       final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
       final bytes = byteData?.buffer.asUint8List();
       debugPrint('🎨 [captureCanvas] Selesai. Ukuran bytes: ${bytes?.length}');
       return bytes;
+      } finally {
+        image.dispose();
+      }
     } catch (e) {
       debugPrint('🎨 [captureCanvas] ERROR: Terjadi exception -> $e');
       return null;
     } finally {
       isCapturing.value = false;
+      _preparingCapture = false;
+      _configureRenderCache();
     }
   }
 

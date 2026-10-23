@@ -1,0 +1,137 @@
+{
+  "date": "2026-10-23",
+  "device": {
+    "model": "Redmi 2201116TG",
+    "android": 13,
+    "display": "1080x2400",
+    "density": 2.75,
+    "refreshRateHz": 120,
+    "reportedRamGiB": 8
+  },
+  "build": "Profile APK, isolated package com.epic.epic_app.drawing_benchmark, Vulkan/Impeller",
+  "fixture": {
+    "strokes": 1000,
+    "layers": 1,
+    "longStrokePoints": 512,
+    "thickStrokeUnits": 40,
+    "brushes": ["ballpoint", "pencil", "marker", "watercolor"],
+    "cacheCompleteBeforeSamples": true
+  },
+  "frameBudgetMs": 8.333,
+  "pixelParity": {
+    "zooms": [1, 4, 20, 0.5],
+    "liveBrushes": ["ballpoint", "pencil", "marker", "watercolor"],
+    "thresholdsPassed": true,
+    "meanChannelErrorMax": 0.131,
+    "outlierFractionMax": 0.00058,
+    "allowedMeanChannelError": 0.5,
+    "allowedOutlierFraction": 0.005
+  },
+  "singleLayerAt4x": {
+    "detailCacheReadyMs": 91134,
+    "cacheMiB": 40.62,
+    "pinch": {
+      "frames": 212,
+      "over8_33ms": 122,
+      "over16ms": 1,
+      "maxRasterMs": 20.342
+    },
+    "pan": {
+      "frames": 180,
+      "over8_33ms": 161,
+      "over16ms": 7,
+      "maxRasterMs": 17.259
+    },
+    "drawBallpoint": {
+      "frames": 104,
+      "over8_33ms": 94,
+      "over16ms": 62,
+      "rasterP95Ms": 31.488
+    },
+    "drawWatercolor": {
+      "frames": 45,
+      "over8_33ms": 45,
+      "over16ms": 44,
+      "rasterP95Ms": 77.831
+    }
+  },
+  "singleLayerAt20xLatestSample": {
+    "pinch": {
+      "frames": 241,
+      "over8_33ms": 2,
+      "over16ms": 0,
+      "spanP95Ms": 7.786
+    },
+    "pan": {
+      "frames": 242,
+      "over8_33ms": 0,
+      "over16ms": 0,
+      "spanP95Ms": 6.693
+    },
+    "drawBallpoint": {
+      "frames": 103,
+      "over8_33ms": 102,
+      "over16ms": 47,
+      "rasterP95Ms": 48.447
+    },
+    "drawWatercolor": {
+      "frames": 97,
+      "over8_33ms": 97,
+      "over16ms": 94,
+      "rasterP95Ms": 26.081
+    }
+  },
+  "singleLayerAt4xLatestPreviewSample": {
+    "previewWidthMultiplier": 0.75,
+    "detailCacheReadyMs": 92644,
+    "cacheMiB": 40.62,
+    "pinchTo4x": {
+      "frames": 192,
+      "over8_33ms": 158,
+      "over16_67ms": 3,
+      "rasterP95Ms": 15.785,
+      "spanP95Ms": 24.384
+    },
+    "prepareAt4x": {
+      "frames": 234,
+      "over8_33ms": 23,
+      "over16_67ms": 2,
+      "rasterP95Ms": 9.832
+    },
+    "pan": {
+      "frames": 176,
+      "over8_33ms": 157,
+      "over16_67ms": 8,
+      "rasterP95Ms": 16.246
+    },
+    "drawBallpoint": {
+      "frames": 201,
+      "over8_33ms": 171,
+      "over16_67ms": 0,
+      "rasterP95Ms": 12.848,
+      "maxRasterMs": 13.938
+    },
+    "drawWatercolor": {
+      "frames": 224,
+      "over8_33ms": 83,
+      "over16_67ms": 0,
+      "rasterP95Ms": 10.161,
+      "maxRasterMs": 12.818,
+      "spanP95Ms": 18.506
+    },
+    "repeatedRealPointerPinch": {
+      "frames": 178,
+      "over8_33ms": 130,
+      "over16_67ms": 8,
+      "rasterP95Ms": 16.195
+    }
+  },
+  "caveats": [
+    "The latest 4x live-preview sample is a different build/configuration than earlier 20x samples; do not combine them as one run.",
+    "At 4x, qualifying thick active-stroke previews are simplified temporarily: ballpoint uses 80% of base width; watercolor uses 75% of base width, SrcOver, and no blur; release and export use the original renderer.",
+    "Repeated live-brush and gesture samples varied; the latest watercolor sample had zero raster frames over 16.67 ms, but pan and repeated pinch still missed that budget in some frames.",
+    "Only 1000 strokes and an approximately 8 GiB device were measured; no 4 GiB device was available.",
+    "A 16.67 ms frame is approximately 60 fps and does not meet a 120 Hz display's 8.33 ms budget.",
+    "Thick live watercolor improved substantially in the latest 4x sample, but some pan/pinch frames still exceed 16.67 ms and 120 Hz delivery is not established in every interaction. All-conditions smoothness is not established."
+  ]
+}

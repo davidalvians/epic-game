@@ -12,6 +12,8 @@ plugins {
 }
 
 val keystoreProperties = Properties()
+// Opt-in, isolated performance harness. Normal app identity/config is unchanged.
+val drawingBenchmark = providers.gradleProperty("drawingBenchmark").orNull == "true"
 val keystorePropertiesFile = rootProject.file("key.properties")
 if (keystorePropertiesFile.exists()) {
     keystoreProperties.load(FileInputStream(keystorePropertiesFile))
@@ -33,7 +35,8 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.epic.epic_app"
+        applicationId = if (drawingBenchmark) "com.epic.epic_app.drawing_benchmark"
+            else "com.epic.epic_app"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
@@ -62,4 +65,11 @@ android {
 
 flutter {
     source = "../.."
+}
+
+if (drawingBenchmark) {
+    // The isolated harness never initializes Firebase and has no Firebase app ID.
+    tasks.matching { it.name.endsWith("GoogleServices") }.configureEach {
+        enabled = false
+    }
 }

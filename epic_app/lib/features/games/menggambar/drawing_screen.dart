@@ -1,9 +1,13 @@
+import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:get/get.dart';
+import 'package:flutter/foundation.dart';
 import 'package:perfect_freehand/perfect_freehand.dart' as pf;
+import 'drawing_render_cache.dart';
+import 'widgets/stroke_renderer.dart';
 import 'package:epic_app/core/utils/helpers.dart';
 import 'package:epic_app/features/games/menggambar/drawing_controller.dart';
 import 'package:epic_app/features/games/menggambar/template_selector_sheet.dart';
@@ -11,9 +15,21 @@ import 'package:epic_app/features/games/menggambar/stempel_painter.dart';
 import 'package:epic_app/features/games/menggambar/models/stempel_model.dart';
 
 part 'widgets/drawing_canvas.dart';
+part 'widgets/layer_thumbnail.dart';
 part 'widgets/stempel_widget.dart';
 part 'widgets/drawing_toolbar.dart';
 part 'widgets/drawing_painter.dart';
+
+// Test/profile entry points reuse the actual canvas and layer panel without
+// starting a Firebase session, timer, or writing a user's draft.
+@visibleForTesting
+Widget buildDrawingCanvasForTesting(DrawingController controller) =>
+    _DrawingCanvas(controller: controller);
+
+@visibleForTesting
+Widget buildDrawingLayerPanelForTesting(DrawingController controller) =>
+    _LayerPanel(controller: controller);
+
 /// Layar menggambar utama dengan canvas, toolbar, dan timer.
 class DrawingScreen extends StatefulWidget {
   final String kategori;
@@ -653,20 +669,9 @@ class _LayerPanel extends StatelessWidget {
                                   ),
                                   child: ClipRRect(
                                     borderRadius: BorderRadius.circular(4),
-                                    child: FittedBox(
-                                      fit: BoxFit.contain,
-                                      child: SizedBox(
-                                        // Gunakan perkiraan ukuran kanvas asli (lebar layar)
-                                        width: MediaQuery.of(context).size.width,
-                                        height: MediaQuery.of(context).size.width * 1.414,
-                                        child: CustomPaint(
-                                          painter: _DrawingPainter(
-                                            layers: [layer],
-                                            activeLayerIndex: -1,
-                                            currentStroke: null,
-                                          ),
-                                        ),
-                                      ),
+                                    child: _LayerThumbnail(
+                                      layer: layer,
+                                      logicalWidth: MediaQuery.of(context).size.width,
                                     ),
                                   ),
                                 ),
