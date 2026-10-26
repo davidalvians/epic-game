@@ -319,6 +319,7 @@ class DrawingController extends GetxController with WidgetsBindingObserver {
   double paperWidth = 0.0;
   double paperHeight = 0.0;
   Size _drawingViewSize = Size.zero;
+  Size _canvasFitSize = Size.zero;
   double? _drawingPixelRatio;
 
   Offset? _prevFocalPoint;
@@ -345,22 +346,46 @@ class DrawingController extends GetxController with WidgetsBindingObserver {
     _prevFocalPoint = null;
     _prevDistance = null;
     _prevAngle = null;
-    canvasZoomScale.value = 1.0;
+    canvasZoomScale.value = _initialMatrix.getMaxScaleOnAxis();
   }
 
-  void setDefaultCanvasSize(double screenW, double screenH, double paperW, double paperH,
-      {double? pixelRatio}) {
+  void setDefaultCanvasSize(
+      double screenW, double screenH, double paperW, double paperH,
+      {double? pixelRatio, double? fitWidth, double? fitHeight}) {
+    final viewSize = Size(screenW, screenH);
+    final fitSize = Size(fitWidth ?? paperW, fitHeight ?? paperH);
+    final viewportChanged =
+        viewSize != _drawingViewSize || fitSize != _canvasFitSize;
+    if (_isCanvasInitialized && viewportChanged) {
+      // A rotation replaces the input surface; finish its stroke and discard
+      // old pointer positions before accepting touches on the new viewport.
+      if (_isDrawing) onPanEnd();
+      _isDrawing = false;
+      _isDraggingStempel = false;
+      activePointersMap.clear();
+      _syncRenderGestureState();
+    }
     _drawingViewSize = Size(screenW, screenH);
+    _canvasFitSize = fitSize;
     _drawingPixelRatio = pixelRatio ?? _drawingPixelRatio;
-    paperWidth = paperW;
-    paperHeight = paperH;
-    _configureRenderCache();
     if (!_isCanvasInitialized) {
-      final dx = (screenW - paperW) / 2;
-      // Posisi di tengah layar (sudah tidak dikurangi -40 karena padding canvas sudah aman)
-      final dy = (screenH - paperH) / 2;
-      _initialMatrix = Matrix4.identity()..translate(dx, dy);
+      paperWidth = paperW;
+      paperHeight = paperH;
+    }
+    _configureRenderCache();
+    if (!_isCanvasInitialized || viewportChanged) {
+      final scale = math.min(1.0,
+          math.min(fitSize.width / paperWidth, fitSize.height / paperHeight));
+      final dx = (screenW - paperWidth * scale) / 2;
+      final dy = (screenH - paperHeight * scale) / 2;
+      _initialMatrix = Matrix4.identity()
+        ..translateByDouble(dx, dy, 0, 1)
+        ..scaleByDouble(scale, scale, scale, 1);
       canvasMatrix.value = _initialMatrix.clone();
+      canvasZoomScale.value = scale;
+      _prevFocalPoint = null;
+      _prevDistance = null;
+      _prevAngle = null;
       _isCanvasInitialized = true;
     }
   }

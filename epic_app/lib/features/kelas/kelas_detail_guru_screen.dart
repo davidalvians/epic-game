@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'package:epic_app/core/utils/responsive_layout.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:gal/gal.dart';
@@ -597,7 +598,7 @@ class _KelasDetailGuruScreenState extends State<KelasDetailGuruScreen> {
           ),
           const SizedBox(height: 12),
           GridView.count(
-            crossAxisCount: 2,
+            crossAxisCount: ResponsiveLayout.gridColumns(context),
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             childAspectRatio: 2.2,
@@ -707,8 +708,8 @@ class _KelasDetailGuruScreenState extends State<KelasDetailGuruScreen> {
               : GridView.builder(
                   padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
                   physics: const BouncingScrollPhysics(),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: ResponsiveLayout.gridColumns(context),
                     crossAxisSpacing: 14,
                     mainAxisSpacing: 14,
                     childAspectRatio: 0.82,

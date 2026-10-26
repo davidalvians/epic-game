@@ -30,6 +30,40 @@ Widget buildDrawingCanvasForTesting(DrawingController controller) =>
 Widget buildDrawingLayerPanelForTesting(DrawingController controller) =>
     _LayerPanel(controller: controller);
 
+@visibleForTesting
+Widget buildDrawingLandscapeForTesting(DrawingController controller) =>
+    _DrawingLandscapeWorkspace(controller: controller, onBack: () {});
+
+class _DrawingLandscapeWorkspace extends StatelessWidget {
+  const _DrawingLandscapeWorkspace({required this.controller, required this.onBack});
+  final DrawingController controller;
+  final VoidCallback onBack;
+
+  @override
+  Widget build(BuildContext context) => SafeArea(
+    child: Row(
+      children: [
+        Expanded(child: _DrawingCanvas(controller: controller)),
+        SizedBox(
+          width: 344,
+          child: ListView(
+            children: [
+              IconButtonTheme(
+                data: IconButtonThemeData(style: IconButton.styleFrom(
+                  minimumSize: const Size(36, 36),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                )),
+                child: _DrawingHeader(controller: controller, onBack: onBack),
+              ),
+              _DrawingToolbar(controller: controller),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
 /// Layar menggambar utama dengan canvas, toolbar, dan timer.
 class DrawingScreen extends StatefulWidget {
   final String kategori;
@@ -128,7 +162,9 @@ class _DrawingScreenState extends State<DrawingScreen> {
       },
       child: Scaffold(
       backgroundColor: const Color(0xFF1E293B),
-      body: Stack(
+      body: MediaQuery.orientationOf(context) == Orientation.landscape
+          ? _DrawingLandscapeWorkspace(controller: controller, onBack: _showExitDialog)
+          : Stack(
         children: [
           // ── Canvas Layer ──
           Positioned.fill(
@@ -167,6 +203,24 @@ class _DrawingScreenState extends State<DrawingScreen> {
 
 // ─── Header ────────────────────────────────────────────────────────────────────
 
+class _DrawingHeaderRow extends StatelessWidget {
+  const _DrawingHeaderRow({required this.children,
+    this.mainAxisAlignment = MainAxisAlignment.start});
+  final List<Widget> children;
+  final MainAxisAlignment mainAxisAlignment;
+
+  @override
+  Widget build(BuildContext context) {
+    if (MediaQuery.orientationOf(context) == Orientation.landscape) {
+      return Wrap(runSpacing: 8, crossAxisAlignment: WrapCrossAlignment.center,
+        alignment: mainAxisAlignment == MainAxisAlignment.center
+            ? WrapAlignment.center : WrapAlignment.start,
+        children: children);
+    }
+    return Row(mainAxisAlignment: mainAxisAlignment, children: children);
+  }
+}
+
 class _DrawingHeader extends StatelessWidget {
   final DrawingController controller;
   final VoidCallback onBack;
@@ -191,8 +245,16 @@ class _DrawingHeader extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               mainAxisSize: MainAxisSize.min,
               children: [
+                if (MediaQuery.orientationOf(context) == Orientation.landscape)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Text(
+                      '${Helpers.getKategoriEmoji(controller.kategori)} ${Helpers.getLevelLabel(controller.kategori, controller.level)}',
+                      style: const TextStyle(fontFamily: 'FredokaOne', fontSize: 14, color: Colors.white),
+                    ),
+                  ),
                 // ─── Row 1: Info & Actions ───
-                Row(
+                _DrawingHeaderRow(
                   children: [
                     // Back Button
                     GestureDetector(
@@ -210,9 +272,10 @@ class _DrawingHeader extends StatelessWidget {
                     const SizedBox(width: 10),
                     
                     // Title
+                    if (MediaQuery.orientationOf(context) != Orientation.landscape)
                     Expanded(
                       child: Text(
-                        '${Helpers.getKategoriEmoji(controller.kategori)} ${Helpers.getLevelLabel(controller.kategori, controller.level)}',
+                        MediaQuery.orientationOf(context) == Orientation.landscape ? '' : '${Helpers.getKategoriEmoji(controller.kategori)} ${Helpers.getLevelLabel(controller.kategori, controller.level)}',
                         style: const TextStyle(
                           fontFamily: 'FredokaOne',
                           fontSize: 14,
@@ -327,7 +390,7 @@ class _DrawingHeader extends StatelessWidget {
                       ),
                     ],
                   ),
-                  child: Row(
+                  child: _DrawingHeaderRow(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       // Undo

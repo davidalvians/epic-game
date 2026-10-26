@@ -304,7 +304,7 @@ class DailyMissionCard extends StatelessWidget {
           Icon(Icons.local_fire_department_rounded,
               color: Color(0xFFCBD5E1), size: 32),
           SizedBox(width: 16),
-          Text(
+          Expanded(child: Text(
             'Belum ada misi hari ini',
             style: TextStyle(
               fontFamily: 'Nunito',
@@ -312,7 +312,7 @@ class DailyMissionCard extends StatelessWidget {
               fontWeight: FontWeight.w600,
               color: Color(0xFF94A3B8),
             ),
-          ),
+          )),
         ],
       ),
     );

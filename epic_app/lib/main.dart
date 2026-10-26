@@ -13,10 +13,12 @@ import 'package:epic_app/app.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Lock orientasi ke portrait saja
+  // Dukung portrait dan landscape untuk aplikasi guru maupun murid.
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
+    DeviceOrientation.landscapeLeft,
+    DeviceOrientation.landscapeRight,
   ]);
 
   // Set style status bar

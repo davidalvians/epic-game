@@ -9,11 +9,17 @@ import 'package:epic_app/features/ranking/ranking_screen.dart';
 import 'package:epic_app/features/galeri/galeri_tab.dart';
 import 'package:epic_app/features/karakter_toko/karakter_tab.dart';
 import 'package:epic_app/features/profile/profile_screen.dart';
-import 'package:epic_app/shared/controllers/session_controller.dart' as epic_session;
+import 'package:epic_app/shared/controllers/session_controller.dart'
+    as epic_session;
 import 'package:epic_app/features/kelas/guru_dashboard_screen.dart';
 import 'package:epic_app/features/murid/guru_murid_tab.dart';
 import 'package:epic_app/features/auth/guru_pending_screen.dart';
 import 'package:epic_app/features/auth/guru_rejected_screen.dart';
+
+@visibleForTesting
+Widget buildMainNavigationForTesting(BuildContext context,
+        MainController controller, epic_session.SessionController session) =>
+    const MainScreen()._buildBottomNav(controller, context, session);
 
 /// Shell utama aplikasi EPIC.
 /// Menggunakan PageView untuk transisi pemindahan halaman yang mulus.
@@ -26,7 +32,8 @@ class MainScreen extends StatelessWidget {
     final session = Get.find<epic_session.SessionController>();
 
     return Scaffold(
-      extendBody: true, // Memungkinkan konten discroll di bawah bar navigasi kaca melayang
+      extendBody:
+          true, // Memungkinkan konten discroll di bawah bar navigasi kaca melayang
       body: Obx(() {
         final isGuru = session.isGuru;
         final isGuruPending = session.isGuruPending;
@@ -42,26 +49,28 @@ class MainScreen extends StatelessWidget {
 
         return PageView(
           controller: ctrl.pageController,
-          physics: const NeverScrollableScrollPhysics(), // Nonaktifkan geser agar tidak bentrok dengan slider horizontal
+          physics:
+              const NeverScrollableScrollPhysics(), // Nonaktifkan geser agar tidak bentrok dengan slider horizontal
           children: isGuru
               ? [
-                  const GuruHomeTab(),          // 0 - Home Guru (Ringkasan)
-                  GuruDashboardScreen(),        // 1 - Kelas (Manajemen Kelas)
-                  const GuruMuridTab(),         // 2 - Murid
-                  const ProfileScreen(),        // 3 - Profil
+                  const GuruHomeTab(), // 0 - Home Guru (Ringkasan)
+                  GuruDashboardScreen(), // 1 - Kelas (Manajemen Kelas)
+                  const GuruMuridTab(), // 2 - Murid
+                  const ProfileScreen(), // 3 - Profil
                 ]
               : const [
-                  HomeTab(),                    // 0 - Beranda
-                  RankingScreen(),              // 1 - Peringkat
-                  GaleriTab(),                  // 2 - Galeri
-                  KarakterTab(),                // 3 - Avatar
-                  ProfileScreen(),              // 4 - Profil
+                  HomeTab(), // 0 - Beranda
+                  RankingScreen(), // 1 - Peringkat
+                  GaleriTab(), // 2 - Galeri
+                  KarakterTab(), // 3 - Avatar
+                  ProfileScreen(), // 4 - Profil
                 ],
         );
       }),
-      bottomNavigationBar: Obx(() => (session.isGuruPending || session.isGuruRejected)
-          ? const SizedBox.shrink()
-          : _buildBottomNav(ctrl, context, session)),
+      bottomNavigationBar: Obx(() =>
+          (session.isGuruPending || session.isGuruRejected)
+              ? const SizedBox.shrink()
+              : _buildBottomNav(ctrl, context, session)),
     );
   }
 
@@ -76,8 +85,8 @@ class MainScreen extends StatelessWidget {
 
       return Container(
         margin: EdgeInsets.only(
-          left: 16,
-          right: 16,
+          left: 16 + MediaQuery.paddingOf(context).left,
+          right: 16 + MediaQuery.paddingOf(context).right,
           bottom: bottomPadding > 0 ? bottomPadding : 12,
         ),
         decoration: BoxDecoration(
@@ -95,7 +104,9 @@ class MainScreen extends StatelessWidget {
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
             child: Container(
-              height: 72,
+              height: MediaQuery.orientationOf(context) == Orientation.landscape
+                  ? 64
+                  : 72,
               decoration: BoxDecoration(
                 color: Colors.white.withValues(alpha: 0.82),
                 borderRadius: BorderRadius.circular(32),
@@ -110,17 +121,41 @@ class MainScreen extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: isGuru
                       ? [
-                          _buildNavItem(ctrl, 0, Icons.home_rounded, Icons.home_outlined, 'Home'),
-                          _buildNavItem(ctrl, 1, Icons.class_rounded, Icons.class_outlined, 'Kelas'),
-                          _buildNavItem(ctrl, 2, Icons.people_rounded, Icons.people_outline_rounded, 'Murid'),
-                          _buildNavItem(ctrl, 3, Icons.person_rounded, Icons.person_outline_rounded, 'Profil'),
+                          _buildNavItem(context, ctrl, 0, Icons.home_rounded,
+                              Icons.home_outlined, 'Home'),
+                          _buildNavItem(context, ctrl, 1, Icons.class_rounded,
+                              Icons.class_outlined, 'Kelas'),
+                          _buildNavItem(context, ctrl, 2, Icons.people_rounded,
+                              Icons.people_outline_rounded, 'Murid'),
+                          _buildNavItem(context, ctrl, 3, Icons.person_rounded,
+                              Icons.person_outline_rounded, 'Profil'),
                         ]
                       : [
-                          _buildNavItem(ctrl, 0, Icons.home_rounded, Icons.home_outlined, 'Home'),
-                          _buildNavItem(ctrl, 1, Icons.emoji_events_rounded, Icons.emoji_events_outlined, 'Ranking'),
-                          _buildNavItem(ctrl, 2, Icons.photo_library_rounded, Icons.photo_library_outlined, 'Galeri'),
-                          _buildNavItem(ctrl, 3, Icons.face_retouching_natural_rounded, Icons.face_rounded, 'Avatar'),
-                          _buildNavItem(ctrl, 4, Icons.person_rounded, Icons.person_outline_rounded, 'Profil'),
+                          _buildNavItem(context, ctrl, 0, Icons.home_rounded,
+                              Icons.home_outlined, 'Home'),
+                          _buildNavItem(
+                              context,
+                              ctrl,
+                              1,
+                              Icons.emoji_events_rounded,
+                              Icons.emoji_events_outlined,
+                              'Ranking'),
+                          _buildNavItem(
+                              context,
+                              ctrl,
+                              2,
+                              Icons.photo_library_rounded,
+                              Icons.photo_library_outlined,
+                              'Galeri'),
+                          _buildNavItem(
+                              context,
+                              ctrl,
+                              3,
+                              Icons.face_retouching_natural_rounded,
+                              Icons.face_rounded,
+                              'Avatar'),
+                          _buildNavItem(context, ctrl, 4, Icons.person_rounded,
+                              Icons.person_outline_rounded, 'Profil'),
                         ],
                 ),
               ),
@@ -132,6 +167,7 @@ class MainScreen extends StatelessWidget {
   }
 
   Widget _buildNavItem(
+    BuildContext context,
     MainController ctrl,
     int index,
     IconData activeIcon,
@@ -148,7 +184,9 @@ class MainScreen extends StatelessWidget {
           curve: Curves.easeInOutCubic,
           padding: EdgeInsets.symmetric(
             horizontal: isActive ? 18 : 10,
-            vertical: 8,
+            vertical: MediaQuery.orientationOf(context) == Orientation.landscape
+                ? 4
+                : 8,
           ),
           decoration: BoxDecoration(
             color: isActive

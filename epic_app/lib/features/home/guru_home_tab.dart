@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:epic_app/core/utils/responsive_layout.dart';
 import 'package:get/get.dart';
 import 'package:epic_app/core/constants/app_colors.dart';
 import 'package:epic_app/core/constants/app_fonts.dart';
@@ -210,7 +211,7 @@ class GuruHomeTab extends StatelessWidget {
 
                   Widget buildGrid({required double avgNilai, required int karyaHariIni}) {
                     return GridView.count(
-                      crossAxisCount: 2,
+                      crossAxisCount: ResponsiveLayout.gridColumns(context),
                       crossAxisSpacing: 16,
                       mainAxisSpacing: 16,
                       shrinkWrap: true,

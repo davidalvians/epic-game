@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:epic_app/core/utils/responsive_layout.dart';
 
 import 'package:get/get.dart';
 import 'package:epic_app/core/constants/app_assets.dart';
@@ -125,6 +126,61 @@ class _HomeTabState extends State<HomeTab> with TickerProviderStateMixin {
     final screenHeight = MediaQuery.of(context).size.height;
     final topHalfHeight = screenHeight * 0.45;
 
+    if (MediaQuery.orientationOf(context) == Orientation.landscape) {
+      return Scaffold(
+        backgroundColor: const Color(0xFFFFF9F0),
+        body: SafeArea(
+          bottom: false,
+          child: Column(
+            children: [
+              _buildHeader(),
+              Expanded(
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: LayoutBuilder(builder: (context, constraints) {
+                        return Stack(
+                          children: [
+                            Positioned.fill(
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(28),
+                                child: Image.asset(AppAssets.homeBg,
+                                    fit: BoxFit.cover),
+                              ),
+                            ),
+                            const Positioned.fill(
+                              bottom: 76,
+                              child: Padding(
+                                padding: EdgeInsets.all(12),
+                                child: FittedBox(child: AnimatedKnightWidget()),
+                              ),
+                            ),
+                            Positioned(
+                              left: 16,
+                              right: 16,
+                              bottom: 12,
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: _buildPlayButton(),
+                              ),
+                            ),
+                          ],
+                        );
+                      }),
+                    ),
+                    Expanded(child: _buildBottomHalf()),
+                  ],
+                ),
+              ),
+              // The floating navigation still overlays this nested Scaffold.
+              SizedBox(height: ResponsiveLayout.landscapeNavigationSpace(context)),
+            ],
+          ),
+        ),
+      );
+    }
+
+
     return Scaffold(
       backgroundColor: const Color(0xFFFFF9F0),
       body: Stack(
@@ -241,7 +297,7 @@ class _HomeTabState extends State<HomeTab> with TickerProviderStateMixin {
     return GestureDetector(
       key: _playButtonKey,
       onTap: _onPlayTapped,
-      child: AnimatedBuilder(
+      child: FittedBox(fit: BoxFit.scaleDown, child: AnimatedBuilder(
         animation: Listenable.merge([_playBtnAnimCtrl, _pressCtrl]),
         builder: (context, child) {
           double currentScale =
@@ -300,7 +356,7 @@ class _HomeTabState extends State<HomeTab> with TickerProviderStateMixin {
             ),
           );
         },
-      ),
+      )),
     );
   }
 
@@ -685,7 +741,7 @@ class _ContinueDrawingBanner extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 14),
-              const Column(
+              const Expanded(child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
@@ -707,7 +763,7 @@ class _ContinueDrawingBanner extends StatelessWidget {
                     ),
                   ),
                 ],
-              ),
+              )),
             ],
           ),
         );

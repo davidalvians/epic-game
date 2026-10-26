@@ -57,6 +57,28 @@ void main() {
     },
   );
 
+  test('viewport rotation finishes a stroke and clears old pointer state', () {
+    controller.onPointerDown(
+        const PointerDownEvent(pointer: 7, position: Offset(160, 180)));
+    controller.onPointerMove(
+        const PointerMoveEvent(pointer: 7, position: Offset(170, 190)));
+    expect(controller.currentStroke.value, isNotNull);
+    controller.setDefaultCanvasSize(600, 320, 320, 450,
+        fitWidth: 200, fitHeight: 282);
+    expect(controller.currentStroke.value, isNull);
+    expect(controller.activePointersMap, isEmpty);
+    expect(controller.activeLayer.strokes, hasLength(1));
+    expect(controller.paperWidth, 320);
+    expect(controller.paperHeight, 450);
+    controller.onPointerDown(
+        const PointerDownEvent(pointer: 8, position: Offset(300, 160)));
+    controller.onPointerUp(
+        const PointerUpEvent(pointer: 8, position: Offset(300, 160)));
+    expect(controller.activeLayer.strokes, hasLength(2));
+    controller.undo();
+    expect(controller.activeLayer.strokes, hasLength(1));
+  });
+
   test('distance threshold and tap conversion remain unchanged', () {
     controller.onPanStart(const Offset(10, 10));
     controller.onPanUpdate(const Offset(10.5, 10));

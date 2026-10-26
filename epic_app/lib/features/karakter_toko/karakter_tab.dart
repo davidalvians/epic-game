@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:epic_app/core/utils/responsive_layout.dart';
 import 'package:get/get.dart';
 import 'package:epic_app/core/constants/app_colors.dart';
 import 'package:epic_app/data/models/character_model.dart';
@@ -18,6 +19,75 @@ class KarakterTab extends StatelessWidget {
 
     final double bottomPadding = MediaQuery.of(context).padding.bottom;
     final double bottomNavHeight = 72 + (bottomPadding > 0 ? bottomPadding : 12);
+
+    if (MediaQuery.orientationOf(context) == Orientation.landscape) {
+      return Container(
+        color: AppColors.light,
+        child: SafeArea(
+          bottom: false,
+          child: Padding(
+            padding: EdgeInsets.only(
+                bottom: ResponsiveLayout.landscapeNavigationSpace(context)),
+            child: Row(
+              children: [
+                Expanded(
+                    child: _buildActiveCharacterSection(controller, session)),
+                Expanded(
+                  child: Container(
+                    color: Colors.white,
+                    child: ListView(
+                      padding: const EdgeInsets.all(16),
+                      children: [
+                        const Text('Koleksi Avatar',
+                            style: TextStyle(
+                                fontFamily: 'FredokaOne',
+                                fontSize: 20,
+                                color: AppColors.dark)),
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          height: 140,
+                          child: Obx(() {
+                            if (controller.isLoading.value) {
+                              return const Center(
+                                  child: CircularProgressIndicator(
+                                      color: AppColors.primary));
+                            }
+                            return ListView.separated(
+                              scrollDirection: Axis.horizontal,
+                              itemCount: controller.characters.length,
+                              separatorBuilder: (_, __) =>
+                                  const SizedBox(width: 12),
+                              itemBuilder: (context, index) => SizedBox(
+                                width: 112,
+                                child: _buildCharacterCard(
+                                    controller.characters[index],
+                                    controller,
+                                    session),
+                              ),
+                            );
+                          }),
+                        ),
+                        const SizedBox(height: 16),
+                        Obx(() {
+                          final preview = controller.selectedPreviewChar.value;
+                          final user = session.currentUser.value;
+                          if (preview == null || user == null) {
+                            return const SizedBox.shrink();
+                          }
+                          return _buildCentralActionButton(
+                              controller, user, preview);
+                        }),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
 
     return Container(
       color: AppColors.light,
@@ -103,7 +173,8 @@ class KarakterTab extends StatelessWidget {
     );
   }
 
-  Widget _buildActiveCharacterSection(TokoController controller, SessionController session) {
+  Widget _buildActiveCharacterSection(
+      TokoController controller, SessionController session) {
     return Container(
       decoration: const BoxDecoration(
         color: AppColors.light,
@@ -113,7 +184,10 @@ class KarakterTab extends StatelessWidget {
         if (user == null) return const SizedBox.shrink();
 
         final previewChar = controller.selectedPreviewChar.value;
-        final previewName = previewChar?.nama ?? (user.karakterAktif == 'epi_default' ? 'Epi Si Cerdas' : user.karakterAktif.capitalizeFirst!);
+        final previewName = previewChar?.nama ??
+            (user.karakterAktif == 'epi_default'
+                ? 'Epi Si Cerdas'
+                : user.karakterAktif.capitalizeFirst!);
 
         return Column(
           children: [
@@ -124,8 +198,9 @@ class KarakterTab extends StatelessWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  Flexible(child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(20),
@@ -140,15 +215,19 @@ class KarakterTab extends StatelessWidget {
                     ),
                     child: Text(
                       previewName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         fontFamily: 'FredokaOne',
                         fontSize: 13,
                         color: Color(0xFF1E293B),
                       ),
                     ),
-                  ),
+                  )),
+                  const SizedBox(width: 8),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                     decoration: BoxDecoration(
                       gradient: const LinearGradient(
                         colors: [Color(0xFFFFB800), Color(0xFFFF7A00)],
@@ -158,7 +237,8 @@ class KarakterTab extends StatelessWidget {
                       borderRadius: BorderRadius.circular(20),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFFFFB700).withValues(alpha: 0.25),
+                          color:
+                              const Color(0xFFFFB700).withValues(alpha: 0.25),
                           blurRadius: 8,
                           offset: const Offset(0, 3),
                         ),
@@ -167,7 +247,8 @@ class KarakterTab extends StatelessWidget {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.stars_rounded, color: Colors.white, size: 16),
+                        const Icon(Icons.stars_rounded,
+                            color: Colors.white, size: 16),
                         const SizedBox(width: 6),
                         Text(
                           '${user.poin} Poin',
@@ -191,7 +272,8 @@ class KarakterTab extends StatelessWidget {
                 child: _FloatingCharacter(
                   child: AnimatedSwitcher(
                     duration: const Duration(milliseconds: 500),
-                    transitionBuilder: (child, animation) => ScaleTransition(scale: animation, child: child),
+                    transitionBuilder: (child, animation) =>
+                        ScaleTransition(scale: animation, child: child),
                     child: () {
                       if (previewChar?.id == 'epi_default') {
                         return Image.asset(
@@ -389,7 +471,7 @@ class KarakterTab extends StatelessWidget {
           child: Center(
             child: AnimatedSize(
               duration: const Duration(milliseconds: 200),
-              child: btnContent,
+              child: FittedBox(fit: BoxFit.scaleDown, child: btnContent),
             ),
           ),
         ),

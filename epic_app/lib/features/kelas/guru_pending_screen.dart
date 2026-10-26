@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:epic_app/core/utils/responsive_layout.dart';
 import 'package:get/get.dart';
 import 'package:epic_app/core/constants/app_colors.dart';
 import 'package:epic_app/core/constants/app_fonts.dart';
@@ -20,7 +21,7 @@ class GuruPendingScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: const Color(0xFFFFF9F0),
       body: SafeArea(
-        child: Padding(
+        child: LandscapeScrollView(child: Padding(
           padding: const EdgeInsets.all(24.0),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -60,7 +61,7 @@ class GuruPendingScreen extends StatelessWidget {
             ],
           ),
         ),
-      ),
+      )),
     );
   }
 }

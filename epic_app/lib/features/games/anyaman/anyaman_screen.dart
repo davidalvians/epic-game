@@ -7,6 +7,12 @@ import 'package:epic_app/core/utils/helpers.dart';
 import 'package:epic_app/features/games/anyaman/anyaman_controller.dart';
 import 'package:epic_app/features/games/anyaman/level4_bunga_api_pattern.dart';
 
+@visibleForTesting
+Widget buildAnyamanBoardForTesting(AnyamanController controller,
+        TransformationController transform) =>
+    _AnyamanGrid(controller: controller, isZoomMode: false,
+      transformationController: transform);
+
 /// Layar utama game Anyaman — canvas berupa grid interaktif
 class AnyamanScreen extends StatefulWidget {
   final int level;
@@ -49,6 +55,8 @@ class _AnyamanScreenState extends State<AnyamanScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final landscape =
+        MediaQuery.orientationOf(context) == Orientation.landscape;
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
@@ -86,10 +94,12 @@ class _AnyamanScreenState extends State<AnyamanScreen> {
                 }
                 return Container(
                   color: const Color(0xFFFF9800),
-                  padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 16),
+                  padding:
+                      const EdgeInsets.symmetric(vertical: 6, horizontal: 16),
                   child: Row(
                     children: [
-                      const Icon(Icons.colorize_rounded, color: Colors.white, size: 18),
+                      const Icon(Icons.colorize_rounded,
+                          color: Colors.white, size: 18),
                       const SizedBox(width: 8),
                       const Expanded(
                         child: Text(
@@ -106,7 +116,8 @@ class _AnyamanScreenState extends State<AnyamanScreen> {
                       TextButton(
                         style: TextButton.styleFrom(
                           backgroundColor: Colors.white.withValues(alpha: 0.2),
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 4),
                           minimumSize: Size.zero,
                           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         ),
@@ -154,29 +165,65 @@ class _AnyamanScreenState extends State<AnyamanScreen> {
                   ),
                 ),
 
-              // ── Grid Canvas ──
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: RepaintBoundary(
-                    key: controller.canvasKey,
-                    child: _AnyamanGrid(
-                      controller: controller,
-                      isZoomMode: _isZoomMode,
-                      transformationController:
-                          _canvasTransformationController,
+              // Keep the board and tools alongside each other on short screens.
+              if (landscape)
+                Expanded(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: RepaintBoundary(
+                            key: controller.canvasKey,
+                            child: _AnyamanGrid(
+                              controller: controller,
+                              isZoomMode: _isZoomMode,
+                              transformationController:
+                                  _canvasTransformationController,
+                            ),
+                          ),
+                        ),
+                      ),
+                      SizedBox(
+                        width: MediaQuery.sizeOf(context).width * 0.4,
+                        child: SingleChildScrollView(
+                          child: _AnyamanToolbar(
+                            controller: controller,
+                            isZoomMode: _isZoomMode,
+                            onToggleZoomMode: _toggleZoomMode,
+                            onResetZoom: _resetCanvasView,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              else ...[
+                // ── Grid Canvas ──
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: RepaintBoundary(
+                      key: controller.canvasKey,
+                      child: _AnyamanGrid(
+                        controller: controller,
+                        isZoomMode: _isZoomMode,
+                        transformationController:
+                            _canvasTransformationController,
+                      ),
                     ),
                   ),
                 ),
-              ),
 
-              // ── Toolbar ──
-              _AnyamanToolbar(
-                controller: controller,
-                isZoomMode: _isZoomMode,
-                onToggleZoomMode: _toggleZoomMode,
-                onResetZoom: _resetCanvasView,
-              ),
+                // ── Toolbar ──
+                _AnyamanToolbar(
+                  controller: controller,
+                  isZoomMode: _isZoomMode,
+                  onToggleZoomMode: _toggleZoomMode,
+                  onResetZoom: _resetCanvasView,
+                ),
+              ],
             ],
           ),
         ),
@@ -480,51 +527,60 @@ class _AnyamanGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final availableWidth = MediaQuery.of(context).size.width - 48; // padding
+    return LayoutBuilder(builder: (context, bounds) {
+      final portraitWidth = MediaQuery.sizeOf(context).width - 48;
+      final availableWidth =
+          math.min(math.min(bounds.maxWidth, bounds.maxHeight), portraitWidth);
 
-    if (controller.level == 2) {
-      return LayoutBuilder(
-        builder: (context, constraints) {
-          final availableHeight = constraints.maxHeight;
-          final boardSize = availableHeight.isFinite && availableHeight < availableWidth
-              ? availableHeight
-              : availableWidth;
-          return _buildLevel2Grid(boardSize);
-        },
-      );
-    }
+      if (controller.level == 2) {
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final availableHeight = constraints.maxHeight;
+            final boardSize =
+                availableHeight.isFinite && availableHeight < availableWidth
+                    ? availableHeight
+                    : availableWidth;
+            return _buildLevel2Grid(boardSize);
+          },
+        );
+      }
 
-    if (controller.level == 3) {
-      return LayoutBuilder(
-        builder: (context, constraints) {
-          final availableHeight = constraints.maxHeight;
-          final boardSize = availableHeight.isFinite && availableHeight < availableWidth
-              ? availableHeight
-              : availableWidth;
-          return _buildLevel3Grid(boardSize);
-        },
-      );
-    }
+      if (controller.level == 3) {
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final availableHeight = constraints.maxHeight;
+            final boardSize =
+                availableHeight.isFinite && availableHeight < availableWidth
+                    ? availableHeight
+                    : availableWidth;
+            return _buildLevel3Grid(boardSize);
+          },
+        );
+      }
 
-    if (controller.level == 4) {
-      return LayoutBuilder(
-        builder: (context, constraints) {
-          final availableHeight = constraints.maxHeight;
-          final boardSize =
-              availableHeight.isFinite && availableHeight < availableWidth
-                  ? availableHeight
-                  : availableWidth;
-          return _buildLevel4Grid(boardSize);
-        },
-      );
-    }
+      if (controller.level == 4) {
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final availableHeight = constraints.maxHeight;
+            final boardSize =
+                availableHeight.isFinite && availableHeight < availableWidth
+                    ? availableHeight
+                    : availableWidth;
+            return _buildLevel4Grid(boardSize);
+          },
+        );
+      }
 
-    return Obx(() {
-      final size = controller.gridSize;
-      final cellSize = availableWidth > 0 ? (availableWidth / size) - 1.0 : 32.0; // kurangi 1.0 untuk kompensasi margin 0.5 per sisi
+      return Obx(() {
+        final size = controller.gridSize;
+        final cellSize = availableWidth > 0
+            ? (math.min(availableWidth,
+                  math.min(bounds.maxWidth - 3, bounds.maxHeight - 3)) / size) - 1.0
+            : 32.0; // kurangi 1.0 untuk kompensasi margin 0.5 per sisi
 
-      return InteractiveViewer(
-          panEnabled: false, // Pan 1 jari untuk interaksi grid, pan 2 jari untuk zoom/geser layar
+        return InteractiveViewer(
+          panEnabled:
+              false, // Pan 1 jari untuk interaksi grid, pan 2 jari untuk zoom/geser layar
           scaleEnabled: true,
           minScale: 0.5,
           maxScale: 4.0,
@@ -537,7 +593,8 @@ class _AnyamanGrid extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xFFE2E8F0), width: 1.5),
+                  border:
+                      Border.all(color: const Color(0xFFE2E8F0), width: 1.5),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withValues(alpha: 0.05),
@@ -549,12 +606,14 @@ class _AnyamanGrid extends StatelessWidget {
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(14),
                   child: Column(
-                    mainAxisSize: MainAxisSize.min, // Shrink-wrap the grid vertically
+                    mainAxisSize:
+                        MainAxisSize.min, // Shrink-wrap the grid vertically
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: List.generate(size, (row) {
                       return Row(
                         mainAxisAlignment: MainAxisAlignment.center,
-                        mainAxisSize: MainAxisSize.min, // Shrink-wrap horizontally
+                        mainAxisSize:
+                            MainAxisSize.min, // Shrink-wrap horizontally
                         children: List.generate(size, (col) {
                           return GetBuilder<AnyamanController>(
                             init: controller,
@@ -562,8 +621,10 @@ class _AnyamanGrid extends StatelessWidget {
                             id: 'grid_${row}_$col',
                             builder: (ctrl) {
                               // Safe check to prevent out of bounds when grid resizes
-                              if (row >= ctrl.grid.length || col >= ctrl.grid[row].length) {
-                                return SizedBox(width: cellSize, height: cellSize);
+                              if (row >= ctrl.grid.length ||
+                                  col >= ctrl.grid[row].length) {
+                                return SizedBox(
+                                    width: cellSize, height: cellSize);
                               }
                               final color = ctrl.grid[row][col].value;
                               return _buildCell(color, cellSize, row, col);
@@ -577,7 +638,8 @@ class _AnyamanGrid extends StatelessWidget {
               ),
             ),
           ),
-      );
+        );
+      });
     });
   }
 

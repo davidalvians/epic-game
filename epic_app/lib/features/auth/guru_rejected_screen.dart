@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:epic_app/core/utils/responsive_layout.dart';
 import 'package:get/get.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:epic_app/core/constants/app_colors.dart';
@@ -65,7 +66,7 @@ class _GuruRejectedScreenState extends State<GuruRejectedScreen> {
     return Scaffold(
       backgroundColor: AppColors.light,
       body: SafeArea(
-        child: Padding(
+        child: LandscapeScrollView(child: Padding(
           padding: const EdgeInsets.all(24.0),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -156,7 +157,8 @@ class _GuruRejectedScreenState extends State<GuruRejectedScreen> {
                 ),
               ),
               
-              const Spacer(),
+              if (!ResponsiveLayout.isLandscape(context)) const Spacer()
+              else const SizedBox(height: 24),
               
               ElevatedButton.icon(
                 onPressed: () {
@@ -182,7 +184,7 @@ class _GuruRejectedScreenState extends State<GuruRejectedScreen> {
             ],
           ),
         ),
-      ),
+      )),
     );
   }
 }

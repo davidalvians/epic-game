@@ -250,6 +250,27 @@ class _LevelSelectScreenState extends State<LevelSelectScreen> {
                       child: CircularProgressIndicator(),
                     ),
                   )
+                else if (MediaQuery.orientationOf(context) == Orientation.landscape)
+                  Expanded(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.only(bottom: 20),
+                      child: Column(
+                        children: [
+                          SizedBox(
+                            height: 435,
+                            child: PageView.builder(
+                              controller: _pageController,
+                              physics: const BouncingScrollPhysics(),
+                              itemCount: 4,
+                              itemBuilder: (context, index) => _buildCardPage(index + 1),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          _buildDotIndicator(),
+                        ],
+                      ),
+                    ),
+                  )
                 else ...[
                   const Spacer(),
                   // Restrict PageView height to make the cards cozy and beautiful

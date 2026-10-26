@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:epic_app/core/utils/responsive_layout.dart';
 import 'package:get/get.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:epic_app/core/constants/app_colors.dart';
@@ -130,9 +131,9 @@ class GaleriTab extends StatelessWidget {
                 return GridView.builder(
                   padding: const EdgeInsets.fromLTRB(24, 8, 24, 120),
                   physics: const BouncingScrollPhysics(),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    childAspectRatio: 0.6,
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: ResponsiveLayout.gridColumns(context),
+                    childAspectRatio: ResponsiveLayout.isLandscape(context) ? 0.95 : 0.6,
                     crossAxisSpacing: 16,
                     mainAxisSpacing: 16,
                   ),

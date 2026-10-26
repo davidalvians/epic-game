@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:epic_app/core/constants/app_fonts.dart';
 import 'package:epic_app/core/utils/epic_notification.dart';
+import 'package:epic_app/core/utils/responsive_layout.dart';
 
 class ScanQRKelasScreen extends StatefulWidget {
   const ScanQRKelasScreen({super.key});
@@ -12,7 +13,8 @@ class ScanQRKelasScreen extends StatefulWidget {
   State<ScanQRKelasScreen> createState() => _ScanQRKelasScreenState();
 }
 
-class _ScanQRKelasScreenState extends State<ScanQRKelasScreen> with SingleTickerProviderStateMixin {
+class _ScanQRKelasScreenState extends State<ScanQRKelasScreen>
+    with SingleTickerProviderStateMixin {
   final MobileScannerController controller = MobileScannerController();
   late AnimationController _animationController;
   bool _hasScanned = false;
@@ -97,9 +99,10 @@ class _ScanQRKelasScreenState extends State<ScanQRKelasScreen> with SingleTicker
             animation: _animationController,
             builder: (context, child) {
               final size = MediaQuery.of(context).size;
-              final cutoutSize = size.width * 0.7;
+              final cutoutSize = ResponsiveLayout.scannerSize(size);
               final topOffset = (size.height - cutoutSize) / 2;
-              final laserPosition = topOffset + (cutoutSize * _animationController.value);
+              final laserPosition =
+                  topOffset + (cutoutSize * _animationController.value);
 
               return Positioned(
                 top: laserPosition,
@@ -136,7 +139,8 @@ class _ScanQRKelasScreenState extends State<ScanQRKelasScreen> with SingleTicker
                     shape: BoxShape.circle,
                   ),
                   child: IconButton(
-                    icon: const Icon(Icons.arrow_back_rounded, color: Colors.white, size: 24),
+                    icon: const Icon(Icons.arrow_back_rounded,
+                        color: Colors.white, size: 24),
                     onPressed: () => Get.back(),
                   ),
                 ),
@@ -155,7 +159,9 @@ class _ScanQRKelasScreenState extends State<ScanQRKelasScreen> with SingleTicker
                       final bool isTorchOn = state.torchState == TorchState.on;
                       return IconButton(
                         icon: Icon(
-                          isTorchOn ? Icons.flash_on_rounded : Icons.flash_off_rounded,
+                          isTorchOn
+                              ? Icons.flash_on_rounded
+                              : Icons.flash_off_rounded,
                           color: Colors.white,
                           size: 24,
                         ),
@@ -170,9 +176,13 @@ class _ScanQRKelasScreenState extends State<ScanQRKelasScreen> with SingleTicker
 
           // Bottom helper text
           Positioned(
-            bottom: MediaQuery.of(context).padding.bottom + 40,
-            left: 32,
-            right: 32,
+            bottom: MediaQuery.paddingOf(context).bottom +
+                (ResponsiveLayout.isLandscape(context) ? 12 : 40),
+            left: ResponsiveLayout.isLandscape(context) ? null : 32,
+            right: ResponsiveLayout.isLandscape(context)
+                ? 16 + MediaQuery.paddingOf(context).right : 32,
+            width: ResponsiveLayout.isLandscape(context)
+                ? MediaQuery.sizeOf(context).width * 0.22 : null,
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
               decoration: BoxDecoration(
@@ -204,7 +214,7 @@ class ScannerOverlay extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()..color = Colors.black.withValues(alpha: 0.5);
-    final cutoutSize = size.width * 0.7;
+    final cutoutSize = ResponsiveLayout.scannerSize(size);
     final left = (size.width - cutoutSize) / 2;
     final top = (size.height - cutoutSize) / 2;
 

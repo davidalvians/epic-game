@@ -6,9 +6,18 @@ class _DrawingToolbar extends StatelessWidget {
   const _DrawingToolbar({required this.controller});
 
   static const List<Color> _palette = [
-    Color(0xFF1E293B), Color(0xFFEF4444), Color(0xFFF97316), Color(0xFFEAB308),
-    Color(0xFF22C55E), Color(0xFF3B82F6), Color(0xFF8B5CF6), Color(0xFFEC4899),
-    Color(0xFF6B7280), Color(0xFFFFFFFF), Color(0xFF92400E), Color(0xFFFBBF24),
+    Color(0xFF1E293B),
+    Color(0xFFEF4444),
+    Color(0xFFF97316),
+    Color(0xFFEAB308),
+    Color(0xFF22C55E),
+    Color(0xFF3B82F6),
+    Color(0xFF8B5CF6),
+    Color(0xFFEC4899),
+    Color(0xFF6B7280),
+    Color(0xFFFFFFFF),
+    Color(0xFF92400E),
+    Color(0xFFFBBF24),
   ];
 
   void _togglePopup(String popup) {
@@ -21,6 +30,39 @@ class _DrawingToolbar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (MediaQuery.orientationOf(context) == Orientation.landscape) {
+      return Obx(() => Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (controller.popupMenu.value.isEmpty) ...[
+                Wrap(
+                  alignment: WrapAlignment.center,
+                  children: _toolButtons(context)
+                      .where((widget) => widget is! SizedBox)
+                      .map((widget) => SizedBox(width: 100, child: widget))
+                      .toList(),
+                ),
+                ExpansionTile(
+                  title: const Text('Ketebalan & transparansi',
+                      style: TextStyle(color: Colors.white, fontSize: 12)),
+                  iconColor: Colors.white,
+                  collapsedIconColor: Colors.white,
+                  children: [_buildExpandedToolbar(context, showTools: false)],
+                ),
+              ] else
+                TextButton.icon(
+                  onPressed: () => controller.popupMenu.value = '',
+                  icon: const Icon(Icons.arrow_back_rounded),
+                  label: const Text('Kembali ke alat'),
+                ),
+              if (controller.popupMenu.value == 'kuas') _buildBrushPopup(),
+              if (controller.popupMenu.value == 'warna')
+                _buildColorPopup(context),
+              if (controller.popupMenu.value == 'bentuk') _buildShapePopup(),
+              const SizedBox(height: 16),
+            ],
+          ));
+    }
     return Stack(
       clipBehavior: Clip.none,
       alignment: Alignment.bottomCenter,
@@ -30,7 +72,7 @@ class _DrawingToolbar extends StatelessWidget {
           alignment: Alignment.bottomCenter,
           child: Obx(() {
             final isExpanded = controller.isToolbarExpanded.value;
-            
+
             return AnimatedSwitcher(
               duration: const Duration(milliseconds: 300),
               transitionBuilder: (child, animation) => FadeTransition(
@@ -69,7 +111,7 @@ class _DrawingToolbar extends StatelessWidget {
     );
   }
 
-  Widget _buildExpandedToolbar(BuildContext context) {
+  Widget _buildExpandedToolbar(BuildContext context, {bool showTools = true}) {
     return Container(
       key: const ValueKey('expanded_toolbar'),
       margin: const EdgeInsets.only(bottom: 16.0, left: 12.0, right: 12.0),
@@ -93,30 +135,34 @@ class _DrawingToolbar extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               // Toggle collapse bar
-              GestureDetector(
-                onTap: controller.toggleToolbar,
-                behavior: HitTestBehavior.opaque,
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.only(top: 6, bottom: 10),
-                  child: Center(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF334155).withValues(alpha: 0.5),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: const Color(0xFF475569).withValues(alpha: 0.5)),
-                      ),
-                      child: const Icon(
-                        Icons.keyboard_arrow_down_rounded,
-                        color: Color(0xFF94A3B8),
-                        size: 20,
+              if (MediaQuery.orientationOf(context) != Orientation.landscape)
+                GestureDetector(
+                  onTap: controller.toggleToolbar,
+                  behavior: HitTestBehavior.opaque,
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.only(top: 6, bottom: 10),
+                    child: Center(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF334155).withValues(alpha: 0.5),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                              color: const Color(0xFF475569)
+                                  .withValues(alpha: 0.5)),
+                        ),
+                        child: const Icon(
+                          Icons.keyboard_arrow_down_rounded,
+                          color: Color(0xFF94A3B8),
+                          size: 20,
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
-              
+
               // ── Row 1: Ketebalan Garis (Stroke Width) dengan Kontrol Presisi Angka ──
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
@@ -124,7 +170,8 @@ class _DrawingToolbar extends StatelessWidget {
                   final thicknessVal = controller.thickness.value;
                   return Row(
                     children: [
-                      const Icon(Icons.line_weight_rounded, size: 16, color: Color(0xFF94A3B8)),
+                      const Icon(Icons.line_weight_rounded,
+                          size: 16, color: Color(0xFF94A3B8)),
                       Expanded(
                         child: Slider(
                           value: thicknessVal,
@@ -140,7 +187,8 @@ class _DrawingToolbar extends StatelessWidget {
                       GestureDetector(
                         onTap: () => _showPrecisionThicknessDialog(context),
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 3),
                           margin: const EdgeInsets.only(right: 8),
                           decoration: BoxDecoration(
                             color: const Color(0xFF1E293B),
@@ -159,7 +207,8 @@ class _DrawingToolbar extends StatelessWidget {
                                 ),
                               ),
                               const SizedBox(width: 3),
-                              const Icon(Icons.edit_rounded, size: 10, color: Color(0xFF8B5CF6)),
+                              const Icon(Icons.edit_rounded,
+                                  size: 10, color: Color(0xFF8B5CF6)),
                             ],
                           ),
                         ),
@@ -178,7 +227,9 @@ class _DrawingToolbar extends StatelessWidget {
                             height: thicknessVal.clamp(2.0, 20.0),
                             decoration: BoxDecoration(
                               color: controller.activeColor.value.withValues(
-                                alpha: (controller.activeColor.value.a * controller.opacity.value).clamp(0.0, 1.0),
+                                alpha: (controller.activeColor.value.a *
+                                        controller.opacity.value)
+                                    .clamp(0.0, 1.0),
                               ),
                               shape: BoxShape.circle,
                             ),
@@ -198,7 +249,8 @@ class _DrawingToolbar extends StatelessWidget {
                   final opacityPct = (opacityVal * 100).round();
                   return Row(
                     children: [
-                      const Icon(Icons.opacity_rounded, size: 16, color: Color(0xFF38BDF8)),
+                      const Icon(Icons.opacity_rounded,
+                          size: 16, color: Color(0xFF38BDF8)),
                       Expanded(
                         child: Slider(
                           value: opacityVal,
@@ -214,7 +266,8 @@ class _DrawingToolbar extends StatelessWidget {
                       GestureDetector(
                         onTap: () => _showPrecisionOpacityDialog(context),
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 3),
                           margin: const EdgeInsets.only(right: 8),
                           decoration: BoxDecoration(
                             color: const Color(0xFF1E293B),
@@ -233,7 +286,8 @@ class _DrawingToolbar extends StatelessWidget {
                                 ),
                               ),
                               const SizedBox(width: 3),
-                              const Icon(Icons.edit_rounded, size: 10, color: Color(0xFF38BDF8)),
+                              const Icon(Icons.edit_rounded,
+                                  size: 10, color: Color(0xFF38BDF8)),
                             ],
                           ),
                         ),
@@ -255,7 +309,8 @@ class _DrawingToolbar extends StatelessWidget {
                                 alpha: opacityVal.clamp(0.0, 1.0),
                               ),
                               shape: BoxShape.circle,
-                              border: Border.all(color: Colors.white30, width: 1),
+                              border:
+                                  Border.all(color: Colors.white30, width: 1),
                             ),
                           ),
                         ),
@@ -264,84 +319,90 @@ class _DrawingToolbar extends StatelessWidget {
                   );
                 }),
               ),
-              
-              // ── Row 2: Tombol Tools ──
-              Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  physics: const BouncingScrollPhysics(),
-                  child: Obx(() => Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const SizedBox(width: 8),
-                      // Kerangka (Template)
-                      _buildBaseBtn(
-                        icon: controller.hasTemplate.value ? Icons.check_circle_rounded : Icons.dashboard_customize_rounded,
-                        label: 'Kerangka',
-                        isActive: controller.hasTemplate.value,
-                        onTap: () {
-                          controller.popupMenu.value = '';
-                          _showTemplateSelector(context);
-                        },
-                      ),
 
-                      // Geser (Pan/Hand)
-                      _buildBaseBtn(
-                        icon: Icons.pan_tool_rounded,
-                        label: 'Geser',
-                        isActive: controller.activeTool.value == DrawingTool.cursor,
-                        onTap: () {
-                          controller.popupMenu.value = '';
-                          controller.setTool(DrawingTool.cursor);
-                        },
-                      ),
-
-                      // Kuas (Brush Pop-up)
-                      _buildBaseBtn(
-                        icon: Icons.brush_rounded,
-                        label: 'Kuas',
-                        isActive: controller.popupMenu.value == 'kuas' || controller.activeTool.value == DrawingTool.pencil,
-                        onTap: () {
-                          _togglePopup('kuas');
-                          if (controller.activeTool.value != DrawingTool.pencil) {
-                            controller.setTool(DrawingTool.pencil);
-                          }
-                        },
-                      ),
-
-                      // Warna (Color Pop-up)
-                      _buildColorBtn(),
-
-                      // Penghapus
-                      _buildBaseBtn(
-                        icon: Icons.auto_fix_high_rounded,
-                        label: 'Hapus',
-                        isActive: controller.activeTool.value == DrawingTool.eraser,
-                        onTap: () {
-                          controller.popupMenu.value = '';
-                          controller.setTool(DrawingTool.eraser);
-                        },
-                      ),
-
-                      // Bentuk / Stempel
-                      _buildBaseBtn(
-                        icon: Icons.category_rounded,
-                        label: 'Bentuk',
-                        isActive: controller.popupMenu.value == 'bentuk',
-                        onTap: () => _togglePopup('bentuk'),
-                      ),
-                      const SizedBox(width: 8),
-                    ],
-                  )),
+              if (showTools)
+                // ── Row 2: Tombol Tools ──
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    physics: const BouncingScrollPhysics(),
+                    child: Obx(() => Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: _toolButtons(context),
+                        )),
+                  ),
                 ),
-              ),
             ],
           ),
         ),
       ),
     );
   }
+
+  List<Widget> _toolButtons(BuildContext context) => [
+        const SizedBox(width: 8),
+        // Kerangka (Template)
+        _buildBaseBtn(
+          icon: controller.hasTemplate.value
+              ? Icons.check_circle_rounded
+              : Icons.dashboard_customize_rounded,
+          label: 'Kerangka',
+          isActive: controller.hasTemplate.value,
+          onTap: () {
+            controller.popupMenu.value = '';
+            _showTemplateSelector(context);
+          },
+        ),
+
+        // Geser (Pan/Hand)
+        _buildBaseBtn(
+          icon: Icons.pan_tool_rounded,
+          label: 'Geser',
+          isActive: controller.activeTool.value == DrawingTool.cursor,
+          onTap: () {
+            controller.popupMenu.value = '';
+            controller.setTool(DrawingTool.cursor);
+          },
+        ),
+
+        // Kuas (Brush Pop-up)
+        _buildBaseBtn(
+          icon: Icons.brush_rounded,
+          label: 'Kuas',
+          isActive: controller.popupMenu.value == 'kuas' ||
+              controller.activeTool.value == DrawingTool.pencil,
+          onTap: () {
+            _togglePopup('kuas');
+            if (controller.activeTool.value != DrawingTool.pencil) {
+              controller.setTool(DrawingTool.pencil);
+            }
+          },
+        ),
+
+        // Warna (Color Pop-up)
+        _buildColorBtn(),
+
+        // Penghapus
+        _buildBaseBtn(
+          icon: Icons.auto_fix_high_rounded,
+          label: 'Hapus',
+          isActive: controller.activeTool.value == DrawingTool.eraser,
+          onTap: () {
+            controller.popupMenu.value = '';
+            controller.setTool(DrawingTool.eraser);
+          },
+        ),
+
+        // Bentuk / Stempel
+        _buildBaseBtn(
+          icon: Icons.category_rounded,
+          label: 'Bentuk',
+          isActive: controller.popupMenu.value == 'bentuk',
+          onTap: () => _togglePopup('bentuk'),
+        ),
+        const SizedBox(width: 8),
+      ];
 
   Widget _buildPopupLayer(String popupName, Widget child) {
     return Positioned(
@@ -386,7 +447,9 @@ class _DrawingToolbar extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 24, color: isActive ? Colors.white : const Color(0xFF94A3B8)),
+            Icon(icon,
+                size: 24,
+                color: isActive ? Colors.white : const Color(0xFF94A3B8)),
             const SizedBox(height: 4),
             Text(
               label,
@@ -445,7 +508,8 @@ class _DrawingToolbar extends StatelessWidget {
   Widget _buildBrushPopup() {
     return Container(
       width: 280,
-      height: 380, // Taller to fit 4 brushes with their inline horizontal previews
+      height:
+          380, // Taller to fit 4 brushes with their inline horizontal previews
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: const Color(0xFF1E293B).withValues(alpha: 0.95),
@@ -465,7 +529,7 @@ class _DrawingToolbar extends StatelessWidget {
           physics: const BouncingScrollPhysics(),
           children: PencilType.values.map((type) {
             final isSelected = controller.activePencilType.value == type;
-            
+
             return GestureDetector(
               onTap: () {
                 controller.setTool(DrawingTool.pencil);
@@ -474,12 +538,17 @@ class _DrawingToolbar extends StatelessWidget {
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
                 margin: const EdgeInsets.only(bottom: 12),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 decoration: BoxDecoration(
-                  color: isSelected ? const Color(0xFF8B5CF6).withValues(alpha: 0.15) : const Color(0xFF0F172A),
+                  color: isSelected
+                      ? const Color(0xFF8B5CF6).withValues(alpha: 0.15)
+                      : const Color(0xFF0F172A),
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
-                    color: isSelected ? const Color(0xFF8B5CF6) : const Color(0xFF334155),
+                    color: isSelected
+                        ? const Color(0xFF8B5CF6)
+                        : const Color(0xFF334155),
                     width: 1.5,
                   ),
                 ),
@@ -493,7 +562,9 @@ class _DrawingToolbar extends StatelessWidget {
                       width: double.infinity,
                       child: CustomPaint(
                         painter: _HorizontalWavyPainter(
-                          color: isSelected ? controller.activeColor.value : Colors.white70,
+                          color: isSelected
+                              ? controller.activeColor.value
+                              : Colors.white70,
                           thickness: controller.thickness.value,
                           opacity: controller.opacity.value,
                           pencilType: type,
@@ -512,14 +583,17 @@ class _DrawingToolbar extends StatelessWidget {
                             style: TextStyle(
                               fontFamily: 'Nunito',
                               fontSize: 14,
-                              color: isSelected ? Colors.white : const Color(0xFF94A3B8),
+                              color: isSelected
+                                  ? Colors.white
+                                  : const Color(0xFF94A3B8),
                               fontWeight: FontWeight.bold,
                             ),
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
                         if (isSelected)
-                          const Icon(Icons.check_circle_rounded, color: Color(0xFF8B5CF6), size: 18),
+                          const Icon(Icons.check_circle_rounded,
+                              color: Color(0xFF8B5CF6), size: 18),
                       ],
                     ),
                   ],
@@ -585,7 +659,8 @@ class _DrawingToolbar extends StatelessWidget {
         children: [
           Text(
             isBatik ? 'Pilih Motif' : 'Pilih Bentuk',
-            style: const TextStyle(fontFamily: 'FredokaOne', color: Colors.white, fontSize: 14),
+            style: const TextStyle(
+                fontFamily: 'FredokaOne', color: Colors.white, fontSize: 14),
           ),
           const SizedBox(height: 12),
           Expanded(
@@ -593,7 +668,9 @@ class _DrawingToolbar extends StatelessWidget {
               child: Wrap(
                 spacing: 12,
                 runSpacing: 12,
-                children: items.map((e) => _buildStempelOption(e.label, e.shape)).toList(),
+                children: items
+                    .map((e) => _buildStempelOption(e.label, e.shape))
+                    .toList(),
               ),
             ),
           ),
@@ -640,9 +717,14 @@ class _DrawingToolbar extends StatelessWidget {
                     child: const Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.colorize_rounded, size: 18, color: Color(0xFF8B5CF6)),
+                        Icon(Icons.colorize_rounded,
+                            size: 18, color: Color(0xFF8B5CF6)),
                         SizedBox(width: 8),
-                        Text('Pipet', style: TextStyle(fontFamily: 'Nunito', color: Colors.white, fontWeight: FontWeight.bold)),
+                        Text('Pipet',
+                            style: TextStyle(
+                                fontFamily: 'Nunito',
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold)),
                       ],
                     ),
                   ),
@@ -659,7 +741,14 @@ class _DrawingToolbar extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(vertical: 10),
                     decoration: BoxDecoration(
                       gradient: const LinearGradient(
-                        colors: [Colors.red, Colors.orange, Colors.yellow, Colors.green, Colors.blue, Colors.purple],
+                        colors: [
+                          Colors.red,
+                          Colors.orange,
+                          Colors.yellow,
+                          Colors.green,
+                          Colors.blue,
+                          Colors.purple
+                        ],
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                       ),
@@ -668,9 +757,14 @@ class _DrawingToolbar extends StatelessWidget {
                     child: const Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.palette_rounded, size: 18, color: Colors.white),
+                        Icon(Icons.palette_rounded,
+                            size: 18, color: Colors.white),
                         SizedBox(width: 8),
-                        Text('Kustom', style: TextStyle(fontFamily: 'Nunito', color: Colors.white, fontWeight: FontWeight.bold)),
+                        Text('Kustom',
+                            style: TextStyle(
+                                fontFamily: 'Nunito',
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold)),
                       ],
                     ),
                   ),
@@ -686,7 +780,8 @@ class _DrawingToolbar extends StatelessWidget {
               runSpacing: 10,
               alignment: WrapAlignment.center,
               children: _palette.map((color) {
-                final isSelected = controller.activeColor.value.toARGB32() == color.toARGB32();
+                final isSelected =
+                    controller.activeColor.value.toARGB32() == color.toARGB32();
                 return GestureDetector(
                   onTap: () {
                     controller.setColor(color);
@@ -700,11 +795,17 @@ class _DrawingToolbar extends StatelessWidget {
                       color: color,
                       shape: BoxShape.circle,
                       border: Border.all(
-                        color: isSelected ? Colors.white : const Color(0xFF334155),
+                        color:
+                            isSelected ? Colors.white : const Color(0xFF334155),
                         width: isSelected ? 3 : 1,
                       ),
                       boxShadow: isSelected
-                          ? [BoxShadow(color: color.withValues(alpha: 0.5), blurRadius: 8, spreadRadius: 2)]
+                          ? [
+                              BoxShadow(
+                                  color: color.withValues(alpha: 0.5),
+                                  blurRadius: 8,
+                                  spreadRadius: 2)
+                            ]
                           : [],
                     ),
                   ),
@@ -723,7 +824,9 @@ class _DrawingToolbar extends StatelessWidget {
     controller.popupMenu.value = '';
     final textController = TextEditingController(
       text: controller.thickness.value.toStringAsFixed(
-        controller.thickness.value == controller.thickness.value.roundToDouble() ? 0 : 1,
+        controller.thickness.value == controller.thickness.value.roundToDouble()
+            ? 0
+            : 1,
       ),
     );
     final RxDouble tempVal = controller.thickness.value.obs;
@@ -750,7 +853,8 @@ class _DrawingToolbar extends StatelessWidget {
                       color: const Color(0xFF8B5CF6).withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: const Icon(Icons.line_weight_rounded, color: Color(0xFF8B5CF6), size: 20),
+                    child: const Icon(Icons.line_weight_rounded,
+                        color: Color(0xFF8B5CF6), size: 20),
                   ),
                   const SizedBox(width: 12),
                   const Expanded(
@@ -764,7 +868,8 @@ class _DrawingToolbar extends StatelessWidget {
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.close_rounded, color: Color(0xFF94A3B8), size: 20),
+                    icon: const Icon(Icons.close_rounded,
+                        color: Color(0xFF94A3B8), size: 20),
                     onPressed: () => Get.back(),
                   ),
                 ],
@@ -781,7 +886,8 @@ class _DrawingToolbar extends StatelessWidget {
                     onTap: () {
                       final next = (tempVal.value - 1.0).clamp(1.0, 40.0);
                       tempVal.value = next;
-                      textController.text = next.toStringAsFixed(next == next.roundToDouble() ? 0 : 1);
+                      textController.text = next.toStringAsFixed(
+                          next == next.roundToDouble() ? 0 : 1);
                     },
                   ),
                   const SizedBox(width: 12),
@@ -793,11 +899,13 @@ class _DrawingToolbar extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: const Color(0xFF0F172A),
                       borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: const Color(0xFF8B5CF6), width: 1.5),
+                      border: Border.all(
+                          color: const Color(0xFF8B5CF6), width: 1.5),
                     ),
                     child: TextField(
                       controller: textController,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
                       textAlign: TextAlign.center,
                       cursorColor: const Color(0xFF8B5CF6),
                       style: const TextStyle(
@@ -809,7 +917,8 @@ class _DrawingToolbar extends StatelessWidget {
                         isDense: true,
                         filled: true,
                         fillColor: Colors.transparent,
-                        contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                        contentPadding:
+                            EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                         border: InputBorder.none,
                         enabledBorder: InputBorder.none,
                         focusedBorder: InputBorder.none,
@@ -834,7 +943,9 @@ class _DrawingToolbar extends StatelessWidget {
                         if (parsed != null) {
                           tempVal.value = parsed.clamp(1.0, 40.0);
                           textController.text = tempVal.value.toStringAsFixed(
-                            tempVal.value == tempVal.value.roundToDouble() ? 0 : 1,
+                            tempVal.value == tempVal.value.roundToDouble()
+                                ? 0
+                                : 1,
                           );
                         }
                       },
@@ -847,7 +958,8 @@ class _DrawingToolbar extends StatelessWidget {
                     onTap: () {
                       final next = (tempVal.value + 1.0).clamp(1.0, 40.0);
                       tempVal.value = next;
-                      textController.text = next.toStringAsFixed(next == next.roundToDouble() ? 0 : 1);
+                      textController.text = next.toStringAsFixed(
+                          next == next.roundToDouble() ? 0 : 1);
                     },
                   ),
                 ],
@@ -856,17 +968,18 @@ class _DrawingToolbar extends StatelessWidget {
 
               // Slider
               Obx(() => Slider(
-                value: tempVal.value.clamp(1.0, 40.0),
-                min: 1.0,
-                max: 40.0,
-                divisions: 39,
-                activeColor: const Color(0xFF8B5CF6),
-                inactiveColor: const Color(0xFF334155),
-                onChanged: (v) {
-                  tempVal.value = v;
-                  textController.text = v.toStringAsFixed(v == v.roundToDouble() ? 0 : 1);
-                },
-              )),
+                    value: tempVal.value.clamp(1.0, 40.0),
+                    min: 1.0,
+                    max: 40.0,
+                    divisions: 39,
+                    activeColor: const Color(0xFF8B5CF6),
+                    inactiveColor: const Color(0xFF334155),
+                    onChanged: (v) {
+                      tempVal.value = v;
+                      textController.text =
+                          v.toStringAsFixed(v == v.roundToDouble() ? 0 : 1);
+                    },
+                  )),
 
               // Preset Quick Chips
               const Text(
@@ -882,7 +995,8 @@ class _DrawingToolbar extends StatelessWidget {
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
-                children: [2.0, 4.0, 8.0, 12.0, 16.0, 24.0, 32.0, 40.0].map((size) {
+                children:
+                    [2.0, 4.0, 8.0, 12.0, 16.0, 24.0, 32.0, 40.0].map((size) {
                   return Obx(() {
                     final isSelected = (tempVal.value - size).abs() < 0.1;
                     return InkWell(
@@ -892,12 +1006,17 @@ class _DrawingToolbar extends StatelessWidget {
                       },
                       borderRadius: BorderRadius.circular(10),
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 6),
                         decoration: BoxDecoration(
-                          color: isSelected ? const Color(0xFF8B5CF6) : const Color(0xFF0F172A),
+                          color: isSelected
+                              ? const Color(0xFF8B5CF6)
+                              : const Color(0xFF0F172A),
                           borderRadius: BorderRadius.circular(10),
                           border: Border.all(
-                            color: isSelected ? const Color(0xFF8B5CF6) : const Color(0xFF334155),
+                            color: isSelected
+                                ? const Color(0xFF8B5CF6)
+                                : const Color(0xFF334155),
                           ),
                         ),
                         child: Text(
@@ -906,7 +1025,9 @@ class _DrawingToolbar extends StatelessWidget {
                             fontFamily: 'Nunito',
                             fontSize: 12,
                             fontWeight: FontWeight.bold,
-                            color: isSelected ? Colors.white : const Color(0xFF94A3B8),
+                            color: isSelected
+                                ? Colors.white
+                                : const Color(0xFF94A3B8),
                           ),
                         ),
                       ),
@@ -926,7 +1047,10 @@ class _DrawingToolbar extends StatelessWidget {
                         foregroundColor: const Color(0xFF94A3B8),
                         padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
-                      child: const Text('Batal', style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.bold)),
+                      child: const Text('Batal',
+                          style: TextStyle(
+                              fontFamily: 'Nunito',
+                              fontWeight: FontWeight.bold)),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -943,10 +1067,12 @@ class _DrawingToolbar extends StatelessWidget {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF8B5CF6),
                         foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14)),
                         padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
-                      child: const Text('Terapkan', style: TextStyle(fontFamily: 'FredokaOne')),
+                      child: const Text('Terapkan',
+                          style: TextStyle(fontFamily: 'FredokaOne')),
                     ),
                   ),
                 ],
@@ -987,7 +1113,8 @@ class _DrawingToolbar extends StatelessWidget {
                       color: const Color(0xFF38BDF8).withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: const Icon(Icons.opacity_rounded, color: Color(0xFF38BDF8), size: 20),
+                    child: const Icon(Icons.opacity_rounded,
+                        color: Color(0xFF38BDF8), size: 20),
                   ),
                   const SizedBox(width: 12),
                   const Expanded(
@@ -1001,7 +1128,8 @@ class _DrawingToolbar extends StatelessWidget {
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.close_rounded, color: Color(0xFF94A3B8), size: 20),
+                    icon: const Icon(Icons.close_rounded,
+                        color: Color(0xFF94A3B8), size: 20),
                     onPressed: () => Get.back(),
                   ),
                 ],
@@ -1031,7 +1159,8 @@ class _DrawingToolbar extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: const Color(0xFF0F172A),
                       borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: const Color(0xFF38BDF8), width: 1.5),
+                      border: Border.all(
+                          color: const Color(0xFF38BDF8), width: 1.5),
                     ),
                     child: TextField(
                       controller: textController,
@@ -1047,7 +1176,8 @@ class _DrawingToolbar extends StatelessWidget {
                         isDense: true,
                         filled: true,
                         fillColor: Colors.transparent,
-                        contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                        contentPadding:
+                            EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                         border: InputBorder.none,
                         enabledBorder: InputBorder.none,
                         focusedBorder: InputBorder.none,
@@ -1071,7 +1201,8 @@ class _DrawingToolbar extends StatelessWidget {
                         final parsed = int.tryParse(val);
                         if (parsed != null) {
                           tempVal.value = parsed.clamp(1, 100) / 100.0;
-                          textController.text = (tempVal.value * 100).round().toString();
+                          textController.text =
+                              (tempVal.value * 100).round().toString();
                         }
                       },
                     ),
@@ -1093,17 +1224,17 @@ class _DrawingToolbar extends StatelessWidget {
 
               // Slider
               Obx(() => Slider(
-                value: tempVal.value.clamp(0.01, 1.0),
-                min: 0.01,
-                max: 1.0,
-                divisions: 99,
-                activeColor: const Color(0xFF38BDF8),
-                inactiveColor: const Color(0xFF334155),
-                onChanged: (v) {
-                  tempVal.value = v;
-                  textController.text = (v * 100).round().toString();
-                },
-              )),
+                    value: tempVal.value.clamp(0.01, 1.0),
+                    min: 0.01,
+                    max: 1.0,
+                    divisions: 99,
+                    activeColor: const Color(0xFF38BDF8),
+                    inactiveColor: const Color(0xFF334155),
+                    onChanged: (v) {
+                      tempVal.value = v;
+                      textController.text = (v * 100).round().toString();
+                    },
+                  )),
 
               // Preset Quick Chips
               const Text(
@@ -1121,7 +1252,8 @@ class _DrawingToolbar extends StatelessWidget {
                 runSpacing: 8,
                 children: [10, 25, 50, 75, 90, 100].map((pct) {
                   return Obx(() {
-                    final isSelected = ((tempVal.value * 100).round() - pct).abs() <= 2;
+                    final isSelected =
+                        ((tempVal.value * 100).round() - pct).abs() <= 2;
                     return InkWell(
                       onTap: () {
                         tempVal.value = pct / 100.0;
@@ -1129,12 +1261,17 @@ class _DrawingToolbar extends StatelessWidget {
                       },
                       borderRadius: BorderRadius.circular(10),
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 6),
                         decoration: BoxDecoration(
-                          color: isSelected ? const Color(0xFF38BDF8) : const Color(0xFF0F172A),
+                          color: isSelected
+                              ? const Color(0xFF38BDF8)
+                              : const Color(0xFF0F172A),
                           borderRadius: BorderRadius.circular(10),
                           border: Border.all(
-                            color: isSelected ? const Color(0xFF38BDF8) : const Color(0xFF334155),
+                            color: isSelected
+                                ? const Color(0xFF38BDF8)
+                                : const Color(0xFF334155),
                           ),
                         ),
                         child: Text(
@@ -1143,7 +1280,9 @@ class _DrawingToolbar extends StatelessWidget {
                             fontFamily: 'Nunito',
                             fontSize: 12,
                             fontWeight: FontWeight.bold,
-                            color: isSelected ? Colors.black : const Color(0xFF94A3B8),
+                            color: isSelected
+                                ? Colors.black
+                                : const Color(0xFF94A3B8),
                           ),
                         ),
                       ),
@@ -1163,7 +1302,10 @@ class _DrawingToolbar extends StatelessWidget {
                         foregroundColor: const Color(0xFF94A3B8),
                         padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
-                      child: const Text('Batal', style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.bold)),
+                      child: const Text('Batal',
+                          style: TextStyle(
+                              fontFamily: 'Nunito',
+                              fontWeight: FontWeight.bold)),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -1180,10 +1322,12 @@ class _DrawingToolbar extends StatelessWidget {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF38BDF8),
                         foregroundColor: const Color(0xFF0F172A),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14)),
                         padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
-                      child: const Text('Terapkan', style: TextStyle(fontFamily: 'FredokaOne')),
+                      child: const Text('Terapkan',
+                          style: TextStyle(fontFamily: 'FredokaOne')),
                     ),
                   ),
                 ],
@@ -1222,7 +1366,8 @@ class _DrawingToolbar extends StatelessWidget {
     Get.dialog(
       AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: const Text('Pilih Warna Kustom', style: TextStyle(fontFamily: 'FredokaOne')),
+        title: const Text('Pilih Warna Kustom',
+            style: TextStyle(fontFamily: 'FredokaOne')),
         content: SingleChildScrollView(
           child: ColorPicker(
             pickerColor: pickerColor,
@@ -1236,16 +1381,19 @@ class _DrawingToolbar extends StatelessWidget {
         ),
         actions: [
           TextButton(
-            child: const Text('Batal', style: TextStyle(fontFamily: 'Nunito', color: Colors.grey)),
+            child: const Text('Batal',
+                style: TextStyle(fontFamily: 'Nunito', color: Colors.grey)),
             onPressed: () => Get.back(),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF8B5CF6),
               foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
             ),
-            child: const Text('Pilih', style: TextStyle(fontFamily: 'FredokaOne')),
+            child:
+                const Text('Pilih', style: TextStyle(fontFamily: 'FredokaOne')),
             onPressed: () {
               controller.setColor(pickerColor);
               Get.back();
@@ -1306,7 +1454,12 @@ class _DrawingToolbar extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 6),
-            Text(label, style: const TextStyle(fontFamily: 'Nunito', fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white)),
+            Text(label,
+                style: const TextStyle(
+                    fontFamily: 'Nunito',
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white)),
           ],
         ),
       ),
@@ -1335,14 +1488,15 @@ class _HorizontalWavyPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final double strokeAlpha = (color.a * opacity * pencilType.opacityFactor).clamp(0.0, 1.0);
+    final double strokeAlpha =
+        (color.a * opacity * pencilType.opacityFactor).clamp(0.0, 1.0);
     final Paint paint = Paint()
       ..color = color.withValues(alpha: strokeAlpha)
       ..style = PaintingStyle.fill;
 
     final double w = size.width;
     final double h = size.height;
-    
+
     // Generate mathematical sine wave points
     final List<pf.PointVector> points = [];
     const int steps = 40; // Number of points in the preview
@@ -1356,10 +1510,12 @@ class _HorizontalWavyPainter extends CustomPainter {
 
     final options = pf.StrokeOptions(
       size: thickness * pencilType.thicknessMultiplier,
-      thinning: 0.7, 
+      thinning: 0.7,
       smoothing: 0.5,
       streamline: 0.5,
-      start: pf.StrokeEndOptions.start(customTaper: 10.0), // Force tapering on previews to look extra beautiful!
+      start: pf.StrokeEndOptions.start(
+          customTaper:
+              10.0), // Force tapering on previews to look extra beautiful!
       end: pf.StrokeEndOptions.end(customTaper: 10.0),
       simulatePressure: true,
     );
@@ -1389,8 +1545,8 @@ class _HorizontalWavyPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _HorizontalWavyPainter oldDelegate) {
     return oldDelegate.color != color ||
-           oldDelegate.thickness != thickness ||
-           oldDelegate.opacity != opacity ||
-           oldDelegate.pencilType != pencilType;
+        oldDelegate.thickness != thickness ||
+        oldDelegate.opacity != opacity ||
+        oldDelegate.pencilType != pencilType;
   }
 }

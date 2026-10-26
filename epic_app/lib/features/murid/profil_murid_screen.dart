@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:epic_app/core/utils/responsive_layout.dart';
 import 'package:get/get.dart';
 import 'package:epic_app/core/constants/app_colors.dart';
 import 'package:epic_app/core/constants/app_fonts.dart';
@@ -165,7 +166,7 @@ class ProfilMuridScreen extends StatelessWidget {
 
                     // --- STATS GRID (2x2) ---
                     GridView.count(
-                      crossAxisCount: 2,
+                      crossAxisCount: ResponsiveLayout.gridColumns(context),
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
                       childAspectRatio: 2.0,
@@ -218,8 +219,8 @@ class ProfilMuridScreen extends StatelessWidget {
                         : GridView.builder(
                             shrinkWrap: true,
                             physics: const NeverScrollableScrollPhysics(),
-                            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 2,
+                            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: ResponsiveLayout.gridColumns(context),
                               crossAxisSpacing: 12,
                               mainAxisSpacing: 12,
                               childAspectRatio: 0.85,

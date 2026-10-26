@@ -9,15 +9,29 @@ class _DrawingCanvas extends StatelessWidget {
         builder: (context, constraints) {
           final maxWidth = constraints.maxWidth;
           final maxHeight = constraints.maxHeight;
-          if (maxWidth <= 32 || maxHeight <= 220) {
+          final landscape =
+              MediaQuery.orientationOf(context) == Orientation.landscape;
+          final reservedHeight = landscape ? 32.0 : 220.0;
+          if (maxWidth <= 32 || maxHeight <= reservedHeight) {
             return const SizedBox.shrink();
           }
-          double paperWidth = maxWidth - 32;
-          double paperHeight = paperWidth * 1.414;
-          if (paperHeight > maxHeight - 220) {
-            paperHeight = maxHeight - 220;
-            paperWidth = paperHeight / 1.414;
+          double fitWidth = maxWidth - 32;
+          double fitHeight = fitWidth * 1.414;
+          if (fitHeight > maxHeight - reservedHeight) {
+            fitHeight = maxHeight - reservedHeight;
+            fitWidth = fitHeight / 1.414;
           }
+          // Keep stroke/template coordinates stable when the viewport rotates.
+          final paperWidth = controller.paperWidth > 0
+              ? controller.paperWidth
+              : landscape
+                  ? MediaQuery.sizeOf(context).shortestSide - 32
+                  : fitWidth;
+          final paperHeight = controller.paperHeight > 0
+              ? controller.paperHeight
+              : landscape
+                  ? paperWidth * 1.414
+                  : fitHeight;
           final pixelRatio = MediaQuery.devicePixelRatioOf(context);
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (!controller.isClosed) {
@@ -27,6 +41,8 @@ class _DrawingCanvas extends StatelessWidget {
                 paperWidth,
                 paperHeight,
                 pixelRatio: pixelRatio,
+                fitWidth: fitWidth,
+                fitHeight: fitHeight,
               );
             }
           });
@@ -48,7 +64,14 @@ class _DrawingCanvas extends StatelessWidget {
                   child: Obx(
                 () => Transform(
                   transform: controller.canvasMatrix.value,
-                  child: Align(alignment: Alignment.topLeft, child: paper),
+                  child: OverflowBox(
+                    alignment: Alignment.topLeft,
+                    minWidth: paperWidth,
+                    maxWidth: paperWidth,
+                    minHeight: paperHeight,
+                    maxHeight: paperHeight,
+                    child: paper,
+                  ),
                 ),
               )),
             ),

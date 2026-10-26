@@ -89,17 +89,17 @@ class OnboardingScreen extends StatelessWidget {
                       onPageChanged: controller.onPageChanged,
                       physics: const BouncingScrollPhysics(),
                       children: [
-                        _buildPage(
+                        _buildPage(context,
                           image: AppAssets.onboard1,
                           title: AppStrings.onboard1Title,
                           subtitle: AppStrings.onboard1Sub,
                         ),
-                        _buildPage(
+                        _buildPage(context,
                           image: AppAssets.onboard2,
                           title: AppStrings.onboard2Title,
                           subtitle: AppStrings.onboard2Sub,
                         ),
-                        _buildPage(
+                        _buildPage(context,
                           image: AppAssets.onboard3,
                           title: AppStrings.onboard3Title,
                           subtitle: AppStrings.onboard3Sub,
@@ -188,11 +188,35 @@ class OnboardingScreen extends StatelessWidget {
   }
 
   /// Membangun isi dari satu slide Onboarding
-  Widget _buildPage({
+  Widget _buildPage(BuildContext context, {
     String? image,
     required String title,
     required String subtitle,
   }) {
+    if (MediaQuery.orientationOf(context) == Orientation.landscape) {
+      return Row(
+        children: [
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Image.asset(image ?? AppAssets.onboard1, fit: BoxFit.contain),
+            ),
+          ),
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  Text(title, style: AppFonts.heading2(color: Colors.white), textAlign: TextAlign.center),
+                  const SizedBox(height: 12),
+                  Text(subtitle, style: AppFonts.bodyText(color: Colors.white), textAlign: TextAlign.center),
+                ],
+              ),
+            ),
+          ),
+        ],
+      );
+    }
     return Padding(
       padding: const EdgeInsets.all(AppSizes.paddingXL),
       child: Column(
